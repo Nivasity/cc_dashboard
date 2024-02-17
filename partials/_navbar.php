@@ -44,7 +44,7 @@
             <div class="dropdown-divider"></div>
           </li>
           <li>
-            <a class="dropdown-item" href="profile.html">
+            <a class="dropdown-item" href="profile.php">
               <i class="bx bx-user me-2"></i>
               <span class="align-middle">My Profile</span>
             </a>
@@ -53,7 +53,7 @@
             <div class="dropdown-divider"></div>
           </li>
           <li>
-            <a class="dropdown-item" href="auth-login-basic.html">
+            <a class="dropdown-item" href="signin.html">
               <i class="bx bx-power-off me-2"></i>
               <span class="align-middle">Log Out</span>
             </a>
