@@ -45,8 +45,8 @@
   --bs-body-font-size: 0.9375rem;
   --bs-body-font-weight: 400;
   --bs-body-line-height: 1.53;
-  --bs-body-color: #697a8d;
-  --bs-body-bg: #f5f5f9;
+  --bs-body-color: #444444;
+  --bs-body-bg: #fff7f2;
 }
 
 *,
@@ -10110,7 +10110,7 @@ button.list-group-item-gray.active {
 
 .bg-body {
   --bs-bg-opacity: 1;
-  background-color: #f5f5f9 !important;
+  background-color: #fff7f2 !important;
 }
 
 .bg-transparent {
