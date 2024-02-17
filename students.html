@@ -235,21 +235,6 @@
                     </a>
                   </li>
                   <li>
-                    <a class="dropdown-item" href="#">
-                      <i class="bx bx-cog me-2"></i>
-                      <span class="align-middle">Settings</span>
-                    </a>
-                  </li>
-                  <li>
-                    <a class="dropdown-item" href="#">
-                      <span class="d-flex align-items-center align-middle">
-                        <i class="flex-shrink-0 bx bx-credit-card me-2"></i>
-                        <span class="flex-grow-1 align-middle">Billing</span>
-                        <span class="flex-shrink-0 badge badge-center rounded-pill bg-danger w-px-20 h-px-20">4</span>
-                      </span>
-                    </a>
-                  </li>
-                  <li>
                     <div class="dropdown-divider"></div>
                   </li>
                   <li>
@@ -285,12 +270,12 @@
                   <li class="nav-item">
                     <button type="button" class="nav-link" role="tab" data-bs-toggle="tab"
                       data-bs-target="#navs-top-verify" aria-controls="navs-top-verify" aria-selected="false"><i
-                        class="bx bx-user me-1"></i> Verify Student</button>
+                        class="bx bx-user-check me-1"></i> Verify Student</button>
                   </li>
                   <li class="nav-item">
                     <button type="button" class="nav-link" role="tab" data-bs-toggle="tab"
                       data-bs-target="#navs-top-email" aria-controls="navs-top-email" aria-selected="false"><i
-                        class="bx bx-user me-1"></i> Email Students</button>
+                        class="bx bx-envelope me-1"></i> Email Students</button>
                   </li>
                 </ul>
                 <div class="tab-content p-0 p-sm-3">
@@ -307,7 +292,7 @@
                                 aria-describedby="basic-icon-default-fullname2" />
                             </div>
                           </div>
-                          <div class="col-sm-2">
+                          <div class="col-sm-3">
                             <button type="submit" class="btn btn-secondary w-100">Search</button>
                           </div>
                         </div>
@@ -332,103 +317,30 @@
                               placeholder="john.doe@example.com" />
                           </div>
                           <div class="mb-3 col-md-6">
-                            <label for="organization" class="form-label">Organization</label>
-                            <input type="text" class="form-control" id="organization" name="organization"
-                              value="ThemeSelection" />
-                          </div>
-                          <div class="mb-3 col-md-6">
                             <label class="form-label" for="phoneNumber">Phone Number</label>
-                            <div class="input-group input-group-merge">
-                              <span class="input-group-text">US (+1)</span>
+                            <div class="input-group">
                               <input type="text" id="phoneNumber" name="phoneNumber" class="form-control"
-                                placeholder="202 555 0111" />
+                                placeholder="+202 555 0111" />
                             </div>
                           </div>
                           <div class="mb-3 col-md-6">
-                            <label for="address" class="form-label">Address</label>
-                            <input type="text" class="form-control" id="address" name="address" placeholder="Address" />
+                            <label for="school" class="form-label">School Name</label>
+                            <input type="text" class="form-control" id="school" name="school"
+                              value="ThemeSelection" />
                           </div>
                           <div class="mb-3 col-md-6">
-                            <label for="state" class="form-label">State</label>
-                            <input class="form-control" type="text" id="state" name="state" placeholder="California" />
+                            <label for="dept" class="form-label">Department</label>
+                            <input type="text" class="form-control" id="dept" name="dept" placeholder="Computer Science" />
                           </div>
                           <div class="mb-3 col-md-6">
-                            <label for="zipCode" class="form-label">Zip Code</label>
-                            <input type="text" class="form-control" id="zipCode" name="zipCode" placeholder="231465"
-                              maxlength="6" />
+                            <label for="matric_no" class="form-label">Matric Number</label>
+                            <input class="form-control" type="text" id="matric_no" name="matric_no" placeholder="190303003" />
                           </div>
                           <div class="mb-3 col-md-6">
-                            <label class="form-label" for="country">Country</label>
-                            <select id="country" class="select2 form-select">
-                              <option value="">Select</option>
-                              <option value="Australia">Australia</option>
-                              <option value="Bangladesh">Bangladesh</option>
-                              <option value="Belarus">Belarus</option>
-                              <option value="Brazil">Brazil</option>
-                              <option value="Canada">Canada</option>
-                              <option value="China">China</option>
-                              <option value="France">France</option>
-                              <option value="Germany">Germany</option>
-                              <option value="India">India</option>
-                              <option value="Indonesia">Indonesia</option>
-                              <option value="Israel">Israel</option>
-                              <option value="Italy">Italy</option>
-                              <option value="Japan">Japan</option>
-                              <option value="Korea">Korea, Republic of</option>
-                              <option value="Mexico">Mexico</option>
-                              <option value="Philippines">Philippines</option>
-                              <option value="Russia">Russian Federation</option>
-                              <option value="South Africa">South Africa</option>
-                              <option value="Thailand">Thailand</option>
-                              <option value="Turkey">Turkey</option>
-                              <option value="Ukraine">Ukraine</option>
-                              <option value="United Arab Emirates">United Arab Emirates</option>
-                              <option value="United Kingdom">United Kingdom</option>
-                              <option value="United States">United States</option>
-                            </select>
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label for="language" class="form-label">Language</label>
-                            <select id="language" class="select2 form-select">
-                              <option value="">Select Language</option>
-                              <option value="en">English</option>
-                              <option value="fr">French</option>
-                              <option value="de">German</option>
-                              <option value="pt">Portuguese</option>
-                            </select>
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label for="timeZones" class="form-label">Timezone</label>
-                            <select id="timeZones" class="select2 form-select">
-                              <option value="">Select Timezone</option>
-                              <option value="-12">(GMT-12:00) International Date Line West</option>
-                              <option value="-11">(GMT-11:00) Midway Island, Samoa</option>
-                              <option value="-10">(GMT-10:00) Hawaii</option>
-                              <option value="-9">(GMT-09:00) Alaska</option>
-                              <option value="-8">(GMT-08:00) Pacific Time (US & Canada)</option>
-                              <option value="-8">(GMT-08:00) Tijuana, Baja California</option>
-                              <option value="-7">(GMT-07:00) Arizona</option>
-                              <option value="-7">(GMT-07:00) Chihuahua, La Paz, Mazatlan</option>
-                              <option value="-7">(GMT-07:00) Mountain Time (US & Canada)</option>
-                              <option value="-6">(GMT-06:00) Central America</option>
-                              <option value="-6">(GMT-06:00) Central Time (US & Canada)</option>
-                              <option value="-6">(GMT-06:00) Guadalajara, Mexico City, Monterrey</option>
-                              <option value="-6">(GMT-06:00) Saskatchewan</option>
-                              <option value="-5">(GMT-05:00) Bogota, Lima, Quito, Rio Branco</option>
-                              <option value="-5">(GMT-05:00) Eastern Time (US & Canada)</option>
-                              <option value="-5">(GMT-05:00) Indiana (East)</option>
-                              <option value="-4">(GMT-04:00) Atlantic Time (Canada)</option>
-                              <option value="-4">(GMT-04:00) Caracas, La Paz</option>
-                            </select>
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label for="currency" class="form-label">Currency</label>
-                            <select id="currency" class="select2 form-select">
-                              <option value="">Select Currency</option>
-                              <option value="usd">USD</option>
-                              <option value="euro">Euro</option>
-                              <option value="pound">Pound</option>
-                              <option value="bitcoin">Bitcoin</option>
+                            <label class="form-label" for="role">Role</label>
+                            <select id="role" class="select2 form-select">
+                              <option value="student">Student</option>
+                              <option value="hoc">HOC</option>
                             </select>
                           </div>
                         </div>
@@ -453,7 +365,7 @@
                                 aria-describedby="basic-icon-default-fullname2" />
                             </div>
                           </div>
-                          <div class="col-sm-2">
+                          <div class="col-sm-3">
                             <button type="submit" class="btn btn-secondary w-100">Search</button>
                           </div>
                         </div>
@@ -461,145 +373,76 @@
                     </div>
                     <hr class="my-0" />
                     <div class="card-body">
-                      <form id="formAccountSettings" method="POST" onsubmit="return false">
-                        <div class="row">
-                          <div class="mb-3 col-md-6">
-                            <label for="firstName" class="form-label">First Name</label>
-                            <input class="form-control" type="text" id="firstName" name="firstName" value="John"
-                              autofocus />
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label for="lastName" class="form-label">Last Name</label>
-                            <input class="form-control" type="text" name="lastName" id="lastName" value="Doe" />
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label for="email" class="form-label">E-mail</label>
-                            <input class="form-control" type="text" id="email" name="email" value="john.doe@example.com"
-                              placeholder="john.doe@example.com" />
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label for="organization" class="form-label">Organization</label>
-                            <input type="text" class="form-control" id="organization" name="organization"
-                              value="ThemeSelection" />
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label class="form-label" for="phoneNumber">Phone Number</label>
-                            <div class="input-group input-group-merge">
-                              <span class="input-group-text">US (+1)</span>
-                              <input type="text" id="phoneNumber" name="phoneNumber" class="form-control"
-                                placeholder="202 555 0111" />
-                            </div>
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label for="address" class="form-label">Address</label>
-                            <input type="text" class="form-control" id="address" name="address" placeholder="Address" />
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label for="state" class="form-label">State</label>
-                            <input class="form-control" type="text" id="state" name="state" placeholder="California" />
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label for="zipCode" class="form-label">Zip Code</label>
-                            <input type="text" class="form-control" id="zipCode" name="zipCode" placeholder="231465"
-                              maxlength="6" />
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label class="form-label" for="country">Country</label>
-                            <select id="country" class="select2 form-select">
-                              <option value="">Select</option>
-                              <option value="Australia">Australia</option>
-                              <option value="Bangladesh">Bangladesh</option>
-                              <option value="Belarus">Belarus</option>
-                              <option value="Brazil">Brazil</option>
-                              <option value="Canada">Canada</option>
-                              <option value="China">China</option>
-                              <option value="France">France</option>
-                              <option value="Germany">Germany</option>
-                              <option value="India">India</option>
-                              <option value="Indonesia">Indonesia</option>
-                              <option value="Israel">Israel</option>
-                              <option value="Italy">Italy</option>
-                              <option value="Japan">Japan</option>
-                              <option value="Korea">Korea, Republic of</option>
-                              <option value="Mexico">Mexico</option>
-                              <option value="Philippines">Philippines</option>
-                              <option value="Russia">Russian Federation</option>
-                              <option value="South Africa">South Africa</option>
-                              <option value="Thailand">Thailand</option>
-                              <option value="Turkey">Turkey</option>
-                              <option value="Ukraine">Ukraine</option>
-                              <option value="United Arab Emirates">United Arab Emirates</option>
-                              <option value="United Kingdom">United Kingdom</option>
-                              <option value="United States">United States</option>
-                            </select>
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label for="language" class="form-label">Language</label>
-                            <select id="language" class="select2 form-select">
-                              <option value="">Select Language</option>
-                              <option value="en">English</option>
-                              <option value="fr">French</option>
-                              <option value="de">German</option>
-                              <option value="pt">Portuguese</option>
-                            </select>
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label for="timeZones" class="form-label">Timezone</label>
-                            <select id="timeZones" class="select2 form-select">
-                              <option value="">Select Timezone</option>
-                              <option value="-12">(GMT-12:00) International Date Line West</option>
-                              <option value="-11">(GMT-11:00) Midway Island, Samoa</option>
-                              <option value="-10">(GMT-10:00) Hawaii</option>
-                              <option value="-9">(GMT-09:00) Alaska</option>
-                              <option value="-8">(GMT-08:00) Pacific Time (US & Canada)</option>
-                              <option value="-8">(GMT-08:00) Tijuana, Baja California</option>
-                              <option value="-7">(GMT-07:00) Arizona</option>
-                              <option value="-7">(GMT-07:00) Chihuahua, La Paz, Mazatlan</option>
-                              <option value="-7">(GMT-07:00) Mountain Time (US & Canada)</option>
-                              <option value="-6">(GMT-06:00) Central America</option>
-                              <option value="-6">(GMT-06:00) Central Time (US & Canada)</option>
-                              <option value="-6">(GMT-06:00) Guadalajara, Mexico City, Monterrey</option>
-                              <option value="-6">(GMT-06:00) Saskatchewan</option>
-                              <option value="-5">(GMT-05:00) Bogota, Lima, Quito, Rio Branco</option>
-                              <option value="-5">(GMT-05:00) Eastern Time (US & Canada)</option>
-                              <option value="-5">(GMT-05:00) Indiana (East)</option>
-                              <option value="-4">(GMT-04:00) Atlantic Time (Canada)</option>
-                              <option value="-4">(GMT-04:00) Caracas, La Paz</option>
-                            </select>
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label for="currency" class="form-label">Currency</label>
-                            <select id="currency" class="select2 form-select">
-                              <option value="">Select Currency</option>
-                              <option value="usd">USD</option>
-                              <option value="euro">Euro</option>
-                              <option value="pound">Pound</option>
-                              <option value="bitcoin">Bitcoin</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div class="mt-2">
+                      <dl class="row mt-2">
+                        <dt class="col-sm-3">Full Name</dt>
+                        <dd class="col-sm-9 text-uppercase">
+                          Samuel Akinyemi
+                        </dd>
+                        <dt class="col-sm-3">Phone Number</dt>
+                        <dd class="col-sm-9">
+                          +2347048706198
+                        </dd>
+                        <dt class="col-sm-3">Email</dt>
+                        <dd class="col-sm-9">
+                          <p>akinyemisamuel170@gmail.com</p>
+                        </dd>
+
+                        <dt class="col-sm-3">School Name</dt>
+                        <dd class="col-sm-9 text-uppercase">
+                          University of lagos
+                        </dd>
+                        <dt class="col-sm-3">Department</dt>
+                        <dd class="col-sm-9">
+                          Computer Science
+                        </dd>
+                        <dt class="col-sm-3">Matric Number</dt>
+                        <dd class="col-sm-9">
+                          <p>1903030300</p>
+                        </dd>
+
+                        <dt class="col-sm-3">Account Name</dt>
+                        <dd class="col-sm-9 text-uppercase">
+                          SAMUEL AYOMIDE AKINYEMI
+                        </dd>
+                        <dt class="col-sm-3">Account number</dt>
+                        <dd class="col-sm-9">
+                          1454746632
+                        </dd>
+                        <dt class="col-sm-3">Bank Name</dt>
+                        <dd class="col-sm-9">
+                          <p>Access Bank</p>
+                        </dd>
+
+                        <dt class="col-sm-3 text-primary">Student Status</dt>
+                        <dd class="col-sm-3">
+                          <select id="defaultSelect" class="form-select">
+                            <option value="verified">Verified</option>
+                            <option value="inreview">Inreview</option>
+                            <option value="deactivate">Deactivated</option>
+                          </select>
+                        </dd>
+
+                        <!-- Status -->
+                        <dt class="col-sm-8 text-primary mt-3">
                           <button type="submit" class="btn btn-primary me-2">Save changes</button>
-                          <button type="reset" class="btn btn-outline-secondary">Cancel</button>
-                        </div>
-                      </form>
+                        </dt>
+
+                      </dl>
                     </div>
                   </div>
 
                   <div class="card mb-4 tab-pane fade" id="navs-top-email" role="tabpanel">
                     <div class="card-header">
-                      <h5>Email Students</h5>
+                      <h5>Email Student(s)</h5>
                       <form>
                         <div class="row mb-3">
-                          <div class="col-sm-8 mb-3 mb-sm-0">
+                          <div class="col-sm-5 mb-3 mb-sm-0">
                             <div class="input-group">
-                              <input type="text" class="form-control" id="basic-icon-default-fullname"
-                                placeholder="Student Email / Phone / Matric no." aria-label="John Doe"
-                                aria-describedby="basic-icon-default-fullname2" />
+                              <select id="defaultSelect" class="form-select">
+                                <option value="1">Selected Student</option>
+                                <option value="2">All Students</option>
+                              </select>
                             </div>
-                          </div>
-                          <div class="col-sm-2">
-                            <button type="submit" class="btn btn-secondary w-100">Search</button>
                           </div>
                         </div>
                       </form>
@@ -608,54 +451,32 @@
                     <div class="card-body">
                       <form>
                         <div class="row mb-3">
-                          <label class="col-sm-2 col-form-label" for="basic-icon-default-fullname">Name</label>
+                          <label class="col-sm-2 col-form-label" for="basic-icon-default-email">Student Email</label>
                           <div class="col-sm-10">
                             <div class="input-group input-group-merge">
-                              <span id="basic-icon-default-fullname2" class="input-group-text"><i class="bx bx-user"></i></span>
-                              <input type="text" class="form-control" id="basic-icon-default-fullname" placeholder="John Doe"
-                                aria-label="John Doe" aria-describedby="basic-icon-default-fullname2">
+                              <span id="subject" class="input-group-text"><i class="bx bx-user"></i></span>
+                              <input type="text" id="basic-icon-default-email" class="form-control"
+                                placeholder="student@example.com" aria-label="john.doe"
+                                aria-describedby="basic-icon-default-email2">
                             </div>
                           </div>
                         </div>
                         <div class="row mb-3">
-                          <label class="col-sm-2 col-form-label" for="basic-icon-default-company">Company</label>
-                          <div class="col-sm-10">
-                            <div class="input-group input-group-merge">
-                              <span id="basic-icon-default-company2" class="input-group-text"><i class="bx bx-buildings"></i></span>
-                              <input type="text" id="basic-icon-default-company" class="form-control" placeholder="ACME Inc."
-                                aria-label="ACME Inc." aria-describedby="basic-icon-default-company2">
-                            </div>
-                          </div>
-                        </div>
-                        <div class="row mb-3">
-                          <label class="col-sm-2 col-form-label" for="basic-icon-default-email">Email</label>
+                          <label class="col-sm-2 col-form-label" for="subject">Subject</label>
                           <div class="col-sm-10">
                             <div class="input-group input-group-merge">
                               <span class="input-group-text"><i class="bx bx-envelope"></i></span>
-                              <input type="text" id="basic-icon-default-email" class="form-control" placeholder="john.doe"
-                                aria-label="john.doe" aria-describedby="basic-icon-default-email2">
-                              <span id="basic-icon-default-email2" class="input-group-text">@example.com</span>
-                            </div>
-                            <div class="form-text">You can use letters, numbers &amp; periods</div>
-                          </div>
-                        </div>
-                        <div class="row mb-3">
-                          <label class="col-sm-2 form-label" for="basic-icon-default-phone">Phone No</label>
-                          <div class="col-sm-10">
-                            <div class="input-group input-group-merge">
-                              <span id="basic-icon-default-phone2" class="input-group-text"><i class="bx bx-phone"></i></span>
-                              <input type="text" id="basic-icon-default-phone" class="form-control phone-mask" placeholder="658 799 8941"
-                                aria-label="658 799 8941" aria-describedby="basic-icon-default-phone2">
+                              <input type="text" class="form-control" id="subject" placeholder="John Doe"
+                                aria-label="John Doe" aria-describedby="subject">
                             </div>
                           </div>
                         </div>
                         <div class="row mb-3">
                           <label class="col-sm-2 form-label" for="basic-icon-default-message">Message</label>
                           <div class="col-sm-10">
-                            <div class="input-group input-group-merge">
-                              <span id="basic-icon-default-message2" class="input-group-text"><i class="bx bx-comment"></i></span>
-                              <textarea id="basic-icon-default-message" class="form-control"
-                                placeholder="Hi, Do you have a moment to talk Joe?" aria-label="Hi, Do you have a moment to talk Joe?"
+                            <div class="input-group">
+                              <textarea id="basic-icon-default-message" class="form-control" rows="7"
+                                placeholder="Message" aria-label="Message"
                                 aria-describedby="basic-icon-default-message2"></textarea>
                             </div>
                           </div>
@@ -668,6 +489,7 @@
                       </form>
                     </div>
                   </div>
+                  
                 </div>
               </div>
             </div>

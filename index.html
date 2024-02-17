@@ -73,30 +73,36 @@
             </a>
           </li>
           <!-- My Profile -->
-          <li class="menu-item active">
+          <li class="menu-item">
             <a href="profile.html" class="menu-link">
-              <i class="menu-icon tf-icons bx bx-home-circle"></i>
+              <i class="menu-icon tf-icons bx bx-user-circle"></i>
               <div data-i18n="Analytics">My Profile</div>
             </a>
           </li>
 
           <!-- Components -->
-          <li class="menu-header small text-uppercase"><span class="menu-header-text">User Mgt.</span></li>
+          <li class="menu-header small text-uppercase"><span class="menu-header-text">Admin Management</span></li>
           <li class="menu-item">
-            <a href="tables-basic.html" class="menu-link">
-              <i class="menu-icon tf-icons bx bx-table"></i>
-              <div data-i18n="Tables">User Profiles</div>
+            <a href="javascript:void(0);" class="menu-link menu-toggle">
+              <i class="menu-icon tf-icons bx bx-group"></i>
+              <div data-i18n="Authentications">Users</div>
             </a>
+            <ul class="menu-sub">
+              <li class="menu-item">
+                <a href="auth-login-basic.html" class="menu-link">
+                  <div data-i18n="Basic">Profiles</div>
+                </a>
+              </li>
+              <li class="menu-item">
+                <a href="auth-login-basic.html" class="menu-link">
+                  <div data-i18n="Basic">Roles</div>
+                </a>
+              </li>
+            </ul>
           </li>
           <li class="menu-item">
             <a href="tables-basic.html" class="menu-link">
-              <i class="menu-icon tf-icons bx bx-table"></i>
-              <div data-i18n="Tables">Roles</div>
-            </a>
-          </li>
-          <li class="menu-item">
-            <a href="tables-basic.html" class="menu-link">
-              <i class="menu-icon tf-icons bx bx-table"></i>
+              <i class="menu-icon tf-icons bx bx-key"></i>
               <div data-i18n="Tables">Sign Up Keys</div>
             </a>
           </li>
@@ -105,7 +111,7 @@
           <li class="menu-header small text-uppercase"><span class="menu-header-text">Customer Management</span></li>
           <li class="menu-item">
             <a href="javascript:void(0);" class="menu-link menu-toggle">
-              <i class="menu-icon tf-icons bx bx-lock-open-alt"></i>
+              <i class="menu-icon tf-icons bx bx-building-house"></i>
               <div data-i18n="Authentications">Schools</div>
             </a>
             <ul class="menu-sub">
@@ -123,7 +129,7 @@
           </li>
           <li class="menu-item">
             <a href="javascript:void(0);" class="menu-link menu-toggle">
-              <i class="menu-icon tf-icons bx bx-lock-open-alt"></i>
+              <i class="menu-icon tf-icons bx bx-user-pin"></i>
               <div data-i18n="Authentications">Students</div>
             </a>
             <ul class="menu-sub">
@@ -145,14 +151,8 @@
             </ul>
           </li>
           <li class="menu-item">
-            <a href="tables-basic.html" class="menu-link">
-              <i class="menu-icon tf-icons bx bx-table"></i>
-              <div data-i18n="Tables">Transactions</div>
-            </a>
-          </li>
-          <li class="menu-item">
             <a href="javascript:void(0);" class="menu-link menu-toggle">
-              <i class="menu-icon tf-icons bx bx-cube-alt"></i>
+              <i class="menu-icon tf-icons bx bx-support"></i>
               <div data-i18n="Misc">Support Tickets</div>
             </a>
             <ul class="menu-sub">
@@ -169,11 +169,20 @@
             </ul>
           </li>
 
+          <!-- Components -->
+          <li class="menu-header small text-uppercase"><span class="menu-header-text">Financial report</span></li>
+          <li class="menu-item">
+            <a href="tables-basic.html" class="menu-link">
+              <i class="menu-icon tf-icons bx bx-transfer"></i>
+              <div data-i18n="Tables">Transactions</div>
+            </a>
+          </li>
+
           <!-- Misc -->
           <li class="menu-header small text-uppercase"></li>
           <li class="menu-item">
             <a href="https://github.com/themeselection/sneat-html-admin-template-free/issues" class="menu-link">
-              <i class="menu-icon tf-icons bx bx-support"></i>
+              <i class="menu-icon tf-icons bx bx-log-out"></i>
               <div data-i18n="Support">Sign Out</div>
             </a>
           </li>
@@ -206,13 +215,6 @@
             <!-- /Search -->
 
             <ul class="navbar-nav flex-row align-items-center ms-auto">
-              <!-- Place this tag where you want the button to render. -->
-              <li class="nav-item lh-1 me-3">
-                <a class="github-button" href="https://github.com/themeselection/sneat-html-admin-template-free"
-                  data-icon="octicon-star" data-size="large" data-show-count="true"
-                  aria-label="Star themeselection/sneat-html-admin-template-free on GitHub">Star</a>
-              </li>
-
               <!-- User -->
               <li class="nav-item navbar-dropdown dropdown-user dropdown">
                 <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
@@ -246,21 +248,6 @@
                     </a>
                   </li>
                   <li>
-                    <a class="dropdown-item" href="#">
-                      <i class="bx bx-cog me-2"></i>
-                      <span class="align-middle">Settings</span>
-                    </a>
-                  </li>
-                  <li>
-                    <a class="dropdown-item" href="#">
-                      <span class="d-flex align-items-center align-middle">
-                        <i class="flex-shrink-0 bx bx-credit-card me-2"></i>
-                        <span class="flex-grow-1 align-middle">Billing</span>
-                        <span class="flex-shrink-0 badge badge-center rounded-pill bg-danger w-px-20 h-px-20">4</span>
-                      </span>
-                    </a>
-                  </li>
-                  <li>
                     <div class="dropdown-divider"></div>
                   </li>
                   <li>
@@ -289,13 +276,11 @@
                   <div class="d-flex align-items-end row">
                     <div class="col-sm-7">
                       <div class="card-body">
-                        <h5 class="card-title text-primary">Congratulations John! 🎉</h5>
+                        <h5 class="card-title text-primary">Hello John! 🎉</h5>
                         <p class="mb-4">
-                          You have done <span class="fw-bold">72%</span> more sales today. Check your new badge in
-                          your profile.
+                          We have got: <br><span class="fw-bold">3</span> new HOCs waiting to be verified
+                          <br><span class="fw-bold">13</span> opened support tickets
                         </p>
-
-                        <a href="javascript:;" class="btn btn-sm btn-outline-primary">View Badges</a>
                       </div>
                     </div>
                     <div class="col-sm-5 text-center text-sm-left">
@@ -462,8 +447,8 @@
                       </div>
                     </div>
                   </div>
-                  <!-- </div>
-    <div class="row"> -->
+                  
+                  
                   <div class="col-12 mb-4">
                     <div class="card">
                       <div class="card-body">
@@ -760,18 +745,10 @@
                 <script>
                   document.write(new Date().getFullYear());
                 </script>
-                , made with ❤️ by
-                <a href="https://themeselection.com" class="footer-link fw-bolder">ThemeSelection</a>
+                Nivasity Web Services, all rights reserved 
               </div>
               <div>
-                <a href="https://themeselection.com/license/" class="footer-link me-4">License</a>
-                <a href="https://themeselection.com/" class="footer-link me-4">More Themes</a>
-
-                <a href="https://themeselection.com/demo/sneat-bootstrap-html-admin-template/documentation/"
-                  class="footer-link me-4">Documentation</a>
-
-                <a href="https://github.com/themeselection/sneat-html-admin-template-free/issues"
-                  class="footer-link me-4">Support</a>
+                made with ❤️ by <a href="https://themeselection.com" class="footer-link fw-bolder">ThemeSelection</a>
               </div>
             </div>
           </footer>
@@ -788,11 +765,6 @@
     <div class="layout-overlay layout-menu-toggle"></div>
   </div>
   <!-- / Layout wrapper -->
-
-  <div class="buy-now">
-    <a href="https://themeselection.com/products/sneat-bootstrap-html-admin-template/"
-      class="btn btn-danger btn-buy-now">Upgrade to Pro</a>
-  </div>
 
   <!-- Core JS -->
   <!-- build:js assets/vendor/js/core.js -->
