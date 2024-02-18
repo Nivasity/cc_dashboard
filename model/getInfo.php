@@ -27,7 +27,7 @@ if (isset($_GET['get_data'])) {
 
   if ($get_data == 'depts') {
     $school = $_GET['school'];
-    $dept_query = mysqli_query($conn, "SELECT * FROM depts_$school WHERE status = 'active'");
+    $dept_query = mysqli_query($conn, "SELECT * FROM `depts_$school` WHERE status = 'active'");
 
     if (mysqli_num_rows($dept_query) >= 1) {
       $depts = array();
@@ -57,8 +57,6 @@ if (isset($_GET['get_data'])) {
     }
     $schools = $school_['name'];
     $statusRes = "success";
-  } else {
-    $statusRes = "not found";
   }
 }
 

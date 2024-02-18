@@ -110,7 +110,6 @@ include('model/page_config.php');
                           <div class="mb-3 col-md-6">
                             <label for="school" class="form-label">School Name</label>
                             <select id="school" name="school" class="form-select" required>
-                              <option value="0">Select School</option>
                             </select>
                           </div>
                           <div class="mb-3 col-md-6">
