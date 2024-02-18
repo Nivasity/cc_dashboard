@@ -5,8 +5,6 @@ include('mail.php');
 include('functions.php');
 $statusRes = $messageRes = 'failed';
 
-$user_id = $_SESSION['nivas_userId'];
-
 if (isset($_POST['support_id'])) {
   // Collect form data
   $subject = mysqli_real_escape_string($conn, $_POST['subject']);
@@ -66,6 +64,26 @@ if (isset($_POST['support_id'])) {
       $statusRes = "error";
       $messageRes = "Internal Server Error. Please try again later!";
     }
+  } else {
+    $statusRes = "error";
+    $messageRes = "Couldn't send email. Please try again later!";
+  }
+}
+
+if (isset($_POST['email_customer'])) {
+  // Collect form data
+  $email = mysqli_real_escape_string($conn, $_POST['cus_email']);
+  $subject = mysqli_real_escape_string($conn, $_POST['subject']);
+  $message = mysqli_real_escape_string($conn, $_POST['message']);
+
+  $e_message = str_replace('\r\n', '<br>', $message);
+  
+  $mailStatus = sendMail($subject, $e_message, $email);
+
+  // Check the status
+  if ($mailStatus === "success") {
+    $statusRes = "success";
+    $messageRes = "Request successfully sent!";
   } else {
     $statusRes = "error";
     $messageRes = "Couldn't send email. Please try again later!";

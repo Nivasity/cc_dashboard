@@ -1,3 +1,10 @@
+<?php
+session_start();
+include('model/config.php');
+include('model/page_config.php');
+
+?>
+
 <!DOCTYPE html>
 
 <html

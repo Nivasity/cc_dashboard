@@ -1,3 +1,10 @@
+<?php
+session_start();
+include('model/config.php');
+include('model/page_config.php');
+
+?>
+
 <!DOCTYPE html>
 
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/"

@@ -21,7 +21,8 @@
     </li>
     <!-- My Profile -->
     <li class="menu-item">
-      <a href="profile.php" class="menu-link">
+      <!-- <a href="profile.php" class="menu-link"> -->
+      <a href="#" class="menu-link">
         <i class="menu-icon tf-icons bx bx-user-circle"></i>
         <div data-i18n="My Profile">My Profile</div>
       </a>
@@ -112,12 +113,14 @@
           </a>
           <ul class="menu-sub">
             <li class="menu-item">
-              <a href="open_tickets.php" class="menu-link">
+              <!-- <a href="open_tickets.php" class="menu-link"> -->
+              <a href="#" class="menu-link">
                 <div data-i18n="Support Tickets">Opened Tickets</div>
               </a>
             </li>
             <li class="menu-item">
-              <a href="closed_tickets.php" class="menu-link">
+              <!-- <a href="closed_tickets.php" class="menu-link"> -->
+              <a href="#" class="menu-link">
                 <div data-i18n="Support Tickets">Closed Tickets</div>
               </a>
             </li>
@@ -140,9 +143,9 @@
     <!-- Sign Out -->
     <li class="menu-header small text-uppercase"></li>
     <li class="menu-item">
-      <a href="signin.html" class="menu-link">
+      <a href="signin.html?logout=1" class="menu-link">
         <i class="menu-icon tf-icons bx bx-log-out"></i>
-        <div data-i18n="Support">Sign Out</div>
+        <div data-i18n="Sign Out">Sign Out</div>
       </a>
     </li>
   </ul>
