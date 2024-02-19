@@ -1,7 +1,4 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
-
 include('config.php');
 include('functions.php');
 $statusRes = 'failed';
@@ -44,11 +41,11 @@ if (isset($_GET['get_data'])) {
   }
 }
 
-if (isset($_GET['get_data'])) {
-  $get_data = $_GET['get_data'];
+if (isset($_POST['get_data'])) {
+  $get_data = $_POST['get_data'];
 
   if ($get_data == 'depts') {
-    $school = $_GET['school'];
+    $school = $_POST['school'];
     $dept_query = mysqli_query($conn, "SELECT id, name FROM `depts_$school` WHERE status = 'active'");
 
     if (mysqli_num_rows($dept_query) >= 1) {
@@ -73,9 +70,9 @@ $responseData = array(
   "departments" => $depts
 );
 
-// // Set the appropriate headers for JSON response
-// header('Accept-Encoding: gzip, deflate');
-// header('Cache-Control: no-store, no-cache, must-revalidate');
+// Set the appropriate headers for JSON response
+header('Accept-Encoding: gzip, deflate');
+header('Cache-Control: no-store, no-cache, must-revalidate');
 header('Content-Type: application/json');
 
 // Encode the data as JSON and send it
