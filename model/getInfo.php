@@ -77,6 +77,4 @@ header('Content-Type: application/json');
 
 // Encode the data as JSON and send it
 echo json_encode($responseData);
-
-mysqli_close($conn);
 ?>
