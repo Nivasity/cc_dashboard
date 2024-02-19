@@ -71,6 +71,7 @@ $responseData = array(
 );
 
 // Set the appropriate headers for JSON response
+header('Accept-Encoding: gzip, deflate');
 header('Content-Type: application/json');
 
 // Encode the data as JSON and send it
