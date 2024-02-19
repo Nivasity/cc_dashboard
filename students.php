@@ -559,27 +559,26 @@ include('model/page_config.php');
       $('#school').change(function (event) {
         student_sch = $('#school').val();
   
-        setTimeout(function () {
-          $.ajax({
-            type: 'GET',
-            url: 'model/getInfo.php',
-            data: { get_data: 'depts', school: student_sch },
-            success: function (data_) {
-              // Get the select element
-              var dept = $('#depts');
-              dept.empty();
-    
-              // Iterate through the departments and add options
-              $.each(data_.departments, function (index, departments) {
-                // Append each department as an option to the select element
-                dept.append($('<option>', {
-                  value: departments.id,
-                  text: departments.name
-                }));
-              });
-            }
-          });
-        }, 500);
+        $.ajax({
+          type: 'GET',
+          cache: false, 
+          url: 'model/getInfo.php',
+          data: { get_data: 'depts', school: student_sch },
+          success: function (data_) {
+            // Get the select element
+            var dept = $('#depts');
+            dept.empty();
+  
+            // Iterate through the departments and add options
+            $.each(data_.departments, function (index, departments) {
+              // Append each department as an option to the select element
+              dept.append($('<option>', {
+                value: departments.id,
+                text: departments.name
+              }));
+            });
+          }
+        });
       });
     });
   </script>
