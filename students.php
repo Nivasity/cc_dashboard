@@ -562,6 +562,9 @@ include('model/page_config.php');
         $.ajax({
           type: 'POST',
           url: 'model/getInfo.php',
+          headers: {
+            'Accept-Encoding': 'gzip, deflate'
+          },
           data: { get_data: 'depts', school: student_sch },
           success: function (data_) {
             // Get the select element
