@@ -563,7 +563,7 @@ include('model/page_config.php');
           type: 'POST',
           url: 'model/getInfo.php',
           headers: {
-            'Accept-Encoding': 'gzip, deflate'
+            'Cache-Control': 'no-store, no-cache, must-revalidate'
           },
           data: { get_data: 'depts', school: student_sch },
           success: function (data_) {

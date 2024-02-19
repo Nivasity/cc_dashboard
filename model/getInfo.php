@@ -25,25 +25,6 @@ if (isset($_GET['get_data'])) {
     }
   }
 
-  if ($get_data == 'depts') {
-    $school = $_GET['school'];
-    $dept_query = mysqli_query($conn, "SELECT * FROM `depts_$school` WHERE status = 'active'");
-
-    if (mysqli_num_rows($dept_query) >= 1) {
-      $depts = array();
-
-      while ($dept = mysqli_fetch_array($dept_query)) {
-        $depts[] = array(
-          'id' => $dept['id'],
-          'name' => $dept['name']
-        );
-      }
-      $statusRes = "success";
-    } else {
-      $statusRes = "not found";
-    }
-  }
-
   if ($get_data == 'school_dept') {
     $school_id = $_GET['school'];
     $dept = $_GET['dept'];
