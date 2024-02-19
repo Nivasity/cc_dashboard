@@ -46,7 +46,7 @@ if (isset($_POST['get_data'])) {
 
   if ($get_data == 'depts') {
     $school = $_POST['school'];
-    $dept_query = mysqli_query($conn, "SELECT * FROM `depts_$school` WHERE status = 'active'");
+    $dept_query = mysqli_query($conn, "SELECT id, name FROM `depts_$school` WHERE status = 'active'");
 
     if (mysqli_num_rows($dept_query) >= 1) {
       $depts = array();
