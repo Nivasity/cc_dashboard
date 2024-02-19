@@ -41,11 +41,11 @@ if (isset($_GET['get_data'])) {
   }
 }
 
-if (isset($_POST['get_data'])) {
-  $get_data = $_POST['get_data'];
+if (isset($_GET['get_data'])) {
+  $get_data = $_GET['get_data'];
 
   if ($get_data == 'depts') {
-    $school = $_POST['school'];
+    $school = $_GET['school'];
     $dept_query = mysqli_query($conn, "SELECT id, name FROM `depts_$school` WHERE status = 'active'");
 
     if (mysqli_num_rows($dept_query) >= 1) {
