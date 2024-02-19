@@ -562,7 +562,7 @@ include('model/page_config.php');
         $.ajax({
           type: 'GET',
           url: 'model/getInfo.php',
-          data: { get_data: 'depts', school: student_sch, },
+          data: { get_data: 'depts', school: student_sch },
           success: function (data_) {
             // Get the select element
             var dept = $('#depts');
