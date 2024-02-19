@@ -371,9 +371,9 @@ include('model/page_config.php');
                 $('#role').val(data.student_role);
 
                 $.ajax({
-                  type: 'GET',
+                  type: 'POST',
                   url: 'model/getInfo.php',
-                  data: { get_data: 'depts', school: data.student_sch, },
+                  data: { get_data: 'depts', school: data.student_sch },
                   success: function (data_) {
                     // Get the select element
                     var dept = $('#depts');
@@ -560,8 +560,7 @@ include('model/page_config.php');
         student_sch = $('#school').val();
   
         $.ajax({
-          type: 'GET',
-          cache: false, 
+          type: 'POST',
           url: 'model/getInfo.php',
           data: { get_data: 'depts', school: student_sch },
           success: function (data_) {
