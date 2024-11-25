@@ -15,7 +15,7 @@ include('model/page_config.php');
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
 
-  <title>Account settings - Profile | Nivasity Command Center</title>
+  <title>Students | Nivasity Command Center</title>
 
   <meta name="description" content="" />
 
@@ -204,7 +204,7 @@ include('model/page_config.php');
                           <dd class="col-sm-3">
                             <select class="form-select student_status" name="student_status">
                               <option value="verified">Verified</option>
-                              <option value="unverified">Unverified</option>
+                              <!-- <option value="unverified">Unverified</option> -->
                               <option value="inreview">Inreview</option>
                               <option value="denied">Temporary Deactivated</option>
                               <option value="deactivate">Deleted</option>

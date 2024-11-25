@@ -29,7 +29,7 @@ if (isset($_GET['get_data'])) {
     $school_id = $_GET['school'];
     $dept = $_GET['dept'];
     $school_ = mysqli_fetch_array(mysqli_query($conn, "SELECT * FROM schools WHERE id = $school_id"));
-    $dept_query = mysqli_query($conn, "SELECT * FROM depts_$school_id WHERE id = $dept");
+    $dept_query = mysqli_query($conn, "SELECT * FROM depts WHERE id = $dept AND school_id = $school_id");
     
     $depts = "NULL";
     if (mysqli_num_rows($dept_query) > 0) {
@@ -46,7 +46,7 @@ if (isset($_POST['get_data'])) {
 
   if ($get_data == 'depts') {
     $school = $_POST['school'];
-    $dept_query = mysqli_query($conn, "SELECT id, name FROM `depts_$school` WHERE status = 'active'");
+    $dept_query = mysqli_query($conn, "SELECT id, name FROM `depts` WHERE status = 'active' AND school_id = $school");
 
     if (mysqli_num_rows($dept_query) >= 1) {
       $depts = array();

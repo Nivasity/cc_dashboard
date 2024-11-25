@@ -15,7 +15,7 @@ include('model/page_config.php');
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
 
-  <title>Account settings - Profile | Nivasity Command Center</title>
+  <title>Schools | Nivasity Command Center</title>
 
   <meta name="description" content="" />
 
