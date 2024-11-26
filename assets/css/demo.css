@@ -23,3 +23,41 @@
 .content-wrapper .navbar {
   z-index: auto;
 }
+
+.new_formBtn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  position: fixed;
+  bottom: 50px;
+  right: 50px;
+  z-index: 1000;
+  box-shadow: 0 24px 48px 0 #b59c66a6;
+  border: none;
+  cursor: pointer;
+  animation: bounce 1s infinite;
+}
+
+@media (max-width: 700px) {
+  .new_formBtn {
+    bottom: 16px;
+    right: 16px;
+  }
+}
+
+@keyframes bounce {
+  0%,
+  100% {
+    animation-timing-function: cubic-bezier(.8, 0, 1, 1);
+    transform: translateY(-25%);
+  }
+
+  50% {
+    animation-timing-function: cubic-bezier(0, 0, .2, 1);
+    transform: none;
+  }
+}

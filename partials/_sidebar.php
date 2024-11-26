@@ -20,13 +20,13 @@
       </a>
     </li>
     <!-- My Profile -->
-    <li class="menu-item">
+    <!-- <li class="menu-item"> -->
       <!-- <a href="profile.php" class="menu-link"> -->
-      <a href="#" class="menu-link">
+      <!-- <a href="#" class="menu-link">
         <i class="menu-icon tf-icons bx bx-user-circle"></i>
         <div data-i18n="My Profile">My Profile</div>
       </a>
-    </li>
+    </li> -->
 
     <?php if ($admin_mgt_menu){ ?>
       <!-- Admin Management -->
@@ -63,7 +63,7 @@
       <?php if ($sch_mgt_menu) { ?>
         <li class="menu-item">
           <a href="javascript:void(0);" class="menu-link menu-toggle">
-            <i class="menu-icon tf-icons bx bx-building-house"></i>
+            <i class="menu-icon tf-icons bx bxs-school"></i>
             <div data-i18n="Customer Management">Schools</div>
           </a>
           <ul class="menu-sub">
@@ -73,7 +73,7 @@
               </a>
             </li>
             <li class="menu-item">
-              <a href="department.php" class="menu-link">
+              <a href="school.php?tab=department" class="menu-link">
                 <div data-i18n="Schools">Departments</div>
               </a>
             </li>

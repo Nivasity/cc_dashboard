@@ -204,7 +204,7 @@ include('model/page_config.php');
                           <dd class="col-sm-3">
                             <select class="form-select student_status" name="student_status">
                               <option value="verified">Verified</option>
-                              <!-- <option value="unverified">Unverified</option> -->
+                              <option value="unverified">Unverified</option>
                               <option value="inreview">Inreview</option>
                               <option value="denied">Temporary Deactivated</option>
                               <option value="deactivate">Deleted</option>
@@ -288,19 +288,6 @@ include('model/page_config.php');
     <div class="layout-overlay layout-menu-toggle"></div>
   </div>
   <!-- / Layout wrapper -->
-
-  <!-- Toast -->
-  <div class="bs-toast toast toast-placement-ex m-2 fade hide me-4 mt-4" role="alert" aria-live="assertive"
-    aria-atomic="true" data-delay="2000">
-    <div class="toast-header">
-      <i class="bx bx-bell me-2"></i>
-      <div class="me-auto fw-semibold">Alert</div>
-      <!-- <small>11 mins ago</small> -->
-      <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
-    </div>
-    <div class="toast-body">Fruitcake chocolate bar tootsie roll gummies gummies jelly beans cake.</div>
-  </div>
-  <!-- / Toast -->
 
   <!-- Core JS -->
   <!-- build:js assets/vendor/js/core.js -->
