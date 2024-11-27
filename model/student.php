@@ -20,7 +20,7 @@ if (isset($_POST['student_data'])) {
 
   $conditions = array();
   foreach ($columns as $column) {
-    $conditions[] = "$column = '$student_data'";
+    $conditions[] = "$column = '$student_data' AND role != 'org_admin'";
   }
   $query .= implode(" OR ", $conditions);
 
@@ -32,7 +32,7 @@ if (isset($_POST['student_data'])) {
   if (mysqli_num_rows($result) > 0) {
     $student = mysqli_fetch_array($result);
     $statusRes = "success";
-    $messageRes = "Customer Found!";
+    $messageRes = "Student Found!";
     $student_id = $student['id'];
     $student_fn = $student['first_name'];
     $student_ln = $student['last_name'];
@@ -59,7 +59,7 @@ if (isset($_POST['student_data'])) {
     }
   } else {
     $statusRes = "error";
-    $messageRes = "Customer not found!";
+    $messageRes = "Student not found!";
   }
 }
 
@@ -73,23 +73,17 @@ if (isset($_POST['edit_profile'])) {
   $matric_no = mysqli_real_escape_string($conn, $_POST['matric_no']);
   $role = mysqli_real_escape_string($conn, $_POST['role']);
 
-  $user_query = mysqli_query($conn, "SELECT * FROM users WHERE email != '$email' AND (role = '$role' AND dept = '$dept' AND school = '$school' OR matric_no = '$matric_no')");
+  mysqli_query($conn, "UPDATE users SET first_name = '$first_name', last_name = '$last_name', phone = '$phone', school = $school, dept = $dept, matric_no = '$matric_no', role = '$role' WHERE email = '$email'");
 
-  if (mysqli_num_rows($user_query) >= 1) {
-    $hoc_matric_no = mysqli_fetch_array($user_query);
-    $messageRes = "An HOC already exist with matric number " . $hoc_matric_no['matric_no'];
+  if (mysqli_affected_rows($conn) >= 1) {
+    $statusRes = "success";
+    $messageRes = "Profile successfully edited!";
   } else {
-    mysqli_query($conn, "UPDATE users SET first_name = '$first_name', last_name = '$last_name', phone = '$phone', school = $school, dept = $dept, matric_no = '$matric_no', role = '$role' WHERE email = '$email'");
-
-    if (mysqli_affected_rows($conn) >= 1) {
-      $statusRes = "success";
-      $messageRes = "Profile successfully edited!";
-    } else {
-      $statusRes = "error";
-      $messageRes = "Internal Server Error. Please try again later!";
-    }
+    $statusRes = "error";
+    $messageRes = "Internal Server Error. Please try again later!";
   }
 }
+
 
 if (isset($_POST['student_email_'])) {
   $email = mysqli_real_escape_string($conn, $_POST['student_email_']);

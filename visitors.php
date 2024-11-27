@@ -15,7 +15,7 @@ include('model/page_config.php');
   <meta name="viewport"
     content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
 
-  <title>Students | Nivasity Command Center</title>
+  <title>Public Users | Nivasity Command Center</title>
 
   <meta name="description" content="" />
 
@@ -43,7 +43,7 @@ include('model/page_config.php');
           <!-- Content -->
 
           <div class="container-xxl flex-grow-1 container-p-y">
-            <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Customer Management /</span> Students</h4>
+            <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Customer Management /</span> Public Users</h4>
 
             <div class="row">
               <div class="col-md-12">
@@ -56,12 +56,12 @@ include('model/page_config.php');
                   <li class="nav-item">
                     <button type="button" class="nav-link" role="tab" data-bs-toggle="tab"
                       data-bs-target="#navs-top-verify" aria-controls="navs-top-verify" aria-selected="false"><i
-                        class="bx bx-user-check me-1"></i> Verify Student</button>
+                        class="bx bx-user-check me-1"></i> Verify User</button>
                   </li>
                   <li class="nav-item">
                     <button type="button" class="nav-link" role="tab" data-bs-toggle="tab"
                       data-bs-target="#navs-top-email" aria-controls="navs-top-email" aria-selected="false"><i
-                        class="bx bx-envelope me-1"></i> Email Students</button>
+                        class="bx bx-envelope me-1"></i> Email Users</button>
                   </li>
                 </ul>
                 <div class="tab-content p-0 p-sm-3">
@@ -73,9 +73,9 @@ include('model/page_config.php');
                         <div class="row mb-3">
                           <div class="col-sm-8 mb-3 mb-sm-0">
                             <div class="input-group">
-                              <input type="text" class="form-control" id="student_data" name="student_data"
-                                placeholder="Student Email / Phone / Matric no."
-                                aria-label="Student Email / Phone / Matric no." aria-describedby="student_data" />
+                              <input type="text" class="form-control" id="user_data" name="user_data"
+                                placeholder="User Email / Phone"
+                                aria-label="User Email / Phone" aria-describedby="user_data" />
                             </div>
                           </div>
                           <div class="col-sm-3">
@@ -108,25 +108,40 @@ include('model/page_config.php');
                             </div>
                           </div>
                           <div class="mb-3 col-md-6">
-                            <label for="school" class="form-label">School Name</label>
-                            <select id="school" name="school" class="form-select" required>
-                            </select>
+                            <label class="form-label" for="business_name">business_name</label>
+                            <div class="input-group">
+                              <input type="text" id="business_name" name="business_name" class="form-control" required />
+                            </div>
                           </div>
                           <div class="mb-3 col-md-6">
-                            <label for="depts" class="form-label">Department</label>
-                            <select id="depts" name="dept" class="form-select" required>
-                              <option value="0">Select Department</option>
-                            </select>
+                            <label class="form-label" for="business_address">business_address</label>
+                            <div class="input-group">
+                              <input type="text" id="business_address" name="business_address" class="form-control" required />
+                            </div>
                           </div>
                           <div class="mb-3 col-md-6">
-                            <label for="matric_no" class="form-label">Matric Number</label>
-                            <input class="form-control" type="text" id="matric_no" name="matric_no" required />
+                            <label class="form-label" for="web_url">web_url</label>
+                            <div class="input-group">
+                              <input type="text" id="web_url" name="web_url" class="form-control" required />
+                            </div>
+                          </div>
+                          <div class="mb-3 col-md-6">
+                            <label class="form-label" for="work_email">work_email</label>
+                            <div class="input-group">
+                              <input type="text" id="work_email" name="work_email" class="form-control" required />
+                            </div>
+                          </div>
+                          <div class="mb-3 col-md-6">
+                            <label class="form-label" for="socials">socials</label>
+                            <div class="input-group">
+                              <input type="text" id="socials" name="socials" class="form-control" required />
+                            </div>
                           </div>
                           <div class="mb-3 col-md-6">
                             <label class="form-label" for="role">Role</label>
                             <select id="role" name="role" class="form-select" required>
-                              <option value="student">Student</option>
-                              <option value="hoc">HOC</option>
+                              <option value="visitor">Visitor</option>
+                              <option value="org_admin">Business Owner</option>
                             </select>
                           </div>
                         </div>
@@ -140,14 +155,14 @@ include('model/page_config.php');
 
                   <div class="card mb-4 tab-pane fade" id="navs-top-verify" role="tabpanel">
                     <div class="card-header">
-                      <h5>Verify Student</h5>
+                      <h5>Verify User</h5>
                       <form id="search_verify-form">
                         <div class="row mb-3">
                           <div class="col-sm-8 mb-3 mb-sm-0">
                             <div class="input-group">
-                              <input type="text" class="form-control" id="student_data" name="student_data"
-                                placeholder="Student Email / Phone / Matric no."
-                                aria-label="Student Email / Phone / Matric no." aria-describedby="student_data" />
+                              <input type="text" class="form-control" id="user_data" name="user_data"
+                                placeholder="User Email / Phone"
+                                aria-label="User Email / Phone" aria-describedby="user_data" />
                             </div>
                           </div>
                           <div class="col-sm-3">
@@ -160,49 +175,57 @@ include('model/page_config.php');
                     <div class="card-body">
                       <dl class="row mt-2 profile_info" style="display: none;">
                         <dt class="col-sm-3">Full Name - Role</dt>
-                        <dd class="col-sm-9 text-uppercase student_fullname">
+                        <dd class="col-sm-9 text-uppercase user_fullname">
                           Samuel Akinyemi
                         </dd>
                         <dt class="col-sm-3">Phone Number</dt>
-                        <dd class="col-sm-9 student_phone">
+                        <dd class="col-sm-9 user_phone">
                           +2347048706198
                         </dd>
                         <dt class="col-sm-3">Email</dt>
                         <dd class="col-sm-9">
-                          <p class="student_email">akinyemisamuel170@gmail.com</p>
+                          <p class="user_email">akinyemisamuel170@gmail.com</p>
                         </dd>
 
-                        <dt class="col-sm-3">School Name</dt>
-                        <dd class="col-sm-9 text-uppercase student_sch">
+                        <dt class="col-sm-3">Business Name</dt>
+                        <dd class="col-sm-9 text-uppercase business_name">
                           University of lagos
                         </dd>
-                        <dt class="col-sm-3">Department</dt>
-                        <dd class="col-sm-9 student_dept">
+                        <dt class="col-sm-3">Business Address</dt>
+                        <dd class="col-sm-9 business_address">
                           Computer Science
                         </dd>
-                        <dt class="col-sm-3">Matric Number</dt>
+                        <dt class="col-sm-3">Website</dt>
+                        <dd class="col-sm-9 web_url">
+                          Computer Science
+                        </dd>
+                        <dt class="col-sm-3">Contact Email</dt>
+                        <dd class="col-sm-9 work_email">
+                          Computer Science
+                        </dd>
+                        <dt class="col-sm-3">Social Media</dt>
                         <dd class="col-sm-9">
-                          <p class="student_matric">1903030300</p>
+                          <p class="socials">akinyemisamuel170@gmail.com</p>
                         </dd>
 
-                        <dt class="col-sm-3">Account Name</dt>
-                        <dd class="col-sm-9 text-uppercase acct_no">
+                        <dt class="col-sm-3 hideables">Account Name</dt>
+                        <dd class="col-sm-9 text-uppercase acct_no hideables">
                           SAMUEL AYOMIDE AKINYEMI
                         </dd>
                         <dt class="col-sm-3">Account number</dt>
-                        <dd class="col-sm-9 acct_name">
+                        <dd class="col-sm-9 acct_name hideables">
                           1454746632
                         </dd>
-                        <dt class="col-sm-3">Bank Name</dt>
-                        <dd class="col-sm-9">
-                          <p class="acct_bank text-uppercase">Access Bank</p>
+                        <dt class="col-sm-3 hideables">Bank Name</dt>
+                        <dd class="col-sm-9 hideables">
+                          <p class="acct_bank text-uppercase hideables">Access Bank</p>
                         </dd>
 
                         <form id="verify-form">
-                          <input type="hidden" id="student_email_" name="student_email_"  />
-                          <dt class="col-sm-3 text-primary">Student Status</dt>
+                          <input type="hidden" id="user_email_" name="user_email_" />
+                          <dt class="col-sm-3 text-primary">User Status</dt>
                           <dd class="col-sm-3">
-                            <select class="form-select student_status" name="student_status">
+                            <select class="form-select user_status" name="user_status">
                               <option value="verified">Verified</option>
                               <option value="unverified">Unverified</option>
                               <option value="inreview">Inreview</option>
@@ -222,19 +245,19 @@ include('model/page_config.php');
                   </div>
 
                   <div class="card mb-4 tab-pane fade" id="navs-top-email" role="tabpanel">
-                    <h5 class="card-header">Email Student(s)</h5>
+                    <h5 class="card-header">Email User(s)</h5>
                     <hr class="my-0" />
                     <div class="card-body">
                       <form id="email-form">
                         <input type="hidden" name="email_customer" value="1" />
                         <div class="row mb-3">
-                          <label class="col-sm-2 col-form-label" for="cus_email">Student Email</label>
+                          <label class="col-sm-2 col-form-label" for="cus_email">User Email</label>
                           <div class="col-sm-10">
                             <div class="input-group input-group-merge">
                               <span class="input-group-text"><i class="bx bx-user"></i></span>
                               <input type="text" id="cus_email" name="cus_email" class="form-control"
                                 placeholder="customer@example.com" aria-label="customer@example.com"
-                                aria-describedby="student_data">
+                                aria-describedby="user_data">
                             </div>
                           </div>
                         </div>
@@ -261,7 +284,7 @@ include('model/page_config.php');
                         <div class="row justify-content-end">
                           <div class="col-sm-10">
                             <button type="submit" class="btn btn-primary email-form-btn">Send</button>
-                            <select class="form-select student_status w-25 d-inline" name="student_status">
+                            <select class="form-select user_status w-25 d-inline" name="user_status">
                               <option value="verified">Verified</option>
                               <option value="unverified">Unverified</option>
                               <option value="inreview">Inreview</option>
@@ -331,27 +354,8 @@ include('model/page_config.php');
       $(`#navs-top-${tabParam}`).addClass('active show');
     }
 
-    $(document).ready(function () {
-      $.ajax({
-        type: 'GET',
-        url: 'model/getInfo.php',
-        data: { get_data: 'schools' },
-        success: function (data) {
-          // Get the select element
-          var school_select = $('#school');
-
-          // Iterate through the departments and add options
-          $.each(data.schools, function (index, schools) {
-            // Append each department as an option to the select element
-            school_select.append($('<option>', {
-              value: schools.id,
-              text: schools.name
-            }));
-          });
-        }
-      });
-
-      $('#search_profile-form').submit(function (event) {
+    $(document).ready(function() {
+      $('#search_profile-form').submit(function(event) {
         event.preventDefault();
 
         var button = $('.search_profile-btn');
@@ -362,44 +366,25 @@ include('model/page_config.php');
         button.html('<div class="spinner-border spinner-border-sm text-white mx-auto" role="status"><span class="visually-hidden">Loading...</span>');
         button.prop('disabled', true);
 
-        setTimeout(function () {
+        setTimeout(function() {
           $.ajax({
             type: 'POST',
-            url: 'model/student.php',
+            url: 'model/user.php',
             data: $('#search_profile-form').serialize(),
-            success: function (data) {
+            success: function(data) {
               if (data.status == 'success') {
                 showToast('bg-success', data.message);
 
-                $('#first_name').val(data.student_fn);
-                $('#last_name').val(data.student_ln);
-                $('#email').val(data.student_email);
-                $('#phone').val(data.student_phone);
-                $('#school').val(data.student_sch);
-                $('#matric_no').val(data.student_matric);
-                $('#role').val(data.student_role);
-
-                $.ajax({
-                  type: 'POST',
-                  url: 'model/getInfo.php',
-                  data: { get_data: 'depts', school: data.student_sch },
-                  success: function (data_) {
-                    // Get the select element
-                    var dept = $('#depts');
-                    dept.empty();
-
-                    // Iterate through the departments and add options
-                    $.each(data_.departments, function (index, departments) {
-                      // Append each department as an option to the select element
-                      dept.append($('<option>', {
-                        value: departments.id,
-                        text: departments.name
-                      }));
-                    });
-                  }
-                });
-
-                $('#depts').val(data.student_dept);
+                $('#first_name').val(data.user_fn);
+                $('#last_name').val(data.user_ln);
+                $('#email').val(data.user_email);
+                $('#phone').val(data.user_phone);
+                $('#role').val(data.user_role);
+                $('#business_name').val(data.business_name);
+                $('#business_address').val(data.business_address);
+                $('#web_url').val(data.web_url);
+                $('#work_email').val(data.work_email);
+                $('#socials').val(data.socials);
 
                 $('#profile-form').show(500);
               } else {
@@ -413,7 +398,7 @@ include('model/page_config.php');
         }, 1000);
       });
 
-      $('#search_verify-form').submit(function (event) {
+      $('#search_verify-form').submit(function(event) {
         event.preventDefault();
 
         var button = $('.search_verify-btn');
@@ -424,50 +409,47 @@ include('model/page_config.php');
         button.html('<div class="spinner-border spinner-border-sm text-white mx-auto" role="status"><span class="visually-hidden">Loading...</span>');
         button.prop('disabled', true);
 
-        setTimeout(function () {
+        setTimeout(function() {
           $.ajax({
             type: 'POST',
-            url: 'model/student.php',
+            url: 'model/user.php',
             data: $('#search_verify-form').serialize(),
-            success: function (data) {
+            success: function(data) {
               if (data.status == 'success') {
                 showToast('bg-success', data.message);
 
-                $('.student_fullname').html(data.student_fn + ' ' + data.student_ln + ' - <span class="badge bg-info fw-bold">' + data.student_role + '</span>');
-                $('.student_email').html(data.student_email);
-                $('#student_email_').val(data.student_email);
-                $('.student_phone').html(data.student_phone);
-                $('.student_sch').html(data.student_sch);
-                $('.student_matric').html(data.student_matric);
-                $('.student_status').val(data.student_status);
+                $('.user_fullname').html(data.user_fn + ' ' + data.user_ln + ' - <span class="badge bg-info fw-bold">' + data.user_role + '</span>');
+                $('.user_email').html(data.user_email);
+                $('#user_email_').val(data.user_email);
+                $('.user_phone').html(data.user_phone);
+                $('.user_status').val(data.user_status);
                 $('.acct_no').html(data.acct_no);
                 $('.acct_name').html(data.acct_name);
+                $('.business_name').html(data.business_name);
+                $('.business_address').html(data.business_address);
+                $('.web_url').val(data.web_url);
+                $('.work_email').html(data.work_email);
+                $('.socials').html(data.socials);
 
-                // Fetch data from the JSON file
-                $.getJSON('model/all-banks-NG-flw.json', function (data_) {
-                  var bankCode = data.acct_bank;
+                if (data.user_role == 'visitor') {
+                  $('.hideables').hide();
+                } else {
+                  $('.hideables').show();
+                  // Fetch data from the JSON file
+                  $.getJSON('model/all-banks-NG-flw.json', function(data_) {
+                    var bankCode = data.acct_bank;
 
-                  var selectedBank = data_.data.find(function (bank) {
-                    return bank.code === bankCode;
+                    var selectedBank = data_.data.find(function(bank) {
+                      return bank.code === bankCode;
+                    });
+
+                    if (selectedBank) {
+                      $('.acct_bank').html(selectedBank.name);
+                    } else {
+                      $('.acct_bank').html('Unknown Bank');
+                    }
                   });
-
-                  if (selectedBank) {
-                    $('.acct_bank').html(selectedBank.name);
-                  } else {
-                    $('.acct_bank').html('Unknown Bank');
-                  }
-                });
-
-
-                $.ajax({
-                  type: 'GET',
-                  url: 'model/getInfo.php',
-                  data: { get_data: 'school_dept', school: data.student_sch, dept: data.student_dept, },
-                  success: function (data_) {
-                    $('.student_dept').html(data_.departments);
-                    $('.student_sch').html(data_.schools);
-                  }
-                });
+                }
 
                 $('.profile_info').show(500);
               } else {
@@ -481,7 +463,7 @@ include('model/page_config.php');
         }, 1000);
       });
 
-      $('#profile-form').submit(function (event) {
+      $('#profile-form').submit(function(event) {
         event.preventDefault();
 
         var button = $('.profile-form-btn');
@@ -492,9 +474,9 @@ include('model/page_config.php');
 
         $.ajax({
           type: 'POST',
-          url: 'model/student.php',
+          url: 'model/user.php',
           data: $('#profile-form').serialize(),
-          success: function (data) {
+          success: function(data) {
             if (data.status == 'success') {
               showToast('bg-success', data.message);
             } else {
@@ -507,7 +489,7 @@ include('model/page_config.php');
         });
       });
 
-      $('#verify-form').submit(function (event) {
+      $('#verify-form').submit(function(event) {
         event.preventDefault();
 
         var button = $('.verify-form-btn');
@@ -518,9 +500,9 @@ include('model/page_config.php');
 
         $.ajax({
           type: 'POST',
-          url: 'model/student.php',
+          url: 'model/user.php',
           data: $('#verify-form').serialize(),
-          success: function (data) {
+          success: function(data) {
             if (data.status == 'success') {
               showToast('bg-success', data.message);
             } else {
@@ -533,7 +515,7 @@ include('model/page_config.php');
         });
       });
 
-      $('#email-form').submit(function (event) {
+      $('#email-form').submit(function(event) {
         event.preventDefault();
 
         var button = $('.email-form-btn');
@@ -546,7 +528,7 @@ include('model/page_config.php');
           type: 'POST',
           url: 'model/support.php',
           data: $('#email-form').serialize(),
-          success: function (data) {
+          success: function(data) {
             if (data.status == 'success') {
               showToast('bg-success', data.message);
 
@@ -560,34 +542,6 @@ include('model/page_config.php');
           }
         });
       });
-
-      $('#school').change(function (event) {
-        student_sch = $('#school').val();
-  
-        $.ajax({
-          type: 'POST',
-          url: 'model/getInfo.php',
-          headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate'
-          },
-          data: { get_data: 'depts', school: student_sch },
-          success: function (data_) {
-            // Get the select element
-            var dept = $('#depts');
-            dept.empty();
-  
-            // Iterate through the departments and add options
-            $.each(data_.departments, function (index, departments) {
-              // Append each department as an option to the select element
-              dept.append($('<option>', {
-                value: departments.id,
-                text: departments.name
-              }));
-            });
-          }
-        });
-      });
-      
       $('.select_special').select2({
         theme: "bootstrap-5",
         width: $(this).data('width') ? $(this).data('width') : $(this).hasClass('w-100') ? '100%' : 'style',

@@ -89,17 +89,42 @@
           <ul class="menu-sub">
             <li class="menu-item">
               <a href="students.php" class="menu-link">
-                <div data-i18n="Students">Student Profile</div>
+                <div>Student Profile</div>
               </a>
             </li>
             <li class="menu-item">
               <a href="students.php?tab=verify" class="menu-link">
-                <div data-i18n="Students">Verify Student</div>
+                <div>Verify Student</div>
               </a>
             </li>
             <li class="menu-item">
               <a href="students.php?tab=email" class="menu-link">
-                <div data-i18n="Students">Email Students</div>
+                <div>Email Students</div>
+              </a>
+            </li>
+          </ul>
+        </li>
+      <?php } ?>
+      <?php if ($public_mgt_menu) { ?>
+        <li class="menu-item">
+          <a href="javascript:void(0);" class="menu-link menu-toggle">
+            <i class="menu-icon tf-icons bx bx-group"></i>
+            <div data-i18n="Customer Management">Public Users</div>
+          </a>
+          <ul class="menu-sub">
+            <li class="menu-item">
+              <a href="visitors.php" class="menu-link">
+                <div>User Profile</div>
+              </a>
+            </li>
+            <li class="menu-item">
+              <a href="visitors.php?tab=verify" class="menu-link">
+                <div>Verify User</div>
+              </a>
+            </li>
+            <li class="menu-item">
+              <a href="visitors.php?tab=email" class="menu-link">
+                <div>Email User</div>
               </a>
             </li>
           </ul>
