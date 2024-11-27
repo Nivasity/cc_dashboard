@@ -91,11 +91,11 @@ include('model/page_config.php');
                         <div class="row">
                           <div class="mb-3 col-md-6">
                             <label for="first_name" class="form-label">First Name</label>
-                            <input class="form-control" type="text" id="first_name" name="first_name" required />
+                            <input class="form-control" type="text" id="first_name" name="first_name" readonly />
                           </div>
                           <div class="mb-3 col-md-6">
                             <label for="last_name" class="form-label">Last Name</label>
-                            <input class="form-control" type="text" id="last_name" name="last_name" required />
+                            <input class="form-control" type="text" id="last_name" name="last_name" readonly />
                           </div>
                           <div class="mb-3 col-md-6">
                             <label for="email" class="form-label">E-mail</label>
@@ -104,7 +104,7 @@ include('model/page_config.php');
                           <div class="mb-3 col-md-6">
                             <label class="form-label" for="phone">Phone Number</label>
                             <div class="input-group">
-                              <input type="text" id="phone" name="phone" class="form-control" required />
+                              <input type="text" id="phone" name="phone" class="form-control" readonly />
                             </div>
                           </div>
                           <div class="mb-3 col-md-6">
@@ -140,7 +140,7 @@ include('model/page_config.php');
                           <div class="mb-3 col-md-6">
                             <label class="form-label" for="role">Role</label>
                             <select id="role" name="role" class="form-select" required>
-                              <option value="visitor">Visitor</option>
+                              <!-- <option value="visitor">Visitor</option> -->
                               <option value="org_admin">Business Owner</option>
                             </select>
                           </div>

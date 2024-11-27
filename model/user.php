@@ -93,9 +93,27 @@ if (isset($_POST['edit_profile'])) {
                 SET business_name = '$business_name', business_address = '$business_address', web_url = '$web_url', work_email = '$work_email', socials = '$socials' 
                 WHERE user_id = $user_id");
 
+  $subject = "Confirmation: Business Information Updated";
+
+  $e_message = "
+    Hi $first_name,
+      <br><br>
+    We.re happy to let you know that your request to update your business information has been successfully completed. Your profile now reflects the updated details you provided.
+      <br><br>
+    If you notice any discrepancies or need further adjustments, please don't hesitate to reach out to us by replying to this email. We're here to ensure your information is accurate and up to date.
+      <br><br>
+    Thank you for trusting Nivasity to support your business goals.
+      <br><br>
+    Best regards, <br>
+    Support Team <br>
+    Nivasity
+  ";
+
   $user_result = mysqli_query($conn, "UPDATE users SET first_name = '$first_name', last_name = '$last_name', phone = '$phone', role = '$user_role' WHERE email = '$email'");
   
   if (mysqli_affected_rows($conn) > 0 || $org_result && $user_result) {
+    $mailStatus = sendMail($subject, $e_message, $email);
+
     $statusRes = "success";
     $messageRes = "Profile successfully edited!";
   } else {

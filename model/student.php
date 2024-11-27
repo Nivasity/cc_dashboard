@@ -73,9 +73,27 @@ if (isset($_POST['edit_profile'])) {
   $matric_no = mysqli_real_escape_string($conn, $_POST['matric_no']);
   $role = mysqli_real_escape_string($conn, $_POST['role']);
 
+  $subject = "Confirmation: Academic Information Update Successful";
+
+  $e_message = "
+    Hi $first_name,
+      <br><br>
+    We're pleased to inform you that your request to update your academic information has been successfully processed. Your account now reflects the updated details as requested.
+      <br><br>
+    If you notice any discrepancies or need further adjustments, please don't hesitate to reach out to us by replying to this email. We're here to ensure your information is accurate and up to date.
+      <br><br>
+    Thank you for choosing Nivasity to support your academic journey!
+      <br><br>
+    Best regards, <br>
+    Support Team <br>
+    Nivasity
+  ";
+
   mysqli_query($conn, "UPDATE users SET first_name = '$first_name', last_name = '$last_name', phone = '$phone', school = $school, dept = $dept, matric_no = '$matric_no', role = '$role' WHERE email = '$email'");
 
   if (mysqli_affected_rows($conn) >= 1) {
+    $mailStatus = sendMail($subject, $e_message, $email);
+
     $statusRes = "success";
     $messageRes = "Profile successfully edited!";
   } else {
