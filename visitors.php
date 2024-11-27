@@ -222,7 +222,10 @@ include('model/page_config.php');
                         </dd>
 
                         <form id="verify-form">
+                          <input type="hidden" id="user_fname" name="user_fname"  />
+                          <input type="hidden" id="user_role" name="user_role"  />
                           <input type="hidden" id="user_email_" name="user_email_" />
+
                           <dt class="col-sm-3 text-primary">User Status</dt>
                           <dd class="col-sm-3">
                             <select class="form-select user_status" name="user_status">
@@ -420,6 +423,8 @@ include('model/page_config.php');
 
                 $('.user_fullname').html(data.user_fn + ' ' + data.user_ln + ' - <span class="badge bg-info fw-bold">' + data.user_role + '</span>');
                 $('.user_email').html(data.user_email);
+                $('#user_fname').val(data.user_fn);
+                $('#user_role').val(data.user_role);
                 $('#user_email_').val(data.user_email);
                 $('.user_phone').html(data.user_phone);
                 $('.user_status').val(data.user_status);

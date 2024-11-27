@@ -4,7 +4,7 @@ include('config.php');
 include('mail.php');
 include('functions.php');
 
-$statusRes = $messageRes = 'failed';
+$statusRes = $mailStatus = $messageRes = 'failed';
 $student_fn = $student_ln = $student_email = $student_phone = $student_status = null;
 $student_sch = $student_dept = $student_matric = $student_role = null;
 $acct_no = $acct_name = $acct_bank = 'N/A';
@@ -49,7 +49,7 @@ if (isset($_POST['student_data'])) {
 
       if (mysqli_num_rows($settlement_query) > 0) {
         $settlement = mysqli_fetch_array($settlement_query);
-  
+
         $acct_no = $settlement['acct_number'];
         $acct_name = $settlement['acct_name'];
         $acct_bank = $settlement['bank'];
@@ -86,12 +86,88 @@ if (isset($_POST['edit_profile'])) {
 
 
 if (isset($_POST['student_email_'])) {
+  $student_fname = mysqli_real_escape_string($conn, $_POST['student_fname']);
+  $student_role = mysqli_real_escape_string($conn, $_POST['student_role']);
   $email = mysqli_real_escape_string($conn, $_POST['student_email_']);
   $student_status = mysqli_real_escape_string($conn, $_POST['student_status']);
 
   mysqli_query($conn, "UPDATE users SET status = '$student_status' WHERE email = '$email'");
 
+  
+  if ($student_status === 'verified') {
+    $subject = "Congratulations on Your Nivasity Account";
+    
+    if ($student_role == 'hoc') {
+      $e_message = "
+          Hello $student_fname 🎉,
+            <br><br>
+          We're thrilled to let you know that your Nivasity account has been successfully verified! You're all set to start posting materials or events if you are a business owner.
+            <br><br>
+          <b>To begin receiving payments, please add a settlement account within your profile. This will allow funds from your sales to be transferred directly to you.</b>
+            <br><br>
+          Additionally, if you ever wish to switch to visitors mode to purchase materials or event tickets, you'll find this option on the sidebar for easy access.
+            <br><br>
+          If you have any questions or need assistance, feel free to reach out. We're here to help!
+            <br><br>
+          Best regards, <br>
+          Support Team <br>
+          Nivasity
+        ";
+    } else {
+      $e_message = "
+          Hello $student_fname 🎉,
+            <br><br>
+          We're thrilled to let you know that your Nivasity account has been successfully verified! You're all set to explore the platform and take advantage of everything it has to offer.
+            <br><br>
+          Here's how you can make the most of your account:
+          <ul>
+            <li>Purchase materials or event tickets on the store page whenever you want to.</li>
+            <li>Keep an eye on events and resources tailored for students like you.</li>
+          </ul>
+          If you have any questions or need assistance, feel free to reach out. We're always here to help!
+            <br><br>
+          Best regards, <br>
+          Support Team <br>
+          Nivasity
+        ";
+    }
+  } else if ($student_status == 'inreview') {
+    $subject = "Update regarding Your Nivasity Account";
+
+    $e_message = "
+      Hi $student_fname,
+        <br><br>
+      We wanted to let you know that your Nivasity account is currently under review. This is part of our process to ensure all accounts comply with our platform's guidelines and provide a secure experience for everyone.
+        <br><br>
+      During this review period, some features of your account may be temporarily restricted. We aim to complete the review as quickly as possible and will notify you as soon as it is resolved.
+        <br><br>
+      If you have any questions or need further clarification, feel free to reach out to us by replying this email. We're here to help!. Thank you for your patience and understanding.
+        <br><br>
+      Best regards, <br>
+      Support Team <br>
+      Nivasity
+    ";
+  } else {
+    $subject = "Update regarding Your Nivasity Account";
+
+    $e_message = "
+      Hi $student_fname,
+        <br><br>
+      We're writing to let you know that your Nivasity account has been temporarily suspended. This action was taken due to any of this reasons, a violation of platform guidelines, suspicious activity, or reported by a couple of users.
+        <br><br>
+      During this suspension, you will not be able to access your account or its features. However, we're here to help you resolve this issue! If you believe this was a mistake or want to address the matter, please reply to this email with any relevant details.
+        <br><br>
+      Our goal is to ensure that all users have a secure and smooth experience on Nivasity. We appreciate your understanding and look forward to assisting you.
+        <br><br>
+      Best regards, <br>
+      Support Team <br>
+      Nivasity
+    ";
+  }
+
   if (mysqli_affected_rows($conn) >= 1) {
+    $mailStatus = sendMail($subject, $e_message, $email);
+
     $statusRes = "success";
     $messageRes = "Status changed successfully!";
   } else {
@@ -122,4 +198,3 @@ header('Content-Type: application/json');
 
 // Encode the data as JSON and send it
 echo json_encode($responseData);
-?>

@@ -199,7 +199,10 @@ include('model/page_config.php');
                         </dd>
 
                         <form id="verify-form">
+                          <input type="hidden" id="student_fname" name="student_fname"  />
+                          <input type="hidden" id="student_role" name="student_role"  />
                           <input type="hidden" id="student_email_" name="student_email_"  />
+
                           <dt class="col-sm-3 text-primary">Student Status</dt>
                           <dd class="col-sm-3">
                             <select class="form-select student_status" name="student_status">
@@ -234,7 +237,7 @@ include('model/page_config.php');
                               <span class="input-group-text"><i class="bx bx-user"></i></span>
                               <input type="text" id="cus_email" name="cus_email" class="form-control"
                                 placeholder="customer@example.com" aria-label="customer@example.com"
-                                aria-describedby="student_data">
+                                aria-describedby="student_data" required>
                             </div>
                           </div>
                         </div>
@@ -244,7 +247,7 @@ include('model/page_config.php');
                             <div class="input-group input-group-merge">
                               <span class="input-group-text"><i class="bx bx-envelope"></i></span>
                               <input type="text" class="form-control" id="subject" name="subject" placeholder="Re: Thanks for... "
-                                aria-label="John Doe" aria-describedby="subject">
+                                aria-label="John Doe" aria-describedby="subject" required>
                             </div>
                           </div>
                         </div>
@@ -254,20 +257,22 @@ include('model/page_config.php');
                             <div class="input-group">
                               <textarea id="message" name="message" class="form-control" rows="7"
                                 placeholder="Message" aria-label="Message"
-                                aria-describedby="message"></textarea>
+                                aria-describedby="message" required></textarea>
                             </div>
                           </div>
                         </div>
                         <div class="row justify-content-end">
                           <div class="col-sm-10">
                             <button type="submit" class="btn btn-primary email-form-btn">Send</button>
-                            <select class="form-select student_status w-25 d-inline" name="student_status">
-                              <option value="verified">Verified</option>
-                              <option value="unverified">Unverified</option>
-                              <option value="inreview">Inreview</option>
-                              <option value="denied">Temporary Deactivated</option>
-                              <option value="deactivate">Deleted</option>
-                            </select>
+                            <!-- <select class="form-select student_status w-auto d-inline ms-md-3 mt-md-0 mt-2" name="student_status">
+                              <option value="verified">Verified HOC/Lecturer account</option>
+                              <option value="verified">Verified Event Admin</option>
+                              <option value="verified">Verified Student Account</option>
+                              <option value="unverified">Unverified Student Account</option>
+                              <option value="unverified">Unverified HOC/Lecturer Account</option>
+                              <option value="unverified">Unverified Visitor Account</option>
+                              <option value="unverified">Unverified Event Admin Account</option>
+                            </select> -->
                           </div>
                         </div>
                       </form>
@@ -369,7 +374,6 @@ include('model/page_config.php');
             data: $('#search_profile-form').serialize(),
             success: function (data) {
               if (data.status == 'success') {
-                showToast('bg-success', data.message);
 
                 $('#first_name').val(data.student_fn);
                 $('#last_name').val(data.student_ln);
@@ -398,8 +402,12 @@ include('model/page_config.php');
                     });
                   }
                 });
+                
+                setTimeout(function () {
+                  $('#depts').val(data.student_dept);
+                }, 1000);
 
-                $('#depts').val(data.student_dept);
+                showToast('bg-success', data.message); 
 
                 $('#profile-form').show(500);
               } else {
@@ -435,6 +443,8 @@ include('model/page_config.php');
 
                 $('.student_fullname').html(data.student_fn + ' ' + data.student_ln + ' - <span class="badge bg-info fw-bold">' + data.student_role + '</span>');
                 $('.student_email').html(data.student_email);
+                $('#student_fname').val(data.student_fn);
+                $('#student_role').val(data.student_role);
                 $('#student_email_').val(data.student_email);
                 $('.student_phone').html(data.student_phone);
                 $('.student_sch').html(data.student_sch);
