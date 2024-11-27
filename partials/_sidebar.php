@@ -1,3 +1,9 @@
+<?php
+// Get the current page name
+$current_page = basename($_SERVER['PHP_SELF']);
+$current_tab = isset($_GET['tab']) ? $_GET['tab'] : '';
+?>
+
 <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
   <div class="app-brand">
     <a href="/" class="app-brand-link">
@@ -13,7 +19,7 @@
 
   <ul class="menu-inner py-1">
     <!-- Dashboard -->
-    <li class="menu-item active">
+    <li class="menu-item <?php echo $current_page == 'index.php' ? 'active' : '' ?>">
       <a href="/" class="menu-link">
         <i class="menu-icon tf-icons bx bx-home-circle"></i>
         <div data-i18n="Analytics">Dashboard</div>
@@ -61,19 +67,19 @@
       <!-- Customer Management -->
       <li class="menu-header small text-uppercase"><span class="menu-header-text">Customer Management</span></li>
       <?php if ($sch_mgt_menu) { ?>
-        <li class="menu-item">
+        <li class="menu-item <?php echo $current_page == 'school.php' ? 'active open' : ''; ?>">
           <a href="javascript:void(0);" class="menu-link menu-toggle">
             <i class="menu-icon tf-icons bx bxs-school"></i>
             <div data-i18n="Customer Management">Schools</div>
           </a>
           <ul class="menu-sub">
-            <li class="menu-item">
+            <li class="menu-item <?php echo $current_page == 'school.php' && $current_tab == '' ? 'active' : ''; ?>">
               <a href="school.php" class="menu-link">
               <div data-i18n="Schools">School List</div>
               </a>
             </li>
-            <li class="menu-item">
-              <a href="school.php?tab=department" class="menu-link">
+            <li class="menu-item <?php echo $current_page == 'school.php' && $current_tab == 'departments' ? 'active' : ''; ?>">
+              <a href="school.php?tab=departments" class="menu-link">
                 <div data-i18n="Schools">Departments</div>
               </a>
             </li>
@@ -81,23 +87,23 @@
         </li>
       <?php } ?>
       <?php if ($student_mgt_menu) { ?>
-        <li class="menu-item">
+        <li class="menu-item <?php echo $current_page == 'students.php' ? 'active open' : ''; ?>">
           <a href="javascript:void(0);" class="menu-link menu-toggle">
             <i class="menu-icon tf-icons bx bx-user-pin"></i>
             <div data-i18n="Customer Management">Students</div>
           </a>
           <ul class="menu-sub">
-            <li class="menu-item">
+            <li class="menu-item <?php echo $current_page == 'students.php' && $current_tab == '' ? 'active' : ''; ?>">
               <a href="students.php" class="menu-link">
                 <div>Student Profile</div>
               </a>
             </li>
-            <li class="menu-item">
+            <li class="menu-item <?php echo $current_page == 'students.php' && $current_tab == 'verify' ? 'active' : ''; ?>">
               <a href="students.php?tab=verify" class="menu-link">
                 <div>Verify Student</div>
               </a>
             </li>
-            <li class="menu-item">
+            <li class="menu-item <?php echo $current_page == 'students.php' && $current_tab == 'email' ? 'active' : ''; ?>">
               <a href="students.php?tab=email" class="menu-link">
                 <div>Email Students</div>
               </a>
@@ -106,23 +112,23 @@
         </li>
       <?php } ?>
       <?php if ($public_mgt_menu) { ?>
-        <li class="menu-item">
+        <li class="menu-item <?php echo $current_page == 'visitors.php' ? 'active open' : ''; ?>">
           <a href="javascript:void(0);" class="menu-link menu-toggle">
             <i class="menu-icon tf-icons bx bx-group"></i>
             <div data-i18n="Customer Management">Public Users</div>
           </a>
           <ul class="menu-sub">
-            <li class="menu-item">
+            <li class="menu-item <?php echo $current_page == 'visitors.php' && $current_tab == '' ? 'active' : ''; ?>">
               <a href="visitors.php" class="menu-link">
                 <div>User Profile</div>
               </a>
             </li>
-            <li class="menu-item">
+            <li class="menu-item <?php echo $current_page == 'visitors.php' && $current_tab == 'verify' ? 'active' : ''; ?>">
               <a href="visitors.php?tab=verify" class="menu-link">
                 <div>Verify User</div>
               </a>
             </li>
-            <li class="menu-item">
+            <li class="menu-item <?php echo $current_page == 'visitors.php' && $current_tab == 'email' ? 'active' : ''; ?>">
               <a href="visitors.php?tab=email" class="menu-link">
                 <div>Email User</div>
               </a>

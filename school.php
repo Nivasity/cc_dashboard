@@ -235,6 +235,20 @@ include('model/page_config.php');
   <script src="model/functions/schools.js"></script>
 
   <script>
+    // Get the 'tab' parameter from the URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+
+    if (tabParam) {
+      // Deactivate all tabs and their content
+      $('.nav-link').removeClass('active');
+      $('.tab-pane').removeClass('active show');
+
+      // Activate the target tab and content
+      $(`button[data-bs-target="#navs-top-${tabParam}"]`).addClass('active');
+      $(`#navs-top-${tabParam}`).addClass('active show');
+    }
+
     $(document).ready(function() {
       fetchSchools();
       fetchSchools2();
