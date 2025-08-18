@@ -41,6 +41,9 @@ if ($admin_role == 5) {
   $prev_revenue *= 0.1;
 }
 
+$growth_percent = $prev_revenue > 0 ? (($total_revenue - $prev_revenue) / $prev_revenue) * 100 : 0;
+$growth_percent = round($growth_percent, 2);
+
 $sales_sql = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'successful' AND DATE(t.created_at) = CURDATE()";
 if ($admin_role == 5) {
   $sales_sql .= " AND u.school = $admin_school";
@@ -186,8 +189,8 @@ $total_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_sql))["total"];
                           </div>
                         </div>
                       </div>
-                      <div id="growthChart"></div>
-                      <div class="text-center fw-semibold pt-3 mb-2">62% Company Growth</div>
+                      <div id="growthChart" data-growth="<?php echo $growth_percent; ?>"></div>
+                      <div class="text-center fw-semibold pt-3 mb-2"><?php echo round($growth_percent); ?>% Company Growth</div>
 
                       <div class="d-flex px-xxl-4 px-lg-2 p-4 gap-xxl-3 gap-lg-1 gap-3 justify-content-between">
                         <div class="d-flex">

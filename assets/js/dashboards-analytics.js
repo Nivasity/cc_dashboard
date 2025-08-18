@@ -277,8 +277,9 @@
   // Growth Chart - Radial Bar Chart
   // --------------------------------------------------------------------
   const growthChartEl = document.querySelector('#growthChart'),
+    growthChartValue = growthChartEl ? parseFloat(growthChartEl.dataset.growth) || 0 : 0,
     growthChartOptions = {
-      series: [78],
+      series: [growthChartValue],
       labels: ['Growth'],
       chart: {
         height: 240,
