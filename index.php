@@ -50,6 +50,22 @@ if ($admin_role == 5) {
 }
 $total_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_sql))["total"];
 
+// Monthly revenue data for chart
+$monthly_current = [];
+$monthly_previous = [];
+for ($m = 1; $m <= 12; $m++) {
+  $month_sql = $revenue_base . " AND YEAR(t.created_at) = $curr_year AND MONTH(t.created_at) = $m";
+  $month_total = mysqli_fetch_assoc(mysqli_query($conn, $month_sql))["total"];
+  $prev_month_sql = $revenue_base . " AND YEAR(t.created_at) = $prev_year AND MONTH(t.created_at) = $m";
+  $prev_month_total = mysqli_fetch_assoc(mysqli_query($conn, $prev_month_sql))["total"];
+  if ($admin_role == 5) {
+    $month_total *= 0.1;
+    $prev_month_total *= 0.1;
+  }
+  $monthly_current[] = (int)$month_total;
+  $monthly_previous[] = (int)$prev_month_total;
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -171,7 +187,11 @@ $total_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_sql))["total"];
                   <div class="row row-bordered g-0">
                     <div class="col-md-8">
                       <h5 class="card-header m-0 me-2 pb-3">Total Revenue</h5>
-                      <div id="totalRevenueChart" class="px-2"></div>
+                      <div id="totalRevenueChart" class="px-2"
+                        data-curr-year="<?php echo $curr_year; ?>"
+                        data-prev-year="<?php echo $prev_year; ?>"
+                        data-current='<?php echo json_encode($monthly_current); ?>'
+                        data-prev='<?php echo json_encode($monthly_previous); ?>'></div>
                     </div>
                     <div class="col-md-4">
                       <div class="card-body">

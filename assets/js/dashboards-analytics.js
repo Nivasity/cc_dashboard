@@ -15,92 +15,93 @@
   // Total Revenue Report Chart - Bar Chart
   // --------------------------------------------------------------------
   const totalRevenueChartEl = document.querySelector('#totalRevenueChart'),
-    totalRevenueChartOptions = {
-      series: [
-        {
-          name: '2021',
-          data: [18, 7, 15, 29, 18, 12, 9]
-        },
-        {
-          name: '2020',
-          data: [-13, -18, -9, -14, -5, -17, -15]
-        }
-      ],
-      chart: {
-        height: 300,
-        stacked: true,
-        type: 'bar',
-        toolbar: { show: false }
-      },
-      plotOptions: {
-        bar: {
-          horizontal: false,
-          columnWidth: '33%',
-          borderRadius: 12,
-          startingShape: 'rounded',
-          endingShape: 'rounded'
-        }
-      },
-      colors: [config.colors.primary, config.colors.info],
-      dataLabels: {
-        enabled: false
-      },
-      stroke: {
-        curve: 'smooth',
-        width: 6,
-        lineCap: 'round',
-        colors: [cardColor]
-      },
-      legend: {
-        show: true,
-        horizontalAlign: 'left',
-        position: 'top',
-        markers: {
-          height: 8,
-          width: 8,
-          radius: 12,
-          offsetX: -3
-        },
-        labels: {
-          colors: axisColor
-        },
-        itemMargin: {
-          horizontal: 10
-        }
-      },
-      grid: {
-        borderColor: borderColor,
-        padding: {
-          top: 0,
-          bottom: -8,
-          left: 20,
-          right: 20
-        }
-      },
-      xaxis: {
-        categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul'],
-        labels: {
-          style: {
-            fontSize: '13px',
-            colors: axisColor
-          }
-        },
-        axisTicks: {
-          show: false
-        },
-        axisBorder: {
-          show: false
-        }
-      },
-      yaxis: {
-        labels: {
-          style: {
-            fontSize: '13px',
-            colors: axisColor
-          }
-        }
-      },
-      responsive: [
+    totalRevenueChartOptions = totalRevenueChartEl
+      ? {
+          series: [
+            {
+              name: totalRevenueChartEl.dataset.currYear,
+              data: JSON.parse(totalRevenueChartEl.dataset.current || '[]')
+            },
+            {
+              name: totalRevenueChartEl.dataset.prevYear,
+              data: JSON.parse(totalRevenueChartEl.dataset.prev || '[]').map(n => -n)
+            }
+          ],
+          chart: {
+            height: 300,
+            stacked: true,
+            type: 'bar',
+            toolbar: { show: false }
+          },
+          plotOptions: {
+            bar: {
+              horizontal: false,
+              columnWidth: '33%',
+              borderRadius: 12,
+              startingShape: 'rounded',
+              endingShape: 'rounded'
+            }
+          },
+          colors: [config.colors.primary, config.colors.info],
+          dataLabels: {
+            enabled: false
+          },
+          stroke: {
+            curve: 'smooth',
+            width: 6,
+            lineCap: 'round',
+            colors: [cardColor]
+          },
+          legend: {
+            show: true,
+            horizontalAlign: 'left',
+            position: 'top',
+            markers: {
+              height: 8,
+              width: 8,
+              radius: 12,
+              offsetX: -3
+            },
+            labels: {
+              colors: axisColor
+            },
+            itemMargin: {
+              horizontal: 10
+            }
+          },
+          grid: {
+            borderColor: borderColor,
+            padding: {
+              top: 0,
+              bottom: -8,
+              left: 20,
+              right: 20
+            }
+          },
+          xaxis: {
+            categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+            labels: {
+              style: {
+                fontSize: '13px',
+                colors: axisColor
+              }
+            },
+            axisTicks: {
+              show: false
+            },
+            axisBorder: {
+              show: false
+            }
+          },
+          yaxis: {
+            labels: {
+              style: {
+                fontSize: '13px',
+                colors: axisColor
+              }
+            }
+          },
+          responsive: [
         {
           breakpoint: 1700,
           options: {
@@ -268,8 +269,8 @@
           }
         }
       }
-    };
-  if (typeof totalRevenueChartEl !== undefined && totalRevenueChartEl !== null) {
+      } : null;
+  if (totalRevenueChartOptions) {
     const totalRevenueChart = new ApexCharts(totalRevenueChartEl, totalRevenueChartOptions);
     totalRevenueChart.render();
   }
