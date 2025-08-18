@@ -4,6 +4,62 @@ include('mail.php');
 include('functions.php');
 $statusRes = $messageRes = 'failed';
 
+if (isset($_POST['admin_manage'])) {
+  $admin_id = intval($_POST['admin_id']);
+  $first_name = mysqli_real_escape_string($conn, $_POST['first_name']);
+  $last_name = mysqli_real_escape_string($conn, $_POST['last_name']);
+  $email = mysqli_real_escape_string($conn, $_POST['email']);
+  $phone = mysqli_real_escape_string($conn, $_POST['phone']);
+  $gender = mysqli_real_escape_string($conn, $_POST['gender']);
+  $role = intval($_POST['role']);
+  $school = intval($_POST['school']);
+  $school_sql = $school > 0 ? $school : 'NULL';
+
+  if ($admin_id == 0) {
+    $password = md5($_POST['password']);
+    $user_query = mysqli_query($conn, "SELECT id FROM admins WHERE email = '$email'");
+    if (mysqli_num_rows($user_query) >= 1) {
+      $statusRes = "denied";
+      $messageRes = "A user has been associated with this email. <br> Please try again with another email!";
+    } else {
+      mysqli_query($conn, "INSERT INTO admins (first_name, last_name, email, phone, gender, role, school, password) VALUES ('$first_name', '$last_name', '$email', '$phone', '$gender', $role, $school_sql, '$password')");
+      if (mysqli_affected_rows($conn) >= 1) {
+        $statusRes = "success";
+        $messageRes = "Admin successfully added!";
+      } else {
+        $statusRes = "error";
+        $messageRes = "Internal Server Error. Please try again later!";
+      }
+    }
+  } else {
+    $password_sql = '';
+    if (!empty($_POST['password'])) {
+      $password = md5($_POST['password']);
+      $password_sql = ", password = '$password'";
+    }
+    mysqli_query($conn, "UPDATE admins SET first_name = '$first_name', last_name = '$last_name', email = '$email', phone = '$phone', gender = '$gender', role = $role, school = $school_sql" . $password_sql . " WHERE id = $admin_id");
+    if (mysqli_affected_rows($conn) >= 1) {
+      $statusRes = "success";
+      $messageRes = "Admin successfully updated!";
+    } else {
+      $statusRes = "error";
+      $messageRes = "Internal Server Error. Please try again later!";
+    }
+  }
+}
+
+if (isset($_POST['admin_delete'])) {
+  $admin_id = intval($_POST['admin_id']);
+  mysqli_query($conn, "DELETE FROM admins WHERE id = $admin_id");
+  if (mysqli_affected_rows($conn) >= 1) {
+    $statusRes = "success";
+    $messageRes = "Admin removed successfully!";
+  } else {
+    $statusRes = "error";
+    $messageRes = "Internal Server Error. Please try again later!";
+  }
+}
+
 if (isset($_POST['signup'])) {
   $email = mysqli_real_escape_string($conn, $_POST['email']);
   $password = md5($_POST['password']);

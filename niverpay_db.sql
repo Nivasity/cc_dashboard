@@ -35,6 +35,7 @@ CREATE TABLE `admins` (
   `phone` varchar(20) NOT NULL,
   `gender` varchar(10) DEFAULT NULL,
   `role` int(11) NOT NULL,
+  `school` int(11) DEFAULT NULL,
   `password` varchar(255) NOT NULL,
   `status` varchar(20) DEFAULT 'active',
   `profile_pic` varchar(255) DEFAULT 'user.jpg',
@@ -64,6 +65,13 @@ CREATE TABLE `admin_roles` (
   `name` text NOT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'active'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `admin_roles`
+--
+
+INSERT INTO `admin_roles` (`id`, `name`, `status`) VALUES
+(5, 'School Bursary', 'active');
 
 -- --------------------------------------------------------
 
