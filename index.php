@@ -3,6 +3,69 @@ session_start();
 include('model/config.php');
 include('model/page_config.php');
 
+// Dashboard metrics
+$admin_role = $_SESSION['nivas_adminRole'];
+$admin_school = $admin_['school'];
+$school_clause = ($admin_role == 5) ? " AND school = $admin_school" : '';
+
+// Count unverified HOCs
+$hoc_count = mysqli_fetch_assoc(
+  mysqli_query(
+    $conn,
+    "SELECT COUNT(*) AS count FROM users WHERE role = 'hoc' AND status = 'unverified'{$school_clause}"
+  )
+)["count"];
+
+// Count open support tickets
+$support_sql = "SELECT COUNT(*) AS count FROM support_tickets st JOIN users u ON st.user_id = u.id WHERE st.status = 'open'";
+if ($admin_role == 5) {
+  $support_sql .= " AND u.school = $admin_school";
+}
+$support_count = mysqli_fetch_assoc(mysqli_query($conn, $support_sql))["count"];
+
+// Financial statistics
+$revenue_base = "SELECT COALESCE(SUM(t.profit),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'successful'";
+if ($admin_role == 5) {
+  $revenue_base .= " AND u.school = $admin_school";
+}
+$curr_year = date('Y');
+$prev_year = $curr_year - 1;
+
+$revenue_sql = $revenue_base . " AND YEAR(t.created_at) = $curr_year";
+$total_revenue = mysqli_fetch_assoc(mysqli_query($conn, $revenue_sql))["total"];
+$prev_revenue_sql = $revenue_base . " AND YEAR(t.created_at) = $prev_year";
+$prev_revenue = mysqli_fetch_assoc(mysqli_query($conn, $prev_revenue_sql))["total"];
+
+if ($admin_role == 5) {
+  $total_revenue *= 0.1;
+  $prev_revenue *= 0.1;
+}
+
+$growth_percent = $prev_revenue > 0 ? (($total_revenue - $prev_revenue) / $prev_revenue) * 100 : 0;
+$growth_percent = round($growth_percent, 2);
+
+$sales_sql = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'successful' AND DATE(t.created_at) = CURDATE()";
+if ($admin_role == 5) {
+  $sales_sql .= " AND u.school = $admin_school";
+}
+$total_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_sql))["total"];
+
+// Monthly revenue data for chart
+$monthly_current = [];
+$monthly_previous = [];
+for ($m = 1; $m <= 12; $m++) {
+  $month_sql = $revenue_base . " AND YEAR(t.created_at) = $curr_year AND MONTH(t.created_at) = $m";
+  $month_total = mysqli_fetch_assoc(mysqli_query($conn, $month_sql))["total"];
+  $prev_month_sql = $revenue_base . " AND YEAR(t.created_at) = $prev_year AND MONTH(t.created_at) = $m";
+  $prev_month_total = mysqli_fetch_assoc(mysqli_query($conn, $prev_month_sql))["total"];
+  if ($admin_role == 5) {
+    $month_total *= 0.1;
+    $prev_month_total *= 0.1;
+  }
+  $monthly_current[] = (int)$month_total;
+  $monthly_previous[] = (int)$prev_month_total;
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -49,10 +112,10 @@ include('model/page_config.php');
                   <div class="d-flex align-items-end row">
                     <div class="col-sm-7">
                       <div class="card-body">
-                        <h5 class="card-title text-primary">Hello John! 🎉</h5>
+                        <h5 class="card-title text-primary">Hello <?php echo htmlspecialchars($f_name); ?>! 🎉</h5>
                         <p class="mb-4">
-                          We have got: <br><span class="fw-bold">3</span> new HOCs waiting to be verified
-                          <br><span class="fw-bold">13</span> opened support tickets
+                          We have got: <br><span class="fw-bold"><?php echo $hoc_count; ?></span> new HOCs waiting to be verified
+                          <br><span class="fw-bold"><?php echo $support_count; ?></span> opened support tickets
                         </p>
                       </div>
                     </div>
@@ -86,8 +149,8 @@ include('model/page_config.php');
                             </div>
                           </div>
                         </div>
-                        <span class="fw-semibold d-block mb-1">Profit</span>
-                        <h3 class="card-title mb-2">$12,628</h3>
+                        <span class="fw-semibold d-block mb-1">Total Revenue</span>
+                        <h3 class="card-title mb-2">₦<?php echo number_format($total_revenue); ?></h3>
                         <small class="text-success fw-semibold"><i class="bx bx-up-arrow-alt"></i> +72.80%</small>
                       </div>
                     </div>
@@ -111,7 +174,7 @@ include('model/page_config.php');
                           </div>
                         </div>
                         <span>Sales</span>
-                        <h3 class="card-title text-nowrap mb-1">$4,679</h3>
+                        <h3 class="card-title text-nowrap mb-1">₦<?php echo number_format($total_sales); ?></h3>
                         <small class="text-success fw-semibold"><i class="bx bx-up-arrow-alt"></i> +28.42%</small>
                       </div>
                     </div>
@@ -124,7 +187,11 @@ include('model/page_config.php');
                   <div class="row row-bordered g-0">
                     <div class="col-md-8">
                       <h5 class="card-header m-0 me-2 pb-3">Total Revenue</h5>
-                      <div id="totalRevenueChart" class="px-2"></div>
+                      <div id="totalRevenueChart" class="px-2"
+                        data-curr-year="<?php echo $curr_year; ?>"
+                        data-prev-year="<?php echo $prev_year; ?>"
+                        data-current='<?php echo json_encode($monthly_current); ?>'
+                        data-prev='<?php echo json_encode($monthly_previous); ?>'></div>
                     </div>
                     <div class="col-md-4">
                       <div class="card-body">
@@ -142,26 +209,26 @@ include('model/page_config.php');
                           </div>
                         </div>
                       </div>
-                      <div id="growthChart"></div>
-                      <div class="text-center fw-semibold pt-3 mb-2">62% Company Growth</div>
+                      <div id="growthChart" data-growth="<?php echo $growth_percent; ?>"></div>
+                      <div class="text-center fw-semibold pt-3 mb-2"><?php echo round($growth_percent); ?>% Company Growth</div>
 
                       <div class="d-flex px-xxl-4 px-lg-2 p-4 gap-xxl-3 gap-lg-1 gap-3 justify-content-between">
                         <div class="d-flex">
                           <div class="me-2">
-                            <span class="badge bg-label-primary p-2"><i class="bx bx-dollar text-primary"></i></span>
+                              <span class="badge bg-label-primary p-2"><i class="bx bx-dollar text-primary"></i></span>
                           </div>
                           <div class="d-flex flex-column">
-                            <small>2022</small>
-                            <h6 class="mb-0">$32.5k</h6>
+                            <small><?php echo $curr_year; ?></small>
+                              <h6 class="mb-0">₦<?php echo number_format($total_revenue); ?></h6>
                           </div>
                         </div>
                         <div class="d-flex">
                           <div class="me-2">
-                            <span class="badge bg-label-info p-2"><i class="bx bx-wallet text-info"></i></span>
+                              <span class="badge bg-label-info p-2"><i class="bx bx-wallet text-info"></i></span>
                           </div>
                           <div class="d-flex flex-column">
-                            <small>2021</small>
-                            <h6 class="mb-0">$41.2k</h6>
+                            <small><?php echo $prev_year; ?></small>
+                              <h6 class="mb-0">₦<?php echo number_format($prev_revenue); ?></h6>
                           </div>
                         </div>
                       </div>
@@ -190,8 +257,8 @@ include('model/page_config.php');
                             </div>
                           </div>
                         </div>
-                        <span class="d-block mb-1">Payments</span>
-                        <h3 class="card-title text-nowrap mb-2">$2,456</h3>
+                          <span class="d-block mb-1">Payments</span>
+                          <h3 class="card-title text-nowrap mb-2">₦2,456</h3>
                         <small class="text-danger fw-semibold"><i class="bx bx-down-arrow-alt"></i> -14.82%</small>
                       </div>
                     </div>
@@ -214,8 +281,8 @@ include('model/page_config.php');
                             </div>
                           </div>
                         </div>
-                        <span class="fw-semibold d-block mb-1">Transactions</span>
-                        <h3 class="card-title mb-2">$14,857</h3>
+                          <span class="fw-semibold d-block mb-1">Transactions</span>
+                          <h3 class="card-title mb-2">₦14,857</h3>
                         <small class="text-success fw-semibold"><i class="bx bx-up-arrow-alt"></i> +28.14%</small>
                       </div>
                     </div>
@@ -234,7 +301,7 @@ include('model/page_config.php');
                             <div class="mt-sm-auto">
                               <small class="text-success text-nowrap fw-semibold"><i class="bx bx-chevron-up"></i>
                                 68.2%</small>
-                              <h3 class="mb-0">$84,686k</h3>
+                                <h3 class="mb-0">₦84,686k</h3>
                             </div>
                           </div>
                           <div id="profileReportChart"></div>
@@ -367,7 +434,7 @@ include('model/page_config.php');
                           <div>
                             <small class="text-muted d-block">Total Balance</small>
                             <div class="d-flex align-items-center">
-                              <h6 class="mb-0 me-1">$459.10</h6>
+                                <h6 class="mb-0 me-1">₦459.10</h6>
                               <small class="text-success fw-semibold">
                                 <i class="bx bx-chevron-up"></i>
                                 42.9%
@@ -382,7 +449,7 @@ include('model/page_config.php');
                           </div>
                           <div>
                             <p class="mb-n1 mt-1">Expenses This Week</p>
-                            <small class="text-muted">$39 less than last week</small>
+                              <small class="text-muted">₦39 less than last week</small>
                           </div>
                         </div>
                       </div>
@@ -421,8 +488,8 @@ include('model/page_config.php');
                             <h6 class="mb-0">Send money</h6>
                           </div>
                           <div class="user-progress d-flex align-items-center gap-1">
-                            <h6 class="mb-0">+82.6</h6>
-                            <span class="text-muted">USD</span>
+                            <h6 class="mb-0">₦82.6</h6>
+                            <span class="text-muted">NGN</span>
                           </div>
                         </div>
                       </li>
@@ -436,8 +503,8 @@ include('model/page_config.php');
                             <h6 class="mb-0">Mac'D</h6>
                           </div>
                           <div class="user-progress d-flex align-items-center gap-1">
-                            <h6 class="mb-0">+270.69</h6>
-                            <span class="text-muted">USD</span>
+                            <h6 class="mb-0">₦270.69</h6>
+                            <span class="text-muted">NGN</span>
                           </div>
                         </div>
                       </li>
@@ -451,8 +518,8 @@ include('model/page_config.php');
                             <h6 class="mb-0">Refund</h6>
                           </div>
                           <div class="user-progress d-flex align-items-center gap-1">
-                            <h6 class="mb-0">+637.91</h6>
-                            <span class="text-muted">USD</span>
+                            <h6 class="mb-0">₦637.91</h6>
+                            <span class="text-muted">NGN</span>
                           </div>
                         </div>
                       </li>
@@ -466,8 +533,8 @@ include('model/page_config.php');
                             <h6 class="mb-0">Ordered Food</h6>
                           </div>
                           <div class="user-progress d-flex align-items-center gap-1">
-                            <h6 class="mb-0">-838.71</h6>
-                            <span class="text-muted">USD</span>
+                            <h6 class="mb-0">₦-838.71</h6>
+                            <span class="text-muted">NGN</span>
                           </div>
                         </div>
                       </li>
@@ -481,8 +548,8 @@ include('model/page_config.php');
                             <h6 class="mb-0">Starbucks</h6>
                           </div>
                           <div class="user-progress d-flex align-items-center gap-1">
-                            <h6 class="mb-0">+203.33</h6>
-                            <span class="text-muted">USD</span>
+                            <h6 class="mb-0">₦203.33</h6>
+                            <span class="text-muted">NGN</span>
                           </div>
                         </div>
                       </li>
@@ -496,8 +563,8 @@ include('model/page_config.php');
                             <h6 class="mb-0">Ordered Food</h6>
                           </div>
                           <div class="user-progress d-flex align-items-center gap-1">
-                            <h6 class="mb-0">-92.45</h6>
-                            <span class="text-muted">USD</span>
+                            <h6 class="mb-0">₦-92.45</h6>
+                            <span class="text-muted">NGN</span>
                           </div>
                         </div>
                       </li>
