@@ -43,12 +43,24 @@ if ($admin_role == 5) {
 
 $growth_percent = $prev_revenue > 0 ? (($total_revenue - $prev_revenue) / $prev_revenue) * 100 : 0;
 $growth_percent = round($growth_percent, 2);
+$revenue_class = $growth_percent >= 0 ? 'text-success' : 'text-danger';
+$revenue_icon = $growth_percent >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
 
 $sales_sql = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'successful' AND DATE(t.created_at) = CURDATE()";
 if ($admin_role == 5) {
   $sales_sql .= " AND u.school = $admin_school";
 }
 $total_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_sql))["total"];
+
+$sales_prev_sql = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'successful' AND DATE(t.created_at) = DATE_SUB(CURDATE(), INTERVAL 1 DAY)";
+if ($admin_role == 5) {
+  $sales_prev_sql .= " AND u.school = $admin_school";
+}
+$prev_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_prev_sql))["total"];
+$sales_growth_percent = $prev_sales > 0 ? (($total_sales - $prev_sales) / $prev_sales) * 100 : 0;
+$sales_growth_percent = round($sales_growth_percent, 2);
+$sales_class = $sales_growth_percent >= 0 ? 'text-success' : 'text-danger';
+$sales_icon = $sales_growth_percent >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
 
 // Additional metrics
 $users_sql = "SELECT COUNT(*) AS count FROM users WHERE 1{$school_clause}";
@@ -161,7 +173,7 @@ for ($m = 1; $m <= 12; $m++) {
                         </div>
                         <span class="fw-semibold d-block mb-1">Total Revenue</span>
                         <h3 class="card-title mb-2">₦<?php echo number_format($total_revenue); ?></h3>
-                        <small class="text-success fw-semibold"><i class="bx bx-up-arrow-alt"></i> +72.80%</small>
+                        <small class="<?php echo $revenue_class; ?> fw-semibold"><i class="bx <?php echo $revenue_icon; ?>"></i> <?php echo ($growth_percent >= 0 ? '+' : '') . $growth_percent; ?>%</small>
                       </div>
                     </div>
                   </div>
@@ -185,7 +197,7 @@ for ($m = 1; $m <= 12; $m++) {
                         </div>
                         <span>Sales</span>
                         <h3 class="card-title text-nowrap mb-1">₦<?php echo number_format($total_sales); ?></h3>
-                        <small class="text-success fw-semibold"><i class="bx bx-up-arrow-alt"></i> +28.42%</small>
+                        <small class="<?php echo $sales_class; ?> fw-semibold"><i class="bx <?php echo $sales_icon; ?>"></i> <?php echo ($sales_growth_percent >= 0 ? '+' : '') . $sales_growth_percent; ?>%</small>
                       </div>
                     </div>
                   </div>
