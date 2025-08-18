@@ -8,6 +8,31 @@ $admin_role = $_SESSION['nivas_adminRole'];
 $admin_school = $admin_['school'];
 $school_clause = ($admin_role == 5) ? " AND school = $admin_school" : '';
 
+// Time range filtering
+$range = $_GET['range'] ?? '24h';
+switch ($range) {
+  case 'weekly':
+    $current_start = "DATE_SUB(NOW(), INTERVAL 7 DAY)";
+    $prev_start = "DATE_SUB(NOW(), INTERVAL 14 DAY)";
+    $prev_end = "DATE_SUB(NOW(), INTERVAL 7 DAY)";
+    break;
+  case 'monthly':
+    $current_start = "DATE_SUB(NOW(), INTERVAL 1 MONTH)";
+    $prev_start = "DATE_SUB(NOW(), INTERVAL 2 MONTH)";
+    $prev_end = "DATE_SUB(NOW(), INTERVAL 1 MONTH)";
+    break;
+  case 'yearly':
+    $current_start = "DATE_SUB(NOW(), INTERVAL 1 YEAR)";
+    $prev_start = "DATE_SUB(NOW(), INTERVAL 2 YEAR)";
+    $prev_end = "DATE_SUB(NOW(), INTERVAL 1 YEAR)";
+    break;
+  default:
+    $range = '24h';
+    $current_start = "DATE_SUB(NOW(), INTERVAL 1 DAY)";
+    $prev_start = "DATE_SUB(NOW(), INTERVAL 2 DAY)";
+    $prev_end = "DATE_SUB(NOW(), INTERVAL 1 DAY)";
+}
+
 // Count unverified HOCs
 $hoc_count = mysqli_fetch_assoc(
   mysqli_query(
@@ -28,12 +53,13 @@ $revenue_base = "SELECT COALESCE(SUM(t.profit),0) AS total FROM transactions t J
 if ($admin_role == 5) {
   $revenue_base .= " AND u.school = $admin_school";
 }
+// Revenue and sales within selected range
 $curr_year = date('Y');
 $prev_year = $curr_year - 1;
 
-$revenue_sql = $revenue_base . " AND YEAR(t.created_at) = $curr_year";
+$revenue_sql = $revenue_base . " AND t.created_at >= $current_start";
 $total_revenue = mysqli_fetch_assoc(mysqli_query($conn, $revenue_sql))["total"];
-$prev_revenue_sql = $revenue_base . " AND YEAR(t.created_at) = $prev_year";
+$prev_revenue_sql = $revenue_base . " AND t.created_at >= $prev_start AND t.created_at < $current_start";
 $prev_revenue = mysqli_fetch_assoc(mysqli_query($conn, $prev_revenue_sql))["total"];
 
 if ($admin_role == 5) {
@@ -43,12 +69,47 @@ if ($admin_role == 5) {
 
 $growth_percent = $prev_revenue > 0 ? (($total_revenue - $prev_revenue) / $prev_revenue) * 100 : 0;
 $growth_percent = round($growth_percent, 2);
+$revenue_class = $growth_percent >= 0 ? 'text-success' : 'text-danger';
+$revenue_icon = $growth_percent >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
 
-$sales_sql = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'successful' AND DATE(t.created_at) = CURDATE()";
+$sales_base = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'successful'";
 if ($admin_role == 5) {
-  $sales_sql .= " AND u.school = $admin_school";
+  $sales_base .= " AND u.school = $admin_school";
 }
+$sales_sql = $sales_base . " AND t.created_at >= $current_start";
 $total_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_sql))["total"];
+$sales_prev_sql = $sales_base . " AND t.created_at >= $prev_start AND t.created_at < $current_start";
+$prev_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_prev_sql))["total"];
+$sales_growth_percent = $prev_sales > 0 ? (($total_sales - $prev_sales) / $prev_sales) * 100 : 0;
+$sales_growth_percent = round($sales_growth_percent, 2);
+$sales_class = $sales_growth_percent >= 0 ? 'text-success' : 'text-danger';
+$sales_icon = $sales_growth_percent >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
+
+// Additional metrics
+$users_sql = "SELECT COUNT(*) AS count FROM users WHERE 1{$school_clause}";
+switch ($range) {
+  case 'weekly':
+    $users_sql .= " AND last_login >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
+    break;
+  case 'monthly':
+    $users_sql .= " AND last_login >= DATE_SUB(NOW(), INTERVAL 1 MONTH)";
+    break;
+  case 'yearly':
+    $users_sql .= " AND last_login >= DATE_SUB(NOW(), INTERVAL 1 YEAR)";
+    break;
+  default:
+    $users_sql .= " AND last_login >= DATE_SUB(NOW(), INTERVAL 1 DAY)";
+}
+$total_users = mysqli_fetch_assoc(mysqli_query($conn, $users_sql))["count"];
+
+$transactions_base = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t";
+$transactions_where = " WHERE t.status = 'successful' AND t.created_at >= $current_start";
+if ($admin_role == 5) {
+  $transactions_base .= " JOIN users u ON t.user_id = u.id";
+  $transactions_where .= " AND u.school = $admin_school";
+}
+$transactions_sql = $transactions_base . $transactions_where;
+$transactions_amount = mysqli_fetch_assoc(mysqli_query($conn, $transactions_sql))["total"];
 
 // Monthly revenue data for chart
 $monthly_current = [];
@@ -144,14 +205,16 @@ for ($m = 1; $m <= 12; $m++) {
                               <i class="bx bx-dots-vertical-rounded"></i>
                             </button>
                             <div class="dropdown-menu dropdown-menu-end" aria-labelledby="cardOpt3">
-                              <a class="dropdown-item" href="javascript:void(0);">View More</a>
-                              <a class="dropdown-item" href="javascript:void(0);">Delete</a>
+                              <a class="dropdown-item" href="?range=24h">24 Hrs</a>
+                              <a class="dropdown-item" href="?range=weekly">Weekly</a>
+                              <a class="dropdown-item" href="?range=monthly">Monthly</a>
+                              <a class="dropdown-item" href="?range=yearly">Yearly</a>
                             </div>
                           </div>
                         </div>
                         <span class="fw-semibold d-block mb-1">Total Revenue</span>
                         <h3 class="card-title mb-2">₦<?php echo number_format($total_revenue); ?></h3>
-                        <small class="text-success fw-semibold"><i class="bx bx-up-arrow-alt"></i> +72.80%</small>
+                        <small class="<?php echo $revenue_class; ?> fw-semibold"><i class="bx <?php echo $revenue_icon; ?>"></i> <?php echo ($growth_percent >= 0 ? '+' : '') . $growth_percent; ?>%</small>
                       </div>
                     </div>
                   </div>
@@ -168,14 +231,16 @@ for ($m = 1; $m <= 12; $m++) {
                               <i class="bx bx-dots-vertical-rounded"></i>
                             </button>
                             <div class="dropdown-menu dropdown-menu-end" aria-labelledby="cardOpt6">
-                              <a class="dropdown-item" href="javascript:void(0);">View More</a>
-                              <a class="dropdown-item" href="javascript:void(0);">Delete</a>
+                              <a class="dropdown-item" href="?range=24h">24 Hrs</a>
+                              <a class="dropdown-item" href="?range=weekly">Weekly</a>
+                              <a class="dropdown-item" href="?range=monthly">Monthly</a>
+                              <a class="dropdown-item" href="?range=yearly">Yearly</a>
                             </div>
                           </div>
                         </div>
                         <span>Sales</span>
                         <h3 class="card-title text-nowrap mb-1">₦<?php echo number_format($total_sales); ?></h3>
-                        <small class="text-success fw-semibold"><i class="bx bx-up-arrow-alt"></i> +28.42%</small>
+                        <small class="<?php echo $sales_class; ?> fw-semibold"><i class="bx <?php echo $sales_icon; ?>"></i> <?php echo ($sales_growth_percent >= 0 ? '+' : '') . $sales_growth_percent; ?>%</small>
                       </div>
                     </div>
                   </div>
@@ -252,14 +317,16 @@ for ($m = 1; $m <= 12; $m++) {
                               <i class="bx bx-dots-vertical-rounded"></i>
                             </button>
                             <div class="dropdown-menu dropdown-menu-end" aria-labelledby="cardOpt4">
-                              <a class="dropdown-item" href="javascript:void(0);">View More</a>
-                              <a class="dropdown-item" href="javascript:void(0);">Delete</a>
+                              <a class="dropdown-item" href="?range=24h">24 Hrs</a>
+                              <a class="dropdown-item" href="?range=weekly">Weekly</a>
+                              <a class="dropdown-item" href="?range=monthly">Monthly</a>
+                              <a class="dropdown-item" href="?range=yearly">Yearly</a>
                             </div>
                           </div>
                         </div>
-                          <span class="d-block mb-1">Payments</span>
-                          <h3 class="card-title text-nowrap mb-2">₦2,456</h3>
-                        <small class="text-danger fw-semibold"><i class="bx bx-down-arrow-alt"></i> -14.82%</small>
+                          <span class="d-block mb-1">Total Users</span>
+                          <h3 class="card-title text-nowrap mb-2"><?php echo number_format($total_users); ?></h3>
+                        <small class="text-muted fw-semibold">Registered</small>
                       </div>
                     </div>
                   </div>
@@ -276,14 +343,16 @@ for ($m = 1; $m <= 12; $m++) {
                               <i class="bx bx-dots-vertical-rounded"></i>
                             </button>
                             <div class="dropdown-menu" aria-labelledby="cardOpt1">
-                              <a class="dropdown-item" href="javascript:void(0);">View More</a>
-                              <a class="dropdown-item" href="javascript:void(0);">Delete</a>
+                              <a class="dropdown-item" href="?range=24h">24 Hrs</a>
+                              <a class="dropdown-item" href="?range=weekly">Weekly</a>
+                              <a class="dropdown-item" href="?range=monthly">Monthly</a>
+                              <a class="dropdown-item" href="?range=yearly">Yearly</a>
                             </div>
                           </div>
                         </div>
                           <span class="fw-semibold d-block mb-1">Transactions</span>
-                          <h3 class="card-title mb-2">₦14,857</h3>
-                        <small class="text-success fw-semibold"><i class="bx bx-up-arrow-alt"></i> +28.14%</small>
+                          <h3 class="card-title mb-2">₦<?php echo number_format($transactions_amount); ?></h3>
+                        <small class="text-muted fw-semibold">Total amount</small>
                       </div>
                     </div>
                   </div>
