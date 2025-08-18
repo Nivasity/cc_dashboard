@@ -50,6 +50,16 @@ if ($admin_role == 5) {
 }
 $total_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_sql))["total"];
 
+// Additional metrics
+$users_sql = "SELECT COUNT(*) AS count FROM users WHERE 1{$school_clause}";
+$total_users = mysqli_fetch_assoc(mysqli_query($conn, $users_sql))["count"];
+
+$transactions_sql = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t";
+if ($admin_role == 5) {
+  $transactions_sql .= " JOIN users u ON t.user_id = u.id WHERE u.school = $admin_school";
+}
+$transactions_amount = mysqli_fetch_assoc(mysqli_query($conn, $transactions_sql))["total"];
+
 // Monthly revenue data for chart
 $monthly_current = [];
 $monthly_previous = [];
@@ -257,9 +267,9 @@ for ($m = 1; $m <= 12; $m++) {
                             </div>
                           </div>
                         </div>
-                          <span class="d-block mb-1">Payments</span>
-                          <h3 class="card-title text-nowrap mb-2">₦2,456</h3>
-                        <small class="text-danger fw-semibold"><i class="bx bx-down-arrow-alt"></i> -14.82%</small>
+                          <span class="d-block mb-1">Total Users</span>
+                          <h3 class="card-title text-nowrap mb-2"><?php echo number_format($total_users); ?></h3>
+                        <small class="text-muted fw-semibold">Registered</small>
                       </div>
                     </div>
                   </div>
@@ -282,8 +292,8 @@ for ($m = 1; $m <= 12; $m++) {
                           </div>
                         </div>
                           <span class="fw-semibold d-block mb-1">Transactions</span>
-                          <h3 class="card-title mb-2">₦14,857</h3>
-                        <small class="text-success fw-semibold"><i class="bx bx-up-arrow-alt"></i> +28.14%</small>
+                          <h3 class="card-title mb-2">₦<?php echo number_format($transactions_amount); ?></h3>
+                        <small class="text-muted fw-semibold">Total amount</small>
                       </div>
                     </div>
                   </div>
