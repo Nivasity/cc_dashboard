@@ -66,7 +66,14 @@ $current_tab = isset($_GET['tab']) ? $_GET['tab'] : '';
     <?php if ($customer_mgt_menu) { ?>
       <!-- Customer Management -->
       <li class="menu-header small text-uppercase"><span class="menu-header-text">Customer Management</span></li>
-      <?php if ($sch_mgt_menu) { ?>
+      <?php if ($_SESSION['nivas_adminRole'] == 5) { ?>
+        <li class="menu-item <?php echo $current_page == 'school.php' ? 'active' : ''; ?>">
+          <a href="school.php?tab=departments" class="menu-link">
+            <i class="menu-icon tf-icons bx bxs-school"></i>
+            <div data-i18n="Schools">Departments</div>
+          </a>
+        </li>
+      <?php } elseif ($sch_mgt_menu) { ?>
         <li class="menu-item <?php echo $current_page == 'school.php' ? 'active open' : ''; ?>">
           <a href="javascript:void(0);" class="menu-link menu-toggle">
             <i class="menu-icon tf-icons bx bxs-school"></i>

@@ -1,14 +1,25 @@
 <?php
+session_start();
 include('config.php');
 include('functions.php');
 $statusRes = 'failed';
 $schools = $depts = null;
+$admin_role = $_SESSION['nivas_adminRole'] ?? null;
+$admin_id = $_SESSION['nivas_adminId'] ?? null;
+$admin_school = null;
+if ($admin_role == 5 && $admin_id) {
+  $admin_school = mysqli_fetch_array(mysqli_query($conn, "SELECT school FROM admins WHERE id = $admin_id"))[0];
+}
 
 if (isset($_GET['get_data'])) {
   $get_data = $_GET['get_data'];
 
   if ($get_data == 'schools') {
-    $school_query = mysqli_query($conn, "SELECT * FROM schools");
+    if ($admin_role == 5) {
+      $school_query = mysqli_query($conn, "SELECT * FROM schools WHERE id = $admin_school");
+    } else {
+      $school_query = mysqli_query($conn, "SELECT * FROM schools");
+    }
 
     if (mysqli_num_rows($school_query) >= 1) {
       $schools = array();
@@ -41,7 +52,7 @@ if (isset($_GET['get_data'])) {
   }
 
   if ($get_data == 'school_dept') {
-    $school_id = $_GET['school'];
+    $school_id = ($admin_role == 5) ? $admin_school : $_GET['school'];
     $dept = $_GET['dept'];
     $school_ = mysqli_fetch_array(mysqli_query($conn, "SELECT * FROM schools WHERE id = $school_id"));
     $dept_query = mysqli_query($conn, "SELECT * FROM depts WHERE id = $dept AND school_id = $school_id");
@@ -60,7 +71,7 @@ if (isset($_POST['get_data'])) {
   $get_data = $_POST['get_data'];
 
   if ($get_data == 'depts') {
-    $school = $_POST['school'];
+    $school = ($_SESSION['nivas_adminRole'] == 5) ? $admin_school : $_POST['school'];
     $dept_query = mysqli_query($conn, "SELECT * FROM `depts` WHERE school_id = $school");
 
     if (mysqli_num_rows($dept_query) >= 1) {

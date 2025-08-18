@@ -3,6 +3,17 @@ session_start();
 include('model/config.php');
 include('model/page_config.php');
 
+$admin_role = $_SESSION['nivas_adminRole'];
+$admin_school = $admin_['school'];
+$admin_school_name = '';
+if ($admin_role == 5) {
+  $admin_school_name = mysqli_fetch_array(mysqli_query($conn, "SELECT name FROM schools WHERE id = $admin_school"))[0];
+  if (!isset($_GET['tab']) || $_GET['tab'] != 'departments') {
+    header('Location: school.php?tab=departments');
+    exit();
+  }
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -48,19 +59,22 @@ include('model/page_config.php');
             <div class="row">
               <div class="col-md-12">
                 <ul class="nav nav-pills flex-row mb-3" role="tablist">
+                  <?php if ($admin_role != 5) { ?>
                   <li class="nav-item">
-                    <button type="button" class="nav-link active" role="tab" data-bs-toggle="tab"
+                    <button type="button" class="nav-link <?php echo ($current_tab != 'departments') ? 'active' : ''; ?>" role="tab" data-bs-toggle="tab"
                       data-bs-target="#navs-top-school" aria-controls="navs-top-school" aria-selected="false"><i
                         class="bx bxs-school me-1"></i> Schools</button>
                   </li>
+                  <?php } ?>
                   <li class="nav-item">
-                    <button type="button" class="nav-link" role="tab" data-bs-toggle="tab"
+                    <button type="button" class="nav-link <?php echo ($current_tab == 'departments' || $admin_role == 5) ? 'active' : ''; ?>" role="tab" data-bs-toggle="tab"
                       data-bs-target="#navs-top-departments" aria-controls="navs-top-departments" aria-selected="false"><i
                         class='bx bxs-graduation me-1'></i>Departments</button>
                   </li>
                 </ul>
                 <div class="tab-content p-0 p-sm-3">
-                  <div class="card mb-4 tab-pane fade active show" id="navs-top-school" role="tabpanel">
+                  <?php if ($admin_role != 5) { ?>
+                  <div class="card mb-4 tab-pane fade <?php echo ($current_tab != 'departments') ? 'active show' : ''; ?>" id="navs-top-school" role="tabpanel">
                     <div class="card-body">
                       <div class="table-responsive text-nowrap">
                         <table class="table">
@@ -81,9 +95,11 @@ include('model/page_config.php');
                       </div>
                     </div>
                   </div>
+                  <?php } ?>
 
-                  <div class="card mb-4 tab-pane fade" id="navs-top-departments" role="tabpanel">
+                  <div class="card mb-4 tab-pane fade <?php echo ($current_tab == 'departments' || $admin_role == 5) ? 'active show' : ''; ?>" id="navs-top-departments" role="tabpanel">
                     <div class="card-header">
+                      <?php if ($admin_role != 5) { ?>
                       <form id="selectSchoolForm">
                         <div class="row mb-3">
                           <div class="col-sm-8 mb-3 mb-sm-0">
@@ -96,6 +112,9 @@ include('model/page_config.php');
                           </div>
                         </div>
                       </form>
+                      <?php } else { ?>
+                        <input type="hidden" id="school" name="school" value="<?php echo $admin_school; ?>">
+                      <?php } ?>
                     </div>
                     <hr class="my-0" />
                     <div class="card-body">
@@ -111,7 +130,7 @@ include('model/page_config.php');
                             </tr>
                           </thead>
                           <tbody id="depts_table" class="table-border-bottom-0">
-                          
+
                           </tbody>
                         </table>
                       </div>
@@ -250,15 +269,19 @@ include('model/page_config.php');
     }
 
     $(document).ready(function() {
-      fetchSchools();
-      fetchSchools2();
-
-      $('.form-select').select2({
-        theme: "bootstrap-5",
-        width: $(this).data('width') ? $(this).data('width') : $(this).hasClass('w-100') ? '100%' : 'style',
-        placeholder: $(this).data('placeholder'),
-        closeOnSelect: false
-      });
+      <?php if ($admin_role == 5) { ?>
+        $('#school').html('<option value="<?php echo $admin_school; ?>"><?php echo $admin_school_name; ?></option>');
+        fetchDepts(<?php echo $admin_school; ?>);
+      <?php } else { ?>
+        fetchSchools();
+        fetchSchools2();
+        $('.form-select').select2({
+          theme: "bootstrap-5",
+          width: $(this).data('width') ? $(this).data('width') : $(this).hasClass('w-100') ? '100%' : 'style',
+          placeholder: $(this).data('placeholder'),
+          closeOnSelect: false
+        });
+      <?php } ?>
     });
   </script>
 </body>
