@@ -99,49 +99,51 @@ $admins_query = mysqli_query($conn, "SELECT a.*, r.name AS role_name, s.name AS 
         <form id="adminForm">
           <input type="hidden" name="admin_id" value="0">
           <div class="modal-body">
-            <div class="mb-3">
-              <label for="first_name" class="form-label">First Name</label>
-              <input type="text" name="first_name" class="form-control" required>
-            </div>
-            <div class="mb-3">
-              <label for="last_name" class="form-label">Last Name</label>
-              <input type="text" name="last_name" class="form-control" required>
-            </div>
-            <div class="mb-3">
-              <label for="email" class="form-label">Email</label>
-              <input type="email" name="email" class="form-control" required>
-            </div>
-            <div class="mb-3">
-              <label for="phone" class="form-label">Phone</label>
-              <input type="text" name="phone" class="form-control" required>
-            </div>
-            <div class="mb-3">
-              <label for="gender" class="form-label">Gender</label>
-              <select name="gender" class="form-select" required>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-              </select>
-            </div>
-            <div class="mb-3">
-              <label for="role" class="form-label">Role</label>
-              <select name="role" id="role" class="form-select" required>
-                <?php mysqli_data_seek($roles_query,0); while($role = mysqli_fetch_array($roles_query)) { ?>
-                  <option value="<?php echo $role['id']; ?>"><?php echo $role['name']; ?></option>
-                <?php } ?>
-              </select>
-            </div>
-            <div class="mb-3">
-              <label for="school" class="form-label">School</label>
-              <select name="school" id="school" class="form-select">
-                <option value="0">Select School</option>
-                <?php while($school = mysqli_fetch_array($schools_query)) { ?>
-                  <option value="<?php echo $school['id']; ?>"><?php echo $school['name']; ?></option>
-                <?php } ?>
-              </select>
-            </div>
-            <div class="mb-3">
-              <label for="password" class="form-label">Password</label>
-              <input type="password" name="password" class="form-control">
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label for="first_name" class="form-label">First Name</label>
+                <input type="text" name="first_name" class="form-control" required>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="last_name" class="form-label">Last Name</label>
+                <input type="text" name="last_name" class="form-control" required>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="email" class="form-label">Email</label>
+                <input type="email" name="email" class="form-control" required>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="phone" class="form-label">Phone</label>
+                <input type="text" name="phone" class="form-control" required>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="gender" class="form-label">Gender</label>
+                <select name="gender" class="form-select" required>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                </select>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="role" class="form-label">Role</label>
+                <select name="role" id="role" class="form-select" required>
+                  <?php mysqli_data_seek($roles_query,0); while($role = mysqli_fetch_array($roles_query)) { ?>
+                    <option value="<?php echo $role['id']; ?>"><?php echo $role['name']; ?></option>
+                  <?php } ?>
+                </select>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="school" class="form-label">School</label>
+                <select name="school" id="school" class="form-select">
+                  <option value="0">Select School</option>
+                  <?php while($school = mysqli_fetch_array($schools_query)) { ?>
+                    <option value="<?php echo $school['id']; ?>"><?php echo $school['name']; ?></option>
+                  <?php } ?>
+                </select>
+              </div>
+              <div class="col-md-6 mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" name="password" class="form-control">
+              </div>
             </div>
           </div>
           <div class="modal-footer">

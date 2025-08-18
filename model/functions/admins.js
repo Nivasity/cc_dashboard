@@ -22,6 +22,9 @@ $(document).ready(function () {
     $('#role').val($(this).data('role')).trigger('change');
     $('#school').val($(this).data('school')).trigger('change');
     $('#adminForm [name="password"]').val('');
+
+    const modal = new bootstrap.Modal(document.getElementById('newAdminModal'));
+    modal.show();
   });
 
   $('#adminForm').on('submit', function (e) {
