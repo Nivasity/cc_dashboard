@@ -24,11 +24,22 @@ if ($admin_role == 5) {
 $support_count = mysqli_fetch_assoc(mysqli_query($conn, $support_sql))["count"];
 
 // Financial statistics
-$profit_sql = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'successful'";
+$revenue_base = "SELECT COALESCE(SUM(t.profit),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'successful'";
 if ($admin_role == 5) {
-  $profit_sql .= " AND u.school = $admin_school";
+  $revenue_base .= " AND u.school = $admin_school";
 }
-$total_profit = mysqli_fetch_assoc(mysqli_query($conn, $profit_sql))["total"];
+$curr_year = date('Y');
+$prev_year = $curr_year - 1;
+
+$revenue_sql = $revenue_base . " AND YEAR(t.created_at) = $curr_year";
+$total_revenue = mysqli_fetch_assoc(mysqli_query($conn, $revenue_sql))["total"];
+$prev_revenue_sql = $revenue_base . " AND YEAR(t.created_at) = $prev_year";
+$prev_revenue = mysqli_fetch_assoc(mysqli_query($conn, $prev_revenue_sql))["total"];
+
+if ($admin_role == 5) {
+  $total_revenue *= 0.1;
+  $prev_revenue *= 0.1;
+}
 
 $sales_sql = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'successful' AND DATE(t.created_at) = CURDATE()";
 if ($admin_role == 5) {
@@ -119,8 +130,8 @@ $total_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_sql))["total"];
                             </div>
                           </div>
                         </div>
-                        <span class="fw-semibold d-block mb-1">Profit</span>
-                        <h3 class="card-title mb-2">₦<?php echo number_format($total_profit); ?></h3>
+                        <span class="fw-semibold d-block mb-1">Total Revenue</span>
+                        <h3 class="card-title mb-2">₦<?php echo number_format($total_revenue); ?></h3>
                         <small class="text-success fw-semibold"><i class="bx bx-up-arrow-alt"></i> +72.80%</small>
                       </div>
                     </div>
@@ -184,8 +195,8 @@ $total_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_sql))["total"];
                               <span class="badge bg-label-primary p-2"><i class="bx bx-dollar text-primary"></i></span>
                           </div>
                           <div class="d-flex flex-column">
-                            <small>2022</small>
-                              <h6 class="mb-0">₦32.5k</h6>
+                            <small><?php echo $curr_year; ?></small>
+                              <h6 class="mb-0">₦<?php echo number_format($total_revenue); ?></h6>
                           </div>
                         </div>
                         <div class="d-flex">
@@ -193,8 +204,8 @@ $total_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_sql))["total"];
                               <span class="badge bg-label-info p-2"><i class="bx bx-wallet text-info"></i></span>
                           </div>
                           <div class="d-flex flex-column">
-                            <small>2021</small>
-                              <h6 class="mb-0">₦41.2k</h6>
+                            <small><?php echo $prev_year; ?></small>
+                              <h6 class="mb-0">₦<?php echo number_format($prev_revenue); ?></h6>
                           </div>
                         </div>
                       </div>

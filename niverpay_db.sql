@@ -266,6 +266,7 @@ CREATE TABLE `transactions` (
   `ref_id` varchar(50) NOT NULL,
   `user_id` int(11) NOT NULL,
   `amount` int(11) NOT NULL,
+  `profit` int(11) NOT NULL DEFAULT 0,
   `status` varchar(30) NOT NULL DEFAULT 'pending',
   `medium` varchar(50) NOT NULL DEFAULT 'FLUTTERWAVE',
   `created_at` datetime NOT NULL DEFAULT current_timestamp()
