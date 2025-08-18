@@ -35,13 +35,13 @@ if (isset($_GET['loggedin'])) {
 }
 
 if ($_SESSION['nivas_adminRole'] == 1) {
-  // $admin_mgt_menu = True;
+  $admin_mgt_menu = True;
   $customer_mgt_menu = True;
   $sch_mgt_menu = True;
   $public_mgt_menu = True;
   $student_mgt_menu = True;
-  // $support_mgt_menu = True;
-  // $finance_mgt_menu = True;
+  $support_mgt_menu = True;
+  $finance_mgt_menu = True;
 } else if ($_SESSION['nivas_adminRole'] == 2) {
   $customer_mgt_menu = True;
   $sch_mgt_menu = True;
