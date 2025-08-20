@@ -1,28 +1,32 @@
 // Function to fetch schools from the API
 function fetchSchools2() {
-	$.ajax({
-		type: 'GET',
-		url: 'model/getInfo.php',
-		data: { get_data: 'schools' },
-		success: function (response) {
-			var school_select = $('#school');
+        $.ajax({
+                type: 'GET',
+                url: 'model/getInfo.php',
+                data: { get_data: 'schools' },
+                success: function (response) {
+                        var school_select = $('#school');
+                        var faculty_select = $('#faculty_school');
 
-			// Filter out deactivated schools and then sort the remaining schools
-			const sortedSchools = response.schools
-				.filter(school => school.status === 'active')
-				.sort((a, b) => {
-					return a.name.localeCompare(b.name);
-				});
+                        // Filter out deactivated schools and then sort the remaining schools
+                        const sortedSchools = response.schools
+                                .filter(school => school.status === 'active')
+                                .sort((a, b) => {
+                                        return a.name.localeCompare(b.name);
+                                });
 
-			school_select.empty();
-			$.each(sortedSchools, function (index, schools) {
-				school_select.append($('<option>', {
-					value: schools.id,
-					text: schools.name
-				}));
-			});
-		}
-	});
+                        school_select.empty();
+                        faculty_select.empty();
+                        $.each(sortedSchools, function (index, schools) {
+                                var option = $('<option>', {
+                                        value: schools.id,
+                                        text: schools.name
+                                });
+                                school_select.append(option.clone());
+                                faculty_select.append(option.clone());
+                        });
+                }
+        });
 }
 
 
@@ -120,17 +124,20 @@ $(document).on('click', '.viewSchool', function () {
 });
 
 $(document).on('click', '.viewDept', function () {
-	const school_id = $(this).data('school_id');
-	const dept_id = $(this).data('id');
-	const dept_name = $(this).data('name');
+        const school_id = $(this).data('school_id');
+        const dept_id = $(this).data('id');
+        const dept_name = $(this).data('name');
+        const faculty_id = $(this).data('faculty_id');
 
-	// Populate modal with dept data
-	$('#newDeptForm [name="school_id"]').val(school_id);
-	$('#newDeptForm [name="dept_id"]').val(dept_id);
-	$('#newDeptForm [name="name"]').val(dept_name);
+        // Populate modal with dept data
+        $('#newDeptForm [name="school_id"]').val(school_id);
+        $('#newDeptForm [name="dept_id"]').val(dept_id);
+        $('#newDeptForm [name="name"]').val(dept_name);
 
-	// Open modal
-	$('#newDeptModal').modal('show');
+        loadFacultyOptions(school_id, faculty_id);
+
+        // Open modal
+        $('#newDeptModal').modal('show');
 });
 
 
@@ -267,7 +274,7 @@ function populatedeptTable(Depts, school_id, tableId) {
 										<i class="bx bx-dots-vertical-rounded"></i>
 									</button>
 									<div class="dropdown-menu">
-										<a class="dropdown-item viewDept" href="javascript:void(0);" data-id="${dept.id}" data-name="${dept.name}" data-school_id="${school_id}"><i class="bx bx-edit me-1"></i> Edit</a>
+                                                                                <a class="dropdown-item viewDept" href="javascript:void(0);" data-id="${dept.id}" data-name="${dept.name}" data-school_id="${school_id}" data-faculty_id="${dept.faculty_id}"><i class="bx bx-edit me-1"></i> Edit</a>
 										<a href="javascript:void(0);" 
 											class="dropdown-item deactivate_dept" 
 											data-id="${dept.id}" data-school_id="${school_id}"
@@ -316,9 +323,9 @@ $(document).on('click', '.deactivate', function (e) {
 
 
 $(document).on('click', '.deactivate_dept', function (e) {
-	const school_id = $(this).data('school_id');
-	const dept_id = $(this).data('id');
-	const status = $(this).data('status');
+        const school_id = $(this).data('school_id');
+        const dept_id = $(this).data('id');
+        const status = $(this).data('status');
 
 	// Gather form data
 	const deptData = {
@@ -341,5 +348,168 @@ $(document).on('click', '.deactivate_dept', function (e) {
 				showToast('bg-danger', data.message);
 			}
 		}
-	});
+        });
 });
+
+$(document).on('submit', '#selectFacForm', function (e) {
+        e.preventDefault();
+
+        school_id = $('#selectFacForm [name="school"]').val();
+
+        fetchFaculties(school_id);
+});
+
+function fetchFaculties(school_id) {
+        var submitButton = $('#submitBtnFac');
+        if (submitButton.length) {
+                submitButton.html('<span class="spinner-border spinner-border-sm mx-auto" role="status" aria-hidden="true"></span>').attr('disabled', true);
+        }
+
+        $.ajax({
+                method: 'POST',
+                url: 'model/getInfo.php',
+                data: { get_data: 'faculties', school: school_id},
+                success: function (response) {
+                        if ($.fn.dataTable.isDataTable('.faculty_table')) {
+                                const dataTableInstance = $('.faculty_table').DataTable();
+                                dataTableInstance.clear().draw().destroy();
+                        }
+
+                        if (response.status == 'success') {
+                                const sortedFacs = response.faculties.sort((a, b) => {
+                                        if (a.status === 'active' && b.status !== 'active') return -1;
+                                        if (a.status !== 'active' && b.status === 'active') return 1;
+                                        return a.name.localeCompare(b.name);
+                                });
+
+                                populateFacTable(sortedFacs, school_id, '#faculties_table');
+                        }
+                },
+                complete: function () {
+                        InitiateDatatable('.faculty_table');
+                        if (submitButton.length) {
+                                submitButton.html('Search').attr('disabled', false);
+                        }
+                }
+        });
+}
+
+function populateFacTable(Facs, school_id, tableId) {
+        const tableBody = $(tableId);
+        tableBody.empty();
+
+        Facs.forEach(fac => {
+                const row = `
+                                                <tr>
+                                                        <td>
+                                                                <i class="text-primary me-3"></i> <strong>${fac.name}</strong>
+                                                        </td>
+                                                        <td>${fac.total_departments}</td>
+                                                        <td><span class="fw-bold badge bg-label-${fac.status == 'active' ? 'success">Active' : 'danger">Deactivated'}</span></td>
+                                                        <td>
+                                                                <div class="dropstart">
+                                                                        <button type="button" class="btn p-0 dropdown-toggle hide-arrow" data-bs-toggle="dropdown" aria-expanded="true">
+                                                                                <i class="bx bx-dots-vertical-rounded"></i>
+                                                                        </button>
+                                                                        <div class="dropdown-menu">
+                                                                                <a class="dropdown-item viewFac" href="javascript:void(0);" data-id="${fac.id}" data-name="${fac.name}" data-school_id="${school_id}"><i class="bx bx-edit me-1"></i> Edit</a>
+                                                                                <a href="javascript:void(0);" class="dropdown-item deactivate_fac" data-id="${fac.id}" data-school_id="${school_id}" data-status="${fac.status == 'active' ? 'deactivated' : 'active'}"><i class="bx me-1 bx-${fac.status == 'active' ? 'trash' : 'check-circle'}"></i>${fac.status == 'active' ? 'Deactivate' : 'Activate'}</a>
+                                                                        </div>
+                                                                </div>
+                                                        </td>
+                                                </tr>
+                                        `;
+                tableBody.append(row);
+        });
+}
+
+$(document).on('click', '.viewFac', function () {
+        const school_id = $(this).data('school_id');
+        const faculty_id = $(this).data('id');
+        const faculty_name = $(this).data('name');
+
+        $('#newFacForm [name="school_id"]').val(school_id);
+        $('#newFacForm [name="faculty_id"]').val(faculty_id);
+        $('#newFacForm [name="name"]').val(faculty_name);
+
+        $('#newFacModal').modal('show');
+});
+
+$(document).on('submit', '#newFacForm', function (e) {
+        e.preventDefault();
+
+        var submitButton = $('#submitBtnFacForm');
+        submitButton.html('<span class="spinner-border spinner-border-sm mx-auto" role="status" aria-hidden="true"></span>').attr('disabled', true);
+
+        school_id = $('#newFacForm [name="school_id"]').val();
+
+        $.ajax({
+                url: 'model/faculty.php',
+                method: 'POST',
+                data: $(this).serialize(),
+                success: function (data) {
+                        if (data.status == 'success') {
+                                showToast('bg-success', data.message);
+
+                                fetchFaculties(school_id);
+                                $("#newFacForm")[0].reset();
+                                $('#newFacModal').modal('hide');
+                        } else {
+                                showToast('bg-danger', data.message);
+                        }
+                },
+                complete: function () {
+                        submitButton.html('Save changes').attr('disabled', false);
+                }
+        });
+});
+
+$(document).on('click', '.deactivate_fac', function () {
+        const school_id = $(this).data('school_id');
+        const faculty_id = $(this).data('id');
+        const status = $(this).data('status');
+
+        const facData = {
+                faculty_edit: 1,
+                faculty_id: faculty_id,
+                status: status,
+        };
+
+        $.ajax({
+                url: 'model/faculty.php',
+                method: 'POST',
+                data: facData,
+                success: function (data) {
+                        if (data.status == 'success') {
+                                showToast('bg-success', data.message);
+
+                                fetchFaculties(school_id);
+                        } else {
+                                showToast('bg-danger', data.message);
+                        }
+                }
+        });
+});
+
+// Function to load faculties into dept form
+function loadFacultyOptions(school_id, selected_id = 0) {
+        $.ajax({
+                method: 'POST',
+                url: 'model/getInfo.php',
+                data: { get_data: 'faculties', school: school_id },
+                success: function (response) {
+                        const select = $('#newDeptForm [name="faculty"]');
+                        select.empty();
+                        if (response.status == 'success') {
+                                $.each(response.faculties, function (index, fac) {
+                                        const option = $('<option>', {
+                                                value: fac.id,
+                                                text: fac.name,
+                                                selected: fac.id == selected_id
+                                        });
+                                        select.append(option);
+                                });
+                        }
+                }
+        });
+}

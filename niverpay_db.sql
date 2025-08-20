@@ -85,6 +85,20 @@ CREATE TABLE `cart` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `faculties`
+--
+
+CREATE TABLE `faculties` (
+  `id` int(11) NOT NULL,
+  `name` text NOT NULL,
+  `school_id` int(11) NOT NULL DEFAULT 1,
+  `status` varchar(15) NOT NULL DEFAULT 'active',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `depts`
 --
 
@@ -92,6 +106,7 @@ CREATE TABLE `depts` (
   `id` int(11) NOT NULL,
   `name` text NOT NULL,
   `school_id` int(11) NOT NULL DEFAULT 1,
+  `faculty_id` int(11) DEFAULT NULL,
   `status` varchar(15) NOT NULL DEFAULT 'active',
   `created_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -325,6 +340,12 @@ ALTER TABLE `cart`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `faculties`
+--
+ALTER TABLE `faculties`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indexes for table `depts`
 --
 ALTER TABLE `depts`
@@ -404,6 +425,12 @@ ALTER TABLE `admin_roles`
 -- AUTO_INCREMENT for table `cart`
 --
 ALTER TABLE `cart`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `faculties`
+--
+ALTER TABLE `faculties`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
