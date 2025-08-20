@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Aug 18, 2025 at 08:27 AM
+-- Generation Time: Aug 20, 2025 at 04:38 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -65,13 +65,6 @@ CREATE TABLE `admin_roles` (
   `name` text NOT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'active'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `admin_roles`
---
-
-INSERT INTO `admin_roles` (`id`, `name`, `status`) VALUES
-(5, 'School Bursary', 'active');
 
 -- --------------------------------------------------------
 
@@ -266,7 +259,8 @@ CREATE TABLE `transactions` (
   `ref_id` varchar(50) NOT NULL,
   `user_id` int(11) NOT NULL,
   `amount` int(11) NOT NULL,
-  `profit` int(11) NOT NULL DEFAULT 0,
+  `charge` int(11) DEFAULT NULL,
+  `profit` int(11) DEFAULT NULL,
   `status` varchar(30) NOT NULL DEFAULT 'pending',
   `medium` varchar(50) NOT NULL DEFAULT 'FLUTTERWAVE',
   `created_at` datetime NOT NULL DEFAULT current_timestamp()
