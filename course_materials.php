@@ -3,41 +3,11 @@ session_start();
 include('model/config.php');
 include('model/page_config.php');
 
-$selected_school = isset($_GET['school']) ? intval($_GET['school']) : 0;
-$selected_faculty = isset($_GET['faculty']) ? intval($_GET['faculty']) : 0;
-$selected_dept = isset($_GET['dept']) ? intval($_GET['dept']) : 0;
-
-if(isset($_GET['toggle_id'])){
-  $toggle_id = intval($_GET['toggle_id']);
-  $status_res = mysqli_fetch_array(mysqli_query($conn, "SELECT status FROM manuals WHERE id = $toggle_id"));
-  if($status_res){
-    $new_status = ($status_res[0] == 'open') ? 'close' : 'open';
-    mysqli_query($conn, "UPDATE manuals SET status = '$new_status' WHERE id = $toggle_id");
-  }
-}
-
 $schools_query = mysqli_query($conn, "SELECT id, name FROM schools WHERE status = 'active' ORDER BY name");
-$faculties_query = ($selected_school > 0) ? mysqli_query($conn, "SELECT id, name FROM faculties WHERE school_id = $selected_school AND status = 'active' ORDER BY name") : mysqli_query($conn, "SELECT id, name FROM faculties WHERE status = 'active' ORDER BY name");
-$depts_query = 0;
-if($selected_faculty > 0){
-  $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE faculty_id = $selected_faculty AND status = 'active' ORDER BY name");
-} elseif($selected_school > 0) {
-  $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE school_id = $selected_school AND status = 'active' ORDER BY name");
-} else {
-  $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' ORDER BY name");
-}
+$faculties_query = mysqli_query($conn, "SELECT id, name FROM faculties WHERE status = 'active' ORDER BY name");
+$depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' ORDER BY name");
 
-$material_sql = "SELECT m.*, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
-if($selected_school > 0){
-  $material_sql .= " AND m.school_id = $selected_school";
-}
-if($selected_faculty > 0){
-  $material_sql .= " AND d.faculty_id = $selected_faculty";
-}
-if($selected_dept > 0){
-  $material_sql .= " AND m.dept = $selected_dept";
-}
-$material_sql .= " GROUP BY m.id ORDER BY m.created_at DESC";
+$material_sql = "SELECT m.*, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id GROUP BY m.id ORDER BY m.created_at DESC";
 $materials_query = mysqli_query($conn, $material_sql);
 ?>
 <!DOCTYPE html>
@@ -60,12 +30,12 @@ $materials_query = mysqli_query($conn, $material_sql);
             <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Resources Management /</span> Course Materials</h4>
             <div class="card mb-4">
               <div class="card-body">
-                <form method="GET" id="filterForm" class="row g-3 mb-4">
+                <form id="filterForm" class="row g-3 mb-4">
                   <div class="col-md-4">
                     <select name="school" id="school" class="form-select">
                       <option value="0">All Schools</option>
                       <?php while($school = mysqli_fetch_array($schools_query)) { ?>
-                        <option value="<?php echo $school['id']; ?>" <?php echo $school['id']==$selected_school ? 'selected' : ''; ?>><?php echo $school['name']; ?></option>
+                        <option value="<?php echo $school['id']; ?>"><?php echo $school['name']; ?></option>
                       <?php } ?>
                     </select>
                   </div>
@@ -73,7 +43,7 @@ $materials_query = mysqli_query($conn, $material_sql);
                     <select name="faculty" id="faculty" class="form-select">
                       <option value="0">All Faculties</option>
                       <?php while($fac = mysqli_fetch_array($faculties_query)) { ?>
-                        <option value="<?php echo $fac['id']; ?>" <?php echo $fac['id']==$selected_faculty ? 'selected' : ''; ?>><?php echo $fac['name']; ?></option>
+                        <option value="<?php echo $fac['id']; ?>"><?php echo $fac['name']; ?></option>
                       <?php } ?>
                     </select>
                   </div>
@@ -81,7 +51,7 @@ $materials_query = mysqli_query($conn, $material_sql);
                     <select name="dept" id="dept" class="form-select">
                       <option value="0">All Departments</option>
                       <?php while($dept = mysqli_fetch_array($depts_query)) { ?>
-                        <option value="<?php echo $dept['id']; ?>" <?php echo $dept['id']==$selected_dept ? 'selected' : ''; ?>><?php echo $dept['name']; ?></option>
+                        <option value="<?php echo $dept['id']; ?>"><?php echo $dept['name']; ?></option>
                       <?php } ?>
                     </select>
                   </div>
@@ -117,7 +87,7 @@ $materials_query = mysqli_query($conn, $material_sql);
                               <i class="bx bx-dots-vertical-rounded"></i>
                             </button>
                             <div class="dropdown-menu">
-                              <a href="course_materials.php?toggle_id=<?php echo $mat['id']; ?>&school=<?php echo $selected_school; ?>&faculty=<?php echo $selected_faculty; ?>&dept=<?php echo $selected_dept; ?>" class="dropdown-item">
+                              <a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="<?php echo $mat['id']; ?>" data-status="<?php echo $mat['status']; ?>">
                                 <?php echo $mat['status']=='open' ? 'Close Material' : 'Open Material'; ?>
                               </a>
                             </div>
