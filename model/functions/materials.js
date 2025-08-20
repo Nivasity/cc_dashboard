@@ -10,13 +10,17 @@ $(document).ready(function () {
       dataType: 'json',
       success: function (res) {
         var $fac = $('#faculty');
-        $fac.empty().append('<option value="0">All Faculties</option>');
+        $fac.empty();
+        if (schoolId == 0) {
+          $fac.append('<option value="0">All Faculties</option>');
+        }
         if (res.status === 'success' && res.faculties) {
           $.each(res.faculties, function (i, fac) {
             $fac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
           });
         }
-        $fac.val('0').trigger('change.select2');
+        var firstVal = $fac.find('option:first').val() || '0';
+        $fac.val(firstVal).trigger('change.select2');
       }
     });
   }
@@ -29,13 +33,17 @@ $(document).ready(function () {
       dataType: 'json',
       success: function (res) {
         var $dept = $('#dept');
-        $dept.empty().append('<option value="0">All Departments</option>');
+        $dept.empty();
+        if (facultyId == 0) {
+          $dept.append('<option value="0">All Departments</option>');
+        }
         if (res.status === 'success' && res.departments) {
           $.each(res.departments, function (i, dept) {
             $dept.append('<option value="' + dept.id + '">' + dept.name + '</option>');
           });
         }
-        $dept.val('0').trigger('change.select2');
+        var firstVal = $dept.find('option:first').val() || '0';
+        $dept.val(firstVal).trigger('change.select2');
       }
     });
   }
