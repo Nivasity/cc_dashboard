@@ -60,7 +60,7 @@ $materials_query = mysqli_query($conn, $material_sql);
             <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Resources Management /</span> Course Materials</h4>
             <div class="card mb-4">
               <div class="card-body">
-                <form method="GET" class="row g-3 mb-4">
+                <form method="GET" id="filterForm" class="row g-3 mb-4">
                   <div class="col-md-4">
                     <select name="school" id="school" class="form-select">
                       <option value="0">All Schools</option>
@@ -105,16 +105,23 @@ $materials_query = mysqli_query($conn, $material_sql);
                     <tbody class="table-border-bottom-0">
                       <?php while($mat = mysqli_fetch_array($materials_query)) { ?>
                       <tr>
-                        <td class="text-uppercase"><?php echo $mat['title'].' ('.$mat['course_code'].')'; ?></td>
-                        <td><?php echo $mat['currency'].' '.number_format($mat['price']); ?></td>
-                        <td><?php echo $mat['currency'].' '.number_format($mat['revenue']); ?></td>
+                        <td class="text-uppercase"><strong><?php echo $mat['title'].' ('.$mat['course_code'].')'; ?></strong></td>
+                        <td>₦ <?php echo number_format($mat['price']); ?></td>
+                        <td>₦ <?php echo number_format($mat['revenue']); ?></td>
                         <td><?php echo $mat['qty_sold']; ?></td>
                         <td><span class="fw-bold badge bg-label-<?php echo $mat['status']=='open' ? 'success' : 'danger'; ?>"><?php echo ucfirst($mat['status']); ?></span></td>
                         <td><?php echo date('M d, Y', strtotime($mat['due_date'])); ?></td>
                         <td>
-                          <a href="course_materials.php?toggle_id=<?php echo $mat['id']; ?>&school=<?php echo $selected_school; ?>&faculty=<?php echo $selected_faculty; ?>&dept=<?php echo $selected_dept; ?>" class="dropdown-item">
-                            <?php echo $mat['status']=='open' ? 'Close Material' : 'Open Material'; ?>
-                          </a>
+                          <div class="dropstart">
+                            <button type="button" class="btn p-0 dropdown-toggle hide-arrow" data-bs-toggle="dropdown" aria-expanded="true">
+                              <i class="bx bx-dots-vertical-rounded"></i>
+                            </button>
+                            <div class="dropdown-menu">
+                              <a href="course_materials.php?toggle_id=<?php echo $mat['id']; ?>&school=<?php echo $selected_school; ?>&faculty=<?php echo $selected_faculty; ?>&dept=<?php echo $selected_dept; ?>" class="dropdown-item">
+                                <?php echo $mat['status']=='open' ? 'Close Material' : 'Open Material'; ?>
+                              </a>
+                            </div>
+                          </div>
                         </td>
                       </tr>
                       <?php } ?>
