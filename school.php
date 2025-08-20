@@ -196,8 +196,7 @@ if ($admin_role == 5) {
 
 
         <!-- Button to Open the Modal -->
-        <button type="button" class="btn btn-primary new_formBtn" data-bs-toggle="modal"
-          data-bs-target="#newSchoolModal">
+        <button type="button" class="btn btn-primary new_formBtn">
           <i class="bx bx-plus fs-3"></i>
         </button>
 
