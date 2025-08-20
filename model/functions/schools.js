@@ -102,9 +102,28 @@ function populateschoolTable(Schools, tableId) {
 
 
 $(document).on('click', '.new_formBtn', function () {
-	$("#newSchoolForm")[0].reset();
-	$('#newSchoolForm [name="school_id"]').val(0);
-	$('#newSchoolModalLabel').text("Add New School");
+        const activeTab = $('.nav-link.active').attr('data-bs-target');
+
+        if (activeTab === '#navs-top-faculties') {
+                $("#newFacForm")[0].reset();
+                $('#newFacForm [name="faculty_id"]').val(0);
+                $('#newFacForm [name="school_id"]').val($('#faculty_school').val());
+                $('#newFacModalLabel').text("Add New Faculty");
+                $('#newFacModal').modal('show');
+        } else if (activeTab === '#navs-top-departments') {
+                $("#newDeptForm")[0].reset();
+                $('#newDeptForm [name="dept_id"]').val(0);
+                const school_id = $('#school').val();
+                $('#newDeptForm [name="school_id"]').val(school_id);
+                $('#newDeptModalLabel').text("Add New Department");
+                loadFacultyOptions(school_id);
+                $('#newDeptModal').modal('show');
+        } else {
+                $("#newSchoolForm")[0].reset();
+                $('#newSchoolForm [name="school_id"]').val(0);
+                $('#newSchoolModalLabel').text("Add New School");
+                $('#newSchoolModal').modal('show');
+        }
 });
 
 $(document).on('click', '.viewSchool', function () {
@@ -136,7 +155,7 @@ $(document).on('click', '.viewDept', function () {
 
         loadFacultyOptions(school_id, faculty_id);
 
-        // Open modal
+        $('#newDeptModalLabel').text("Edit Department");
         $('#newDeptModal').modal('show');
 });
 
@@ -432,6 +451,7 @@ $(document).on('click', '.viewFac', function () {
         $('#newFacForm [name="faculty_id"]').val(faculty_id);
         $('#newFacForm [name="name"]').val(faculty_name);
 
+        $('#newFacModalLabel').text("Edit Faculty");
         $('#newFacModal').modal('show');
 });
 
