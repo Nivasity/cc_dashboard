@@ -67,11 +67,23 @@ $current_tab = isset($_GET['tab']) ? $_GET['tab'] : '';
       <!-- Customer Management -->
       <li class="menu-header small text-uppercase"><span class="menu-header-text">Customer Management</span></li>
       <?php if ($_SESSION['nivas_adminRole'] == 5) { ?>
-        <li class="menu-item <?php echo $current_page == 'school.php' ? 'active' : ''; ?>">
-          <a href="school.php?tab=departments" class="menu-link">
+        <li class="menu-item <?php echo $current_page == 'school.php' ? 'active open' : ''; ?>">
+          <a href="javascript:void(0);" class="menu-link menu-toggle">
             <i class="menu-icon tf-icons bx bxs-school"></i>
-            <div data-i18n="Schools">Departments</div>
+            <div data-i18n="Schools">Schools</div>
           </a>
+          <ul class="menu-sub">
+            <li class="menu-item <?php echo $current_page == 'school.php' && $current_tab == 'faculties' ? 'active' : ''; ?>">
+              <a href="school.php?tab=faculties" class="menu-link">
+                <div data-i18n="Schools">Faculties</div>
+              </a>
+            </li>
+            <li class="menu-item <?php echo $current_page == 'school.php' && $current_tab == 'departments' ? 'active' : ''; ?>">
+              <a href="school.php?tab=departments" class="menu-link">
+                <div data-i18n="Schools">Departments</div>
+              </a>
+            </li>
+          </ul>
         </li>
       <?php } elseif ($sch_mgt_menu) { ?>
         <li class="menu-item <?php echo $current_page == 'school.php' ? 'active open' : ''; ?>">
@@ -83,6 +95,11 @@ $current_tab = isset($_GET['tab']) ? $_GET['tab'] : '';
             <li class="menu-item <?php echo $current_page == 'school.php' && $current_tab == '' ? 'active' : ''; ?>">
               <a href="school.php" class="menu-link">
               <div data-i18n="Schools">School List</div>
+              </a>
+            </li>
+            <li class="menu-item <?php echo $current_page == 'school.php' && $current_tab == 'faculties' ? 'active' : ''; ?>">
+              <a href="school.php?tab=faculties" class="menu-link">
+                <div data-i18n="Schools">Faculties</div>
               </a>
             </li>
             <li class="menu-item <?php echo $current_page == 'school.php' && $current_tab == 'departments' ? 'active' : ''; ?>">

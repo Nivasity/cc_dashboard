@@ -3,7 +3,7 @@ session_start();
 include('config.php');
 include('functions.php');
 $statusRes = 'failed';
-$schools = $depts = null;
+$schools = $depts = $faculties = null;
 $admin_role = $_SESSION['nivas_adminRole'] ?? null;
 $admin_id = $_SESSION['nivas_adminId'] ?? null;
 $admin_school = null;
@@ -92,9 +92,37 @@ if (isset($_POST['get_data'])) {
         $depts[] = array(
           'id' => $dept['id'],
           'name' => $dept['name'],
+          'faculty_id' => $dept['faculty_id'],
           'total_students' => $total_students,
           'total_hocs' => $total_hocs,
           'status' => $dept['status']
+        );
+      }
+      $statusRes = "success";
+    } else {
+      $statusRes = "not found";
+    }
+  }
+
+  if ($get_data == 'faculties') {
+    $school = ($_SESSION['nivas_adminRole'] == 5) ? $admin_school : $_POST['school'];
+    $fac_query = mysqli_query($conn, "SELECT * FROM `faculties` WHERE school_id = $school");
+
+    if (mysqli_num_rows($fac_query) >= 1) {
+      $faculties = array();
+
+      while ($fac = mysqli_fetch_array($fac_query)) {
+        // Count departments for each faculty
+        $dept_count_query = mysqli_query($conn, "SELECT COUNT(*) AS total_departments FROM depts WHERE faculty_id = '{$fac['id']}'");
+        $dept_count_result = mysqli_fetch_assoc($dept_count_query);
+        $total_departments = $dept_count_result['total_departments'];
+
+        // Add data to array
+        $faculties[] = array(
+          'id' => $fac['id'],
+          'name' => $fac['name'],
+          'total_departments' => $total_departments,
+          'status' => $fac['status']
         );
       }
       $statusRes = "success";
@@ -107,7 +135,8 @@ if (isset($_POST['get_data'])) {
 $responseData = array(
   "status" => "$statusRes",
   "schools" => $schools,
-  "departments" => $depts
+  "departments" => $depts,
+  "faculties" => $faculties
 );
 
 // Set the appropriate headers for JSON response
