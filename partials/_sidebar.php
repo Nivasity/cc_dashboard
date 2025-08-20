@@ -195,6 +195,17 @@ $current_tab = isset($_GET['tab']) ? $_GET['tab'] : '';
       </li>
     <?php } ?>
 
+    <?php if ($resource_mgt_menu){ ?>
+      <!-- Resources Management -->
+      <li class="menu-header small text-uppercase"><span class="menu-header-text">Resources Management</span></li>
+      <li class="menu-item <?php echo $current_page == 'course_materials.php' ? 'active' : ''; ?>">
+        <a href="course_materials.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-book"></i>
+          <div data-i18n="Course Materials">Course Materials</div>
+        </a>
+      </li>
+    <?php } ?>
+
     <!-- Sign Out -->
     <li class="menu-header small text-uppercase"></li>
     <li class="menu-item">
