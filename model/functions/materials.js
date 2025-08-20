@@ -11,16 +11,13 @@ $(document).ready(function () {
       success: function (res) {
         var $fac = $('#faculty');
         $fac.empty();
-        if (schoolId == 0) {
-          $fac.append('<option value="0">All Faculties</option>');
-        }
-        if (res.status === 'success' && res.faculties) {
+        $fac.append('<option value="0">All Faculties</option>');
+        if (schoolId != 0 && res.status === 'success' && res.faculties) {
           $.each(res.faculties, function (i, fac) {
             $fac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
           });
         }
-        var firstVal = $fac.find('option:first').val() || '0';
-        $fac.val(firstVal).trigger('change.select2');
+        $fac.val('0').trigger('change.select2');
       }
     });
   }
@@ -34,16 +31,13 @@ $(document).ready(function () {
       success: function (res) {
         var $dept = $('#dept');
         $dept.empty();
-        if (facultyId == 0) {
-          $dept.append('<option value="0">All Departments</option>');
-        }
-        if (res.status === 'success' && res.departments) {
+        $dept.append('<option value="0">All Departments</option>');
+        if (schoolId != 0 && facultyId != 0 && res.status === 'success' && res.departments) {
           $.each(res.departments, function (i, dept) {
             $dept.append('<option value="' + dept.id + '">' + dept.name + '</option>');
           });
         }
-        var firstVal = $dept.find('option:first').val() || '0';
-        $dept.val(firstVal).trigger('change.select2');
+        $dept.val('0').trigger('change.select2');
       }
     });
   }
@@ -130,4 +124,8 @@ $(document).ready(function () {
       }
     });
   });
+
+  // Initialize dropdowns to match default selections
+  fetchFaculties($('#school').val());
+  fetchDepts($('#school').val(), $('#faculty').val());
 });
