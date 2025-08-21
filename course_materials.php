@@ -9,7 +9,7 @@ $admin_faculty = $admin_['faculty'] ?? 0;
 
 if ($admin_role == 5) {
   $schools_query = mysqli_query($conn, "SELECT id, name FROM schools WHERE status = 'active' AND id = $admin_school");
-  if ($admin_faculty > 0) {
+  if ($admin_faculty != 0) {
     $faculties_query = mysqli_query($conn, "SELECT id, name FROM faculties WHERE status = 'active' AND id = $admin_faculty");
     $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' AND faculty_id = $admin_faculty ORDER BY name");
   } else {
@@ -17,7 +17,7 @@ if ($admin_role == 5) {
     $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' AND school_id = $admin_school ORDER BY name");
   }
   $material_sql = "SELECT m.*, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id WHERE m.school_id = $admin_school";
-  if ($admin_faculty > 0) {
+  if ($admin_faculty != 0) {
     $material_sql .= " AND d.faculty_id = $admin_faculty";
   }
   $material_sql .= " GROUP BY m.id ORDER BY m.created_at DESC";
@@ -62,7 +62,7 @@ $materials_query = mysqli_query($conn, $material_sql);
                   </div>
                   <div class="col-md-4">
                     <select name="faculty" id="faculty" class="form-select">
-                      <?php if(!($admin_role == 5 && $admin_faculty > 0)) { ?>
+                      <?php if(!($admin_role == 5 && $admin_faculty != 0)) { ?>
                         <option value="0">All Faculties</option>
                       <?php } ?>
                       <?php while($fac = mysqli_fetch_array($faculties_query)) { ?>

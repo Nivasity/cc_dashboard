@@ -35,7 +35,7 @@ $(document).ready(function () {
   function fetchDepts(schoolId, facultyId) {
     if (adminRole == 5) {
       schoolId = adminSchool;
-      if (adminFaculty > 0) {
+      if (adminFaculty !== 0) {
         facultyId = adminFaculty;
       }
     }
@@ -60,7 +60,7 @@ $(document).ready(function () {
 
   function fetchMaterials() {
     var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
-    var facultyId = (adminRole == 5 && adminFaculty > 0) ? adminFaculty : $('#faculty').val();
+    var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
     var deptId = $('#dept').val();
 
     $.ajax({
@@ -109,7 +109,7 @@ $(document).ready(function () {
 
   $('#faculty').on('change', function () {
     var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
-    var facultyId = (adminRole == 5 && adminFaculty > 0) ? adminFaculty : $(this).val();
+    var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $(this).val();
     fetchDepts(schoolId, facultyId);
     fetchMaterials();
   });
@@ -143,5 +143,5 @@ $(document).ready(function () {
 
   // Initialize dropdowns to match default selections
   fetchFaculties(adminRole == 5 ? adminSchool : $('#school').val());
-  fetchDepts(adminRole == 5 ? adminSchool : $('#school').val(), (adminRole == 5 && adminFaculty > 0) ? adminFaculty : $('#faculty').val());
+  fetchDepts(adminRole == 5 ? adminSchool : $('#school').val(), (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val());
 });

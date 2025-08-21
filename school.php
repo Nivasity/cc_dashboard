@@ -102,8 +102,8 @@ if ($admin_role == 5) {
                   </div>
 <?php } ?>
                   <div class="card mb-4 tab-pane fade <?php echo ($current_tab == 'faculties') ? 'active show' : ''; ?>" id="navs-top-faculties" role="tabpanel">
+                    <?php if ($admin_role != 5) { ?>
                     <div class="card-header">
-                      <?php if ($admin_role != 5) { ?>
                       <form id="selectFacForm">
                         <div class="row mb-3">
                           <div class="col-sm-8 mb-3 mb-sm-0">
@@ -116,10 +116,12 @@ if ($admin_role == 5) {
                           </div>
                         </div>
                       </form>
-                      <?php } else { ?>
-                        <input type="hidden" id="faculty_school" name="school" value="<?php echo $admin_school; ?>">
-                      <?php } ?>
                     </div>
+                    <?php } else { ?>
+                    <form id="selectFacForm">
+                      <input type="hidden" id="faculty_school" name="school" value="<?php echo $admin_school; ?>">
+                    </form>
+                    <?php } ?>
                     <hr class="my-0" />
                     <div class="card-body">
                       <div class="table-responsive text-nowrap">
@@ -141,8 +143,8 @@ if ($admin_role == 5) {
                   </div>
 
                   <div class="card mb-4 tab-pane fade <?php echo ($current_tab == 'departments') ? 'active show' : ''; ?>" id="navs-top-departments" role="tabpanel">
+                    <?php if ($admin_role != 5) { ?>
                     <div class="card-header">
-                      <?php if ($admin_role != 5) { ?>
                       <form id="selectSchoolForm">
                         <div class="row mb-3">
                           <div class="col-sm-8 mb-3 mb-sm-0">
@@ -155,10 +157,12 @@ if ($admin_role == 5) {
                           </div>
                         </div>
                       </form>
-                      <?php } else { ?>
-                        <input type="hidden" id="school" name="school" value="<?php echo $admin_school; ?>">
-                      <?php } ?>
                     </div>
+                    <?php } else { ?>
+                    <form id="selectSchoolForm">
+                      <input type="hidden" id="school" name="school" value="<?php echo $admin_school; ?>">
+                    </form>
+                    <?php } ?>
                     <hr class="my-0" />
                     <div class="card-body">
                       <div class="table-responsive text-nowrap">
