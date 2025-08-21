@@ -10,6 +10,13 @@ $student_sch = $student_dept = $student_matric = $student_role = null;
 $acct_no = $acct_name = $acct_bank = 'N/A';
 
 $user_id = $_SESSION['nivas_adminId'];
+$admin_role = $_SESSION['nivas_adminRole'] ?? null;
+$admin_school = $admin_faculty = null;
+if ($admin_role == 5) {
+  $admin_info = mysqli_fetch_array(mysqli_query($conn, "SELECT school, faculty FROM admins WHERE id = $user_id"));
+  $admin_school = $admin_info['school'];
+  $admin_faculty = $admin_info['faculty'];
+}
 
 if (isset($_POST['student_data'])) {
   $student_data = mysqli_real_escape_string($conn, $_POST['student_data']);
@@ -31,30 +38,48 @@ if (isset($_POST['student_data'])) {
 
   if (mysqli_num_rows($result) > 0) {
     $student = mysqli_fetch_array($result);
-    $statusRes = "success";
-    $messageRes = "Student Found!";
-    $student_id = $student['id'];
-    $student_fn = $student['first_name'];
-    $student_ln = $student['last_name'];
-    $student_email = $student['email'];
-    $student_phone = $student['phone'];
-    $student_status = $student['status'];
-    $student_sch = $student['school'];
-    $student_dept = $student['dept'] == '' ? 0 : $student['dept'];
-    $student_matric = $student['matric_no'];
-    $student_role = $student['role'];
+    $student_school = $student['school'];
+    $student_dept_id = $student['dept'] == '' ? 0 : $student['dept'];
 
-    if ($student_role == 'hoc') {
-      $settlement_query = mysqli_query($conn, "SELECT * FROM settlement_accounts WHERE user_id = $student_id");
+    if ($admin_role == 5) {
+      if ($student_school != $admin_school) {
+        $statusRes = "error";
+        $messageRes = "Student not found in your school!";
+      } elseif ($admin_faculty && $admin_faculty != 0) {
+        $dept_check = mysqli_query($conn, "SELECT id FROM depts WHERE id = $student_dept_id AND school_id = $admin_school AND faculty_id = $admin_faculty");
+        if ($student_dept_id == 0 || mysqli_num_rows($dept_check) == 0) {
+          $statusRes = "error";
+          $messageRes = "Student not associated with your faculty!";
+        }
+      }
+    }
 
-      if (mysqli_num_rows($settlement_query) > 0) {
-        $settlement = mysqli_fetch_array($settlement_query);
+    if ($statusRes != 'error') {
+      $statusRes = "success";
+      $messageRes = "Student Found!";
+      $student_id = $student['id'];
+      $student_fn = $student['first_name'];
+      $student_ln = $student['last_name'];
+      $student_email = $student['email'];
+      $student_phone = $student['phone'];
+      $student_status = $student['status'];
+      $student_matric = $student['matric_no'];
+      $student_role = $student['role'];
+      $student_sch = $student_school;
+      $student_dept = $student_dept_id;
 
-        $acct_no = $settlement['acct_number'];
-        $acct_name = $settlement['acct_name'];
-        $acct_bank = $settlement['bank'];
-      } else {
-        $acct_no = $acct_name = $acct_bank = "NULL";
+      if ($student_role == 'hoc') {
+        $settlement_query = mysqli_query($conn, "SELECT * FROM settlement_accounts WHERE user_id = $student_id");
+
+        if (mysqli_num_rows($settlement_query) > 0) {
+          $settlement = mysqli_fetch_array($settlement_query);
+
+          $acct_no = $settlement['acct_number'];
+          $acct_name = $settlement['acct_name'];
+          $acct_bank = $settlement['bank'];
+        } else {
+          $acct_no = $acct_name = $acct_bank = "NULL";
+        }
       }
     }
   } else {
