@@ -87,6 +87,12 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                             <button type="submit" class="btn btn-secondary w-100 search_profile-btn">Search</button>
                           </div>
                         </div>
+                        <?php if ($admin_role == 5) { ?>
+                        <input type="hidden" name="admin_school" value="<?php echo $admin_school; ?>" />
+                        <?php if ($admin_faculty) { ?>
+                        <input type="hidden" name="admin_faculty" value="<?php echo $admin_faculty; ?>" />
+                        <?php } ?>
+                        <?php } ?>
                       </form>
                     </div>
                     <hr class="my-0" />
@@ -159,6 +165,12 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                             <button type="submit" class="btn btn-secondary w-100 search_verify-btn">Search</button>
                           </div>
                         </div>
+                        <?php if ($admin_role == 5) { ?>
+                        <input type="hidden" name="admin_school" value="<?php echo $admin_school; ?>" />
+                        <?php if ($admin_faculty) { ?>
+                        <input type="hidden" name="admin_faculty" value="<?php echo $admin_faculty; ?>" />
+                        <?php } ?>
+                        <?php } ?>
                       </form>
                     </div>
                     <hr class="my-0" />
