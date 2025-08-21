@@ -6,9 +6,11 @@ $statusRes = 'failed';
 $schools = $depts = $faculties = null;
 $admin_role = $_SESSION['nivas_adminRole'] ?? null;
 $admin_id = $_SESSION['nivas_adminId'] ?? null;
-$admin_school = null;
+$admin_school = $admin_faculty = null;
 if ($admin_role == 5 && $admin_id) {
-  $admin_school = mysqli_fetch_array(mysqli_query($conn, "SELECT school FROM admins WHERE id = $admin_id"))[0];
+  $admin_data = mysqli_fetch_array(mysqli_query($conn, "SELECT school, faculty FROM admins WHERE id = $admin_id"));
+  $admin_school = $admin_data['school'];
+  $admin_faculty = $admin_data['faculty'];
 }
 
 if (isset($_GET['get_data'])) {
@@ -72,7 +74,11 @@ if (isset($_POST['get_data'])) {
 
   if ($get_data == 'depts') {
     $school = ($_SESSION['nivas_adminRole'] == 5) ? $admin_school : $_POST['school'];
-    $dept_query = mysqli_query($conn, "SELECT * FROM `depts` WHERE school_id = $school");
+    if ($admin_role == 5 && $admin_faculty) {
+      $dept_query = mysqli_query($conn, "SELECT * FROM `depts` WHERE school_id = $school AND faculty_id = $admin_faculty");
+    } else {
+      $dept_query = mysqli_query($conn, "SELECT * FROM `depts` WHERE school_id = $school");
+    }
 
     if (mysqli_num_rows($dept_query) >= 1) {
       $depts = array();
@@ -106,7 +112,8 @@ if (isset($_POST['get_data'])) {
 
   if ($get_data == 'faculties') {
     $school = ($_SESSION['nivas_adminRole'] == 5) ? $admin_school : $_POST['school'];
-    $fac_query = mysqli_query($conn, "SELECT * FROM `faculties` WHERE school_id = $school");
+    $fac_condition = ($admin_role == 5 && $admin_faculty) ? " AND id = $admin_faculty" : "";
+    $fac_query = mysqli_query($conn, "SELECT * FROM `faculties` WHERE school_id = $school" . $fac_condition);
 
     if (mysqli_num_rows($fac_query) >= 1) {
       $faculties = array();
@@ -117,11 +124,23 @@ if (isset($_POST['get_data'])) {
         $dept_count_result = mysqli_fetch_assoc($dept_count_query);
         $total_departments = $dept_count_result['total_departments'];
 
+        // Count total students in the faculty
+        $student_count_query = mysqli_query($conn, "SELECT COUNT(*) AS total_students FROM users WHERE role = 'student' AND dept IN (SELECT id FROM depts WHERE faculty_id = '{$fac['id']}')");
+        $student_count_result = mysqli_fetch_assoc($student_count_query);
+        $total_students = $student_count_result['total_students'];
+
+        // Count HOCs in the faculty
+        $hoc_count_query = mysqli_query($conn, "SELECT COUNT(*) AS total_hocs FROM users WHERE role = 'hoc' AND dept IN (SELECT id FROM depts WHERE faculty_id = '{$fac['id']}')");
+        $hoc_count_result = mysqli_fetch_assoc($hoc_count_query);
+        $total_hocs = $hoc_count_result['total_hocs'];
+
         // Add data to array
         $faculties[] = array(
           'id' => $fac['id'],
           'name' => $fac['name'],
           'total_departments' => $total_departments,
+          'total_students' => $total_students,
+          'total_hocs' => $total_hocs,
           'status' => $fac['status']
         );
       }
