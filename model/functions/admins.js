@@ -1,17 +1,46 @@
 $(document).ready(function () {
   InitiateDatatable('.table');
 
-  $('#role, #school').select2({ theme: 'bootstrap-5', dropdownParent: $('#newAdminModal') });
+  let editing = false;
+
+  $('#role, #school, #faculty').select2({ theme: 'bootstrap-5', dropdownParent: $('#newAdminModal') });
+
+  function loadFaculties(schoolId, selected = 0) {
+    const $fac = $('#faculty');
+    $fac.empty();
+    $fac.append('<option value="0">All Faculties</option>');
+    if (schoolId == 0) {
+      $fac.val(selected).trigger('change');
+      return;
+    }
+    $.ajax({
+      method: 'POST',
+      url: 'model/getInfo.php',
+      data: { get_data: 'faculties', school: schoolId },
+      dataType: 'json',
+      success: function (res) {
+        if (res.status === 'success' && res.faculties) {
+          $.each(res.faculties, function (i, fac) {
+            $fac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
+          });
+        }
+        $fac.val(selected).trigger('change');
+      }
+    });
+  }
 
   $('.new_formBtn').on('click', function () {
+    editing = false;
     $('#adminForm')[0].reset();
     $('#adminForm [name="admin_id"]').val(0);
     $('#newAdminModalLabel').text('Add New Admin');
     $('#role').val($('#role option:first').val()).trigger('change');
     $('#school').val('0').trigger('change');
+    $('#password_field').show();
   });
 
   $('.editAdmin').on('click', function () {
+    editing = true;
     $('#newAdminModalLabel').text('Edit Admin');
     $('#adminForm [name="admin_id"]').val($(this).data('id'));
     $('#adminForm [name="first_name"]').val($(this).data('first'));
@@ -20,11 +49,21 @@ $(document).ready(function () {
     $('#adminForm [name="phone"]').val($(this).data('phone'));
     $('#adminForm [name="gender"]').val($(this).data('gender'));
     $('#role').val($(this).data('role')).trigger('change');
-    $('#school').val($(this).data('school')).trigger('change');
+    const school = $(this).data('school') || 0;
+    const faculty = $(this).data('faculty') || 0;
+    $('#school').val(school).trigger('change');
+    loadFaculties(school, faculty);
     $('#adminForm [name="password"]').val('');
+    $('#password_field').hide();
 
     const modal = new bootstrap.Modal(document.getElementById('newAdminModal'));
     modal.show();
+    editing = false;
+  });
+
+  $('#school').on('change', function () {
+    if (editing) return;
+    loadFaculties($(this).val(), 0);
   });
 
   $('#adminForm').on('submit', function (e) {

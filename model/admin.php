@@ -13,7 +13,9 @@ if (isset($_POST['admin_manage'])) {
   $gender = mysqli_real_escape_string($conn, $_POST['gender']);
   $role = intval($_POST['role']);
   $school = intval($_POST['school']);
+  $faculty = intval($_POST['faculty']);
   $school_sql = $school > 0 ? $school : 'NULL';
+  $faculty_sql = $faculty > 0 ? $faculty : 'NULL';
 
   if ($admin_id == 0) {
     $password = md5($_POST['password']);
@@ -22,7 +24,7 @@ if (isset($_POST['admin_manage'])) {
       $statusRes = "denied";
       $messageRes = "A user has been associated with this email. <br> Please try again with another email!";
     } else {
-      mysqli_query($conn, "INSERT INTO admins (first_name, last_name, email, phone, gender, role, school, password) VALUES ('$first_name', '$last_name', '$email', '$phone', '$gender', $role, $school_sql, '$password')");
+      mysqli_query($conn, "INSERT INTO admins (first_name, last_name, email, phone, gender, role, school, faculty, password) VALUES ('$first_name', '$last_name', '$email', '$phone', '$gender', $role, $school_sql, $faculty_sql, '$password')");
       if (mysqli_affected_rows($conn) >= 1) {
         $statusRes = "success";
         $messageRes = "Admin successfully added!";
@@ -37,7 +39,7 @@ if (isset($_POST['admin_manage'])) {
       $password = md5($_POST['password']);
       $password_sql = ", password = '$password'";
     }
-    mysqli_query($conn, "UPDATE admins SET first_name = '$first_name', last_name = '$last_name', email = '$email', phone = '$phone', gender = '$gender', role = $role, school = $school_sql" . $password_sql . " WHERE id = $admin_id");
+    mysqli_query($conn, "UPDATE admins SET first_name = '$first_name', last_name = '$last_name', email = '$email', phone = '$phone', gender = '$gender', role = $role, school = $school_sql, faculty = $faculty_sql" . $password_sql . " WHERE id = $admin_id");
     if (mysqli_affected_rows($conn) >= 1) {
       $statusRes = "success";
       $messageRes = "Admin successfully updated!";

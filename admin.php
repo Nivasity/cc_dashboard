@@ -60,7 +60,8 @@ $admins_query = mysqli_query($conn, "SELECT a.*, r.name AS role_name, s.name AS 
                                 data-phone="<?php echo $admin['phone']; ?>"
                                 data-gender="<?php echo $admin['gender']; ?>"
                                 data-role="<?php echo $admin['role']; ?>"
-                                data-school="<?php echo $admin['school']; ?>">
+                                data-school="<?php echo $admin['school'] ?? 0; ?>"
+                                data-faculty="<?php echo $admin['faculty'] ?? 0; ?>">
                                 <i class="bx bx-edit-alt me-1"></i> Edit
                               </a>
                               <a class="dropdown-item deleteAdmin" href="javascript:void(0);" data-id="<?php echo $admin['id']; ?>">
@@ -134,13 +135,19 @@ $admins_query = mysqli_query($conn, "SELECT a.*, r.name AS role_name, s.name AS 
               <div class="col-md-6 mb-3">
                 <label for="school" class="form-label">School</label>
                 <select name="school" id="school" class="form-select">
-                  <option value="0">Select School</option>
+                  <option value="0">All Schools</option>
                   <?php while($school = mysqli_fetch_array($schools_query)) { ?>
                     <option value="<?php echo $school['id']; ?>"><?php echo $school['name']; ?></option>
                   <?php } ?>
                 </select>
               </div>
               <div class="col-md-6 mb-3">
+                <label for="faculty" class="form-label">Faculty</label>
+                <select name="faculty" id="faculty" class="form-select">
+                  <option value="0">All Faculties</option>
+                </select>
+              </div>
+              <div class="col-12 mb-3" id="password_field">
                 <label for="password" class="form-label">Password</label>
                 <input type="password" name="password" class="form-control">
               </div>
