@@ -36,6 +36,7 @@ CREATE TABLE `admins` (
   `gender` varchar(10) DEFAULT NULL,
   `role` int(11) NOT NULL,
   `school` int(11) DEFAULT NULL,
+  `faculty` int(11) DEFAULT NULL,
   `password` varchar(255) NOT NULL,
   `status` varchar(20) DEFAULT 'active',
   `profile_pic` varchar(255) DEFAULT 'user.jpg',
