@@ -54,7 +54,7 @@ if ($admin_role == 5) {
           <!-- Content -->
 
           <div class="container-xxl flex-grow-1 container-p-y">
-            <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">School Management /</span> Schools</h4>
+            <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">School Management /</span>  <?php if($admin_school_name == '') echo 'School'; else echo $admin_school_name; ?></h4>
 
             <div class="row">
               <div class="col-md-12">

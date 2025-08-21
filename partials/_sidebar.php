@@ -122,6 +122,7 @@ $current_tab = isset($_GET['tab']) ? $_GET['tab'] : '';
                 <div>Student Profile</div>
               </a>
             </li>
+            <?php if ($admin_role != 5) { ?>
             <li class="menu-item <?php echo $current_page == 'students.php' && $current_tab == 'verify' ? 'active' : ''; ?>">
               <a href="students.php?tab=verify" class="menu-link">
                 <div>Verify Student</div>
@@ -132,6 +133,7 @@ $current_tab = isset($_GET['tab']) ? $_GET['tab'] : '';
                 <div>Email Students</div>
               </a>
             </li>
+            <?php } ?>
           </ul>
         </li>
       <?php } ?>

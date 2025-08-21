@@ -51,7 +51,7 @@ $materials_query = mysqli_query($conn, $material_sql);
               <div class="card-body">
                 <form id="filterForm" class="row g-3 mb-4">
                   <div class="col-md-4">
-                    <select name="school" id="school" class="form-select">
+                    <select name="school" id="school" class="form-select" <?php if($admin_role == 5) echo 'disabled'; ?>>
                       <?php if($admin_role != 5) { ?>
                         <option value="0">All Schools</option>
                       <?php } ?>

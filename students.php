@@ -3,6 +3,9 @@ session_start();
 include('model/config.php');
 include('model/page_config.php');
 
+$admin_role = $_SESSION['nivas_adminRole'];
+$admin_school = $admin_['school'];
+$admin_faculty = $admin_['faculty'] ?? 0;
 ?>
 
 <!DOCTYPE html>
@@ -53,6 +56,7 @@ include('model/page_config.php');
                       data-bs-target="#navs-top-profile" aria-controls="navs-top-profile" aria-selected="false"><i
                         class="bx bx-user me-1"></i> Profile</button>
                   </li>
+                  <?php if ($admin_role != 5) { ?>
                   <li class="nav-item">
                     <button type="button" class="nav-link" role="tab" data-bs-toggle="tab"
                       data-bs-target="#navs-top-verify" aria-controls="navs-top-verify" aria-selected="false"><i
@@ -63,6 +67,7 @@ include('model/page_config.php');
                       data-bs-target="#navs-top-email" aria-controls="navs-top-email" aria-selected="false"><i
                         class="bx bx-envelope me-1"></i> Email Students</button>
                   </li>
+                  <?php } ?>
                 </ul>
                 <div class="tab-content p-0 p-sm-3">
                   <div class="card mb-4 tab-pane fade active show" id="navs-top-profile" role="tabpanel">
