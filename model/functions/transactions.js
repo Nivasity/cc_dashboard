@@ -82,10 +82,10 @@ $(document).ready(function () {
             else if (trn.status === 'pending') badgeClass = 'warning';
             else badgeClass = 'danger';
             var row = '<tr>' +
-              '<td>#' + trn.ref_id + '</td>' +
-              '<td>' + trn.student + '<br>Matric no: ' + trn.matric + '</td>' +
+              '<td class="fw-bold">#' + trn.ref_id + '</td>' +
+              '<td><span class="text-uppercase text-primary">' + trn.student + '</span><br>Matric no: ' + trn.matric + '</td>' +
               '<td>' + trn.materials + '</td>' +
-              '<td>₦ ' + Number(trn.amount).toLocaleString() + '</td>' +
+              '<td class="fw-bold">₦ ' + Number(trn.amount).toLocaleString() + '</td>' +
               '<td>' + trn.date + '<br>' + trn.time + '</td>' +
               '<td><span class="fw-bold badge bg-label-' + badgeClass + '">' + trn.status.charAt(0).toUpperCase() + trn.status.slice(1) + '</span></td>' +
               '</tr>';

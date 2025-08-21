@@ -82,7 +82,7 @@ if ($admin_role == 5) {
                         <th>Ref. Id</th>
                         <th>Student Details</th>
                         <th>Course materials</th>
-                        <th>Cost</th>
+                        <th>Total Paid</th>
                         <th>Date &amp; Time</th>
                         <th>Status</th>
                       </tr>
