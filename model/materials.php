@@ -75,7 +75,7 @@ if(isset($_GET['fetch'])){
   }
 
   if($fetch == 'materials'){
-    $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.status, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
+    $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
     if($admin_role == 5){
       $material_sql .= " AND m.school_id = $admin_school";
       if($admin_faculty != 0){
@@ -104,7 +104,9 @@ if(isset($_GET['fetch'])){
         'revenue' => $row['revenue'],
         'qty_sold' => $row['qty_sold'],
         'status' => $row['status'],
-        'due_date' => date('M d, Y', strtotime($row['due_date']))
+        'db_status' => $row['db_status'],
+        'due_date' => date('M d, Y', strtotime($row['due_date'])),
+        'due_passed' => $row['due_passed'] == 1
       );
     }
     $statusRes = 'success';
@@ -119,7 +121,7 @@ if(isset($_POST['toggle_id'])){
       $statusRes = 'error';
       $messageRes = 'Unauthorized';
     } else {
-      $new_status = ($manual_res['status'] == 'open') ? 'close' : 'open';
+      $new_status = ($manual_res['status'] == 'open') ? 'closed' : 'open';
       mysqli_query($conn, "UPDATE manuals SET status = '$new_status' WHERE id = $id");
       if(mysqli_affected_rows($conn) > 0){
         $statusRes = 'success';
