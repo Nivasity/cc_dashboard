@@ -2,6 +2,7 @@
 // Get the current page name
 $current_page = basename($_SERVER['PHP_SELF']);
 $current_tab = isset($_GET['tab']) ? $_GET['tab'] : '';
+$admin_faculty = $admin_['faculty'] ?? 0;
 ?>
 
 <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
@@ -44,11 +45,13 @@ $current_tab = isset($_GET['tab']) ? $_GET['tab'] : '';
             <div data-i18n="Schools">Schools</div>
           </a>
           <ul class="menu-sub">
+            <?php if ($admin_faculty == 0) { ?>
             <li class="menu-item <?php echo $current_page == 'school.php' && $current_tab == 'faculties' ? 'active' : ''; ?>">
               <a href="school.php?tab=faculties" class="menu-link">
                 <div data-i18n="Schools">Faculties</div>
               </a>
             </li>
+            <?php } ?>
             <li class="menu-item <?php echo $current_page == 'school.php' && $current_tab == 'departments' ? 'active' : ''; ?>">
               <a href="school.php?tab=departments" class="menu-link">
                 <div data-i18n="Schools">Departments</div>

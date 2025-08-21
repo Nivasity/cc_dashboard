@@ -423,6 +423,8 @@ function populateFacTable(Facs, school_id, tableId) {
                                                         <td>
                                                                 <i class="text-primary me-3"></i> <strong>${fac.name}</strong>
                                                         </td>
+                                                        <td>${fac.total_students}</td>
+                                                        <td>${fac.total_hocs}</td>
                                                         <td>${fac.total_departments}</td>
                                                         <td><span class="fw-bold badge bg-label-${fac.status == 'active' ? 'success">Active' : 'danger">Deactivated'}</span></td>
                                                         <td>

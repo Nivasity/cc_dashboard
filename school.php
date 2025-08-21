@@ -5,12 +5,20 @@ include('model/page_config.php');
 
 $admin_role = $_SESSION['nivas_adminRole'];
 $admin_school = $admin_['school'];
+$admin_faculty = $admin_['faculty'] ?? 0;
 $admin_school_name = '';
 if ($admin_role == 5) {
   $admin_school_name = mysqli_fetch_array(mysqli_query($conn, "SELECT name FROM schools WHERE id = $admin_school"))[0];
-  if (!isset($_GET['tab']) || ($_GET['tab'] != 'departments' && $_GET['tab'] != 'faculties')) {
-    header('Location: school.php?tab=departments');
-    exit();
+  if ($admin_faculty) {
+    if (!isset($_GET['tab']) || $_GET['tab'] != 'departments') {
+      header('Location: school.php?tab=departments');
+      exit();
+    }
+  } else {
+    if (!isset($_GET['tab']) || ($_GET['tab'] != 'departments' && $_GET['tab'] != 'faculties')) {
+      header('Location: school.php?tab=departments');
+      exit();
+    }
   }
 }
 
@@ -66,11 +74,13 @@ if ($admin_role == 5) {
                         class="bx bxs-school me-1"></i> Schools</button>
                   </li>
                   <?php } ?>
+                  <?php if ($admin_faculty == 0) { ?>
                   <li class="nav-item">
                     <button type="button" class="nav-link <?php echo ($current_tab == 'faculties') ? 'active' : ''; ?>" role="tab" data-bs-toggle="tab"
                       data-bs-target="#navs-top-faculties" aria-controls="navs-top-faculties" aria-selected="false"><i
                         class='bx bxs-book-alt me-1'></i>Faculties</button>
                   </li>
+                  <?php } ?>
                   <li class="nav-item">
                     <button type="button" class="nav-link <?php echo ($current_tab == 'departments') ? 'active' : ''; ?>" role="tab" data-bs-toggle="tab"
                       data-bs-target="#navs-top-departments" aria-controls="navs-top-departments" aria-selected="false"><i
@@ -101,6 +111,7 @@ if ($admin_role == 5) {
                     </div>
                   </div>
 <?php } ?>
+                  <?php if ($admin_faculty == 0) { ?>
                   <div class="card mb-4 tab-pane fade <?php echo ($current_tab == 'faculties') ? 'active show' : ''; ?>" id="navs-top-faculties" role="tabpanel">
                     <?php if ($admin_role != 5) { ?>
                     <div class="card-header">
@@ -129,6 +140,8 @@ if ($admin_role == 5) {
                           <thead class="table-secondary">
                             <tr>
                               <th>Name</th>
+                              <th>Students</th>
+                              <th>HOC</th>
                               <th>Departments</th>
                               <th>Status</th>
                               <th>Actions</th>
@@ -141,6 +154,7 @@ if ($admin_role == 5) {
                       </div>
                     </div>
                   </div>
+                  <?php } ?>
 
                   <div class="card mb-4 tab-pane fade <?php echo ($current_tab == 'departments') ? 'active show' : ''; ?>" id="navs-top-departments" role="tabpanel">
                     <?php if ($admin_role != 5) { ?>
@@ -351,9 +365,11 @@ if ($admin_role == 5) {
     $(document).ready(function() {
       <?php if ($admin_role == 5) { ?>
         $('#school').html('<option value="<?php echo $admin_school; ?>"><?php echo $admin_school_name; ?></option>');
+        <?php if ($admin_faculty == 0) { ?>
         $('#faculty_school').html('<option value="<?php echo $admin_school; ?>"><?php echo $admin_school_name; ?></option>');
-        fetchDepts(<?php echo $admin_school; ?>);
         fetchFaculties(<?php echo $admin_school; ?>);
+        <?php } ?>
+        fetchDepts(<?php echo $admin_school; ?>);
       <?php } else { ?>
         fetchSchools();
         fetchSchools2();
