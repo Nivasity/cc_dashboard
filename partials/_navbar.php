@@ -1,5 +1,7 @@
-<nav class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme"
-  id="layout-navbar">
+<?php
+$nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/users/$admin_image" : "assets/img/avatars/user.png";
+?>
+<nav class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme" id="layout-navbar">
   <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
     <a class="nav-item nav-link px-0 me-xl-4" href="javascript:void(0)">
       <i class="bx bx-menu bx-sm"></i>
@@ -21,20 +23,20 @@
       <li class="nav-item navbar-dropdown dropdown-user dropdown">
         <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
           <div class="avatar avatar-online">
-            <img src="assets/img/avatars/user.png" alt class="w-px-40 h-auto rounded-circle" />
+            <img src="<?php echo $nav_pic; ?>" alt class="w-px-40 h-auto rounded-circle" />
           </div>
         </a>
-        <ul class="dropdown-menu dropdown-menu-end">
+        <ul class="dropdown-menu dropdown-menu-end dropdown-user">
           <li>
             <a class="dropdown-item" href="#">
               <div class="d-flex">
                 <div class="flex-shrink-0 me-3">
                   <div class="avatar avatar-online">
-                    <img src="assets/img/avatars/user.png" alt class="w-px-40 h-auto rounded-circle" />
+                    <img src="<?php echo $nav_pic; ?>" alt class="w-px-40 h-auto rounded-circle" />
                   </div>
                 </div>
                 <div class="flex-grow-1">
-                  <span class="fw-semibold d-block">John Doe</span>
+                  <span class="fw-semibold d-block"><?php echo htmlspecialchars($admin_name); ?></span>
                   <small class="text-muted">Admin</small>
                 </div>
               </div>

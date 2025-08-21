@@ -3,10 +3,11 @@ session_start();
 include('model/config.php');
 include('model/page_config.php');
 
-$profileMsg = '';
-$passwordMsg = '';
+$profile_pic_path = file_exists("assets/images/users/$admin_image") ? "assets/images/users/$admin_image" : "assets/img/avatars/user.png";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  header('Content-Type: application/json');
+
   if (isset($_POST['update_profile'])) {
     $firstname = mysqli_real_escape_string($conn, $_POST['firstname']);
     $lastname = mysqli_real_escape_string($conn, $_POST['lastname']);
@@ -29,33 +30,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     mysqli_query($conn, "UPDATE admins SET first_name = '$firstname', last_name = '$lastname', email = '$email', phone = '$phone', profile_pic = '$picture' WHERE id = $admin_id");
     if (mysqli_affected_rows($conn) >= 1) {
-      $profileMsg = 'Profile updated successfully.';
-      $admin_image = $picture;
-      $admin_email = $email;
-      $admin_phone = $phone;
-      $f_name = $firstname;
-      $l_name = $lastname;
+      $profile_pic_path = file_exists("assets/images/users/$picture") ? "assets/images/users/$picture" : "assets/img/avatars/user.png";
+      echo json_encode([
+        'status' => 'success',
+        'message' => 'Profile updated successfully.',
+        'profile_pic' => $profile_pic_path,
+        'fullname' => $firstname . ' ' . $lastname
+      ]);
     } else {
-      $profileMsg = 'No changes were made.';
+      echo json_encode([
+        'status' => 'error',
+        'message' => 'No changes were made.'
+      ]);
     }
-  } elseif (isset($_POST['change_password'])) {
+    exit;
+  }
+
+  if (isset($_POST['change_password'])) {
     $curr = md5($_POST['password']);
     $new = md5($_POST['new_password']);
     $user_query = mysqli_query($conn, "SELECT id FROM admins WHERE id = $admin_id AND password = '$curr'");
     if (mysqli_num_rows($user_query) == 1) {
       mysqli_query($conn, "UPDATE admins SET password = '$new' WHERE id = $admin_id");
       if (mysqli_affected_rows($conn) >= 1) {
-        $passwordMsg = 'Password successfully changed.';
+        echo json_encode([
+          'status' => 'success',
+          'message' => 'Password successfully changed.'
+        ]);
       } else {
-        $passwordMsg = 'Unable to change password.';
+        echo json_encode([
+          'status' => 'error',
+          'message' => 'Unable to change password.'
+        ]);
       }
     } else {
-      $passwordMsg = 'Current password is incorrect.';
+      echo json_encode([
+        'status' => 'error',
+        'message' => 'Current password is incorrect.'
+      ]);
     }
+    exit;
   }
 }
-
-$profile_pic_path = file_exists("assets/images/users/$admin_image") ? "assets/images/users/$admin_image" : "assets/img/avatars/user.png";
 
 ?>
 
@@ -194,7 +210,6 @@ $profile_pic_path = file_exists("assets/images/users/$admin_image") ? "assets/im
                           <button type="reset" class="btn btn-outline-secondary">Cancel</button>
                         </div>
                       </form>
-                      <?php if ($profileMsg) { echo '<div class="alert alert-info mt-2">' . $profileMsg . '</div>'; } ?>
                     </div>
                     <!-- /Account -->
                     <div class="card">
@@ -223,7 +238,6 @@ $profile_pic_path = file_exists("assets/images/users/$admin_image") ? "assets/im
                           </div>
                           <button type="submit" class="btn btn-secondary" name="change_password">Submit</button>
                         </form>
-                        <?php if ($passwordMsg) { echo '<div class="alert alert-info mt-2">' . $passwordMsg . '</div>'; } ?>
                       </div>
                     </div>
                 </div>
@@ -258,12 +272,64 @@ $profile_pic_path = file_exists("assets/images/users/$admin_image") ? "assets/im
     <!-- endbuild -->
 
     <!-- Vendors JS -->
+    <script src="assets/js/ui-toasts.js"></script>
 
     <!-- Main JS -->
     <script src="assets/js/main.js"></script>
 
     <!-- Page JS -->
     <script src="assets/js/pages-account-settings-account.js"></script>
+
+    <script>
+      $(document).ready(function () {
+        $('#formAccountSettings').on('submit', function (e) {
+          e.preventDefault();
+          var formData = new FormData(this);
+          formData.append('update_profile', '1');
+          $.ajax({
+            type: 'POST',
+            url: 'profile.php',
+            data: formData,
+            contentType: false,
+            processData: false,
+            success: function (data) {
+              if (data.status === 'success') {
+                $('#uploadedAvatar').attr('src', data.profile_pic);
+                $('.dropdown-user .avatar img').attr('src', data.profile_pic);
+                $('.dropdown-user .fw-semibold').text(data.fullname);
+                showToast('bg-success', data.message);
+              } else {
+                showToast('bg-danger', data.message);
+              }
+            },
+            error: function () {
+              showToast('bg-danger', 'Network error');
+            }
+          });
+        });
+
+        $('#formAccountDeactivation').on('submit', function (e) {
+          e.preventDefault();
+          var formData = $(this).serialize() + '&change_password=1';
+          $.ajax({
+            type: 'POST',
+            url: 'profile.php',
+            data: formData,
+            success: function (data) {
+              if (data.status === 'success') {
+                $('#formAccountDeactivation')[0].reset();
+                showToast('bg-success', data.message);
+              } else {
+                showToast('bg-danger', data.message);
+              }
+            },
+            error: function () {
+              showToast('bg-danger', 'Network error');
+            }
+          });
+        });
+      });
+    </script>
 
     <!-- Place this tag in your head or just before your close body tag. -->
     <script async defer src="https://buttons.github.io/buttons.js"></script>
