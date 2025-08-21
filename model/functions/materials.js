@@ -26,6 +26,7 @@ $(document).ready(function () {
             $fac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
           });
         }
+        $fac.prop('disabled', res.restrict_faculty);
         var selected = res.restrict_faculty && res.faculties.length > 0 ? res.faculties[0].id : '0';
         $fac.val(selected).trigger('change.select2');
       }
@@ -77,6 +78,16 @@ $(document).ready(function () {
         tbody.empty();
         if (res.status === 'success' && res.materials) {
           $.each(res.materials, function (i, mat) {
+            var actionHtml = '';
+            if (!mat.due_passed) {
+              actionHtml = '<div class="dropstart">' +
+                '<button type="button" class="btn p-0 dropdown-toggle hide-arrow" data-bs-toggle="dropdown" aria-expanded="true">' +
+                '<i class="bx bx-dots-vertical-rounded"></i></button>' +
+                '<div class="dropdown-menu">' +
+                '<a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="' + mat.id + '" data-status="' + mat.db_status + '">' +
+                (mat.db_status === 'open' ? '<i class="bx bx-lock me-1"></i> Close Material' : '<i class="bx bx-lock-open me-1"></i> Open Material') + '</a>' +
+                '</div></div>';
+            }
             var row = '<tr>' +
               '<td class="text-uppercase"><strong>' + mat.title + ' (' + mat.course_code + ')</strong></td>' +
               '<td>₦ ' + Number(mat.price).toLocaleString() + '</td>' +
@@ -84,13 +95,7 @@ $(document).ready(function () {
               '<td>' + mat.qty_sold + '</td>' +
               '<td><span class="fw-bold badge bg-label-' + (mat.status === 'open' ? 'success' : 'danger') + '">' + mat.status.charAt(0).toUpperCase() + mat.status.slice(1) + '</span></td>' +
               '<td>' + mat.due_date + '</td>' +
-              '<td><div class="dropstart">' +
-              '<button type="button" class="btn p-0 dropdown-toggle hide-arrow" data-bs-toggle="dropdown" aria-expanded="true">' +
-              '<i class="bx bx-dots-vertical-rounded"></i></button>' +
-              '<div class="dropdown-menu">' +
-              '<a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="' + mat.id + '" data-status="' + mat.db_status + '">' +
-              (mat.db_status === 'open' ? '<i class="bx bx-lock me-1"></i> Close Material' : '<i class="bx bx-lock-open me-1"></i> Open Material') + '</a>' +
-              '</div></div></td>' +
+              '<td>' + actionHtml + '</td>' +
               '</tr>';
             tbody.append(row);
           });
