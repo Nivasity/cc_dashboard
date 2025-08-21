@@ -3,6 +3,76 @@ session_start();
 include('model/config.php');
 include('model/page_config.php');
 
+$profile_pic_path = file_exists("assets/images/users/$admin_image") ? "assets/images/users/$admin_image" : "assets/img/avatars/user.png";
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  header('Content-Type: application/json');
+
+  if (isset($_POST['update_profile'])) {
+    $firstname = mysqli_real_escape_string($conn, $_POST['firstname']);
+    $lastname = mysqli_real_escape_string($conn, $_POST['lastname']);
+    $email = mysqli_real_escape_string($conn, $_POST['email']);
+    $phone = mysqli_real_escape_string($conn, $_POST['phone']);
+
+    $picture = $admin_image;
+    if (!empty($_FILES['upload']['name'])) {
+      $extension = pathinfo($_FILES['upload']['name'], PATHINFO_EXTENSION);
+      $picture = 'user' . time() . '.' . $extension;
+      $destination = "assets/images/users/$picture";
+      if (!is_dir('assets/images/users')) {
+        mkdir('assets/images/users', 0755, true);
+      }
+      if ($admin_image !== 'user.jpg' && file_exists("assets/images/users/$admin_image")) {
+        unlink("assets/images/users/$admin_image");
+      }
+      move_uploaded_file($_FILES['upload']['tmp_name'], $destination);
+    }
+
+    mysqli_query($conn, "UPDATE admins SET first_name = '$firstname', last_name = '$lastname', email = '$email', phone = '$phone', profile_pic = '$picture' WHERE id = $admin_id");
+    if (mysqli_affected_rows($conn) >= 1) {
+      $profile_pic_path = file_exists("assets/images/users/$picture") ? "assets/images/users/$picture" : "assets/img/avatars/user.png";
+      echo json_encode([
+        'status' => 'success',
+        'message' => 'Profile updated successfully.',
+        'profile_pic' => $profile_pic_path,
+        'fullname' => $firstname . ' ' . $lastname
+      ]);
+    } else {
+      echo json_encode([
+        'status' => 'error',
+        'message' => 'No changes were made.'
+      ]);
+    }
+    exit;
+  }
+
+  if (isset($_POST['change_password'])) {
+    $curr = md5($_POST['password']);
+    $new = md5($_POST['new_password']);
+    $user_query = mysqli_query($conn, "SELECT id FROM admins WHERE id = $admin_id AND password = '$curr'");
+    if (mysqli_num_rows($user_query) == 1) {
+      mysqli_query($conn, "UPDATE admins SET password = '$new' WHERE id = $admin_id");
+      if (mysqli_affected_rows($conn) >= 1) {
+        echo json_encode([
+          'status' => 'success',
+          'message' => 'Password successfully changed.'
+        ]);
+      } else {
+        echo json_encode([
+          'status' => 'error',
+          'message' => 'Unable to change password.'
+        ]);
+      }
+    } else {
+      echo json_encode([
+        'status' => 'error',
+        'message' => 'Current password is incorrect.'
+      ]);
+    }
+    exit;
+  }
+}
+
 ?>
 
 <!DOCTYPE html>
@@ -61,7 +131,7 @@ include('model/page_config.php');
                     <div class="card-body">
                       <div class="d-flex align-items-start align-items-sm-center gap-4">
                         <img
-                          src="assets/img/avatars/user.png"
+                          src="<?php echo $profile_pic_path; ?>"
                           alt="user-avatar"
                           class="d-block rounded"
                           height="100"
@@ -75,6 +145,7 @@ include('model/page_config.php');
                             <input
                               type="file"
                               id="upload"
+                              name="upload"
                               class="account-file-input"
                               hidden
                               accept="image/png, image/jpeg"
@@ -91,7 +162,7 @@ include('model/page_config.php');
                     </div>
                     <hr class="my-0" />
                     <div class="card-body">
-                      <form id="formAccountSettings" method="POST" onsubmit="return false">
+                      <form id="formAccountSettings" method="POST" enctype="multipart/form-data">
                         <div class="row">
                           <div class="mb-3 col-md-6">
                             <label for="firstName" class="form-label">First Name</label>
@@ -99,34 +170,24 @@ include('model/page_config.php');
                               class="form-control"
                               type="text"
                               id="firstName"
-                              name="firstName"
-                              value="John"
+                              name="firstname"
+                              value="<?php echo htmlspecialchars($f_name); ?>"
                               autofocus
                             />
                           </div>
                           <div class="mb-3 col-md-6">
                             <label for="lastName" class="form-label">Last Name</label>
-                            <input class="form-control" type="text" name="lastName" id="lastName" value="Doe" />
+                            <input class="form-control" type="text" name="lastname" id="lastName" value="<?php echo htmlspecialchars($l_name); ?>" />
                           </div>
                           <div class="mb-3 col-md-6">
                             <label for="email" class="form-label">E-mail</label>
                             <input
                               class="form-control"
-                              type="text"
+                              type="email"
                               id="email"
                               name="email"
-                              value="john.doe@example.com"
+                              value="<?php echo htmlspecialchars($admin_email); ?>"
                               placeholder="john.doe@example.com"
-                            />
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label for="organization" class="form-label">Position</label>
-                            <input
-                              type="text"
-                              class="form-control"
-                              id="organization"
-                              name="organization"
-                              value="ThemeSelection"
                             />
                           </div>
                           <div class="mb-3 col-md-6">
@@ -136,70 +197,49 @@ include('model/page_config.php');
                               <input
                                 type="text"
                                 id="phoneNumber"
-                                name="phoneNumber"
+                                name="phone"
                                 class="form-control"
                                 placeholder="704 506 5564"
+                                value="<?php echo htmlspecialchars($admin_phone); ?>"
                               />
                             </div>
                           </div>
-                          <div class="mb-3 col-md-6">
-                            <label for="address" class="form-label">Address</label>
-                            <input type="text" class="form-control" id="address" name="address" placeholder="Address" />
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label for="state" class="form-label">State</label>
-                            <input class="form-control" type="text" id="state" name="state" placeholder="California" />
-                          </div>
-                          <div class="mb-3 col-md-6">
-                            <label for="zipCode" class="form-label">Zip Code</label>
-                            <input
-                              type="text"
-                              class="form-control"
-                              id="zipCode"
-                              name="zipCode"
-                              placeholder="231465"
-                              maxlength="6"
-                            />
-                          </div>
                         </div>
                         <div class="mt-2">
-                          <button type="submit" class="btn btn-primary me-2">Save changes</button>
+                          <button type="submit" class="btn btn-primary me-2" name="update_profile">Save changes</button>
                           <button type="reset" class="btn btn-outline-secondary">Cancel</button>
                         </div>
                       </form>
                     </div>
                     <!-- /Account -->
-                  </div>
-                  <div class="card">
-                    <h5 class="card-header">Change Password</h5>
-                    <div class="card-body">
-                      <form id="formAccountDeactivation" onsubmit="return false">
-                        <div class="row">
-                          <div class="mb-3 col-md-6">
-                            <div class="form-password-toggle">
-                              <label for="address" class="form-label">Current Password</label>
-                              <div class="input-group input-group-merge">
-                                <input type="password" class="form-control" id="password" name="password" placeholder="············"
-                                  aria-describedby="password">
-                                <span class="input-group-text cursor-pointer" id="password"><i class="bx bx-hide"></i></span>
+                    <div class="card">
+                      <h5 class="card-header">Change Password</h5>
+                      <div class="card-body">
+                        <form id="formAccountDeactivation" method="POST">
+                          <div class="row">
+                            <div class="mb-3 col-md-6">
+                              <div class="form-password-toggle">
+                                <label for="password" class="form-label">Current Password</label>
+                                <div class="input-group input-group-merge">
+                                  <input type="password" class="form-control" id="password" name="password" placeholder="···········" aria-describedby="password">
+                                  <span class="input-group-text cursor-pointer"><i class="bx bx-hide"></i></span>
+                                </div>
+                              </div>
+                            </div>
+                            <div class="mb-3 col-md-6">
+                              <div class="form-password-toggle">
+                                <label for="new_password" class="form-label">New Password</label>
+                                <div class="input-group input-group-merge">
+                                  <input type="password" class="form-control" id="new_password" name="new_password" placeholder="··········" aria-describedby="new_password">
+                                  <span class="input-group-text cursor-pointer"><i class="bx bx-hide"></i></span>
+                                </div>
                               </div>
                             </div>
                           </div>
-                          <div class="mb-3 col-md-6">
-                            <div class="form-password-toggle">
-                              <label for="address" class="form-label">New password</label>
-                              <div class="input-group input-group-merge">
-                                <input type="password" class="form-control" id="new_password" name="new_password" placeholder="············"
-                                  aria-describedby="new_password">
-                                <span class="input-group-text cursor-pointer" id="new_password"><i class="bx bx-hide"></i></span>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                        <button type="submit" class="btn btn-secondary change_pswd">Submit</button>
-                      </form>
+                          <button type="submit" class="btn btn-secondary" name="change_password">Submit</button>
+                        </form>
+                      </div>
                     </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -232,12 +272,64 @@ include('model/page_config.php');
     <!-- endbuild -->
 
     <!-- Vendors JS -->
+    <script src="assets/js/ui-toasts.js"></script>
 
     <!-- Main JS -->
     <script src="assets/js/main.js"></script>
 
     <!-- Page JS -->
     <script src="assets/js/pages-account-settings-account.js"></script>
+
+    <script>
+      $(document).ready(function () {
+        $('#formAccountSettings').on('submit', function (e) {
+          e.preventDefault();
+          var formData = new FormData(this);
+          formData.append('update_profile', '1');
+          $.ajax({
+            type: 'POST',
+            url: 'profile.php',
+            data: formData,
+            contentType: false,
+            processData: false,
+            success: function (data) {
+              if (data.status === 'success') {
+                $('#uploadedAvatar').attr('src', data.profile_pic);
+                $('.dropdown-user .avatar img').attr('src', data.profile_pic);
+                $('.dropdown-user .fw-semibold').text(data.fullname);
+                showToast('bg-success', data.message);
+              } else {
+                showToast('bg-danger', data.message);
+              }
+            },
+            error: function () {
+              showToast('bg-danger', 'Network error');
+            }
+          });
+        });
+
+        $('#formAccountDeactivation').on('submit', function (e) {
+          e.preventDefault();
+          var formData = $(this).serialize() + '&change_password=1';
+          $.ajax({
+            type: 'POST',
+            url: 'profile.php',
+            data: formData,
+            success: function (data) {
+              if (data.status === 'success') {
+                $('#formAccountDeactivation')[0].reset();
+                showToast('bg-success', data.message);
+              } else {
+                showToast('bg-danger', data.message);
+              }
+            },
+            error: function () {
+              showToast('bg-danger', 'Network error');
+            }
+          });
+        });
+      });
+    </script>
 
     <!-- Place this tag in your head or just before your close body tag. -->
     <script async defer src="https://buttons.github.io/buttons.js"></script>
