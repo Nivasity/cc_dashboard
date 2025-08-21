@@ -33,39 +33,10 @@ $current_tab = isset($_GET['tab']) ? $_GET['tab'] : '';
         <div data-i18n="My Profile">My Profile</div>
       </a>
     </li> -->
-
-    <?php if ($admin_mgt_menu){ ?>
-      <!-- Admin Management -->
-      <li class="menu-header small text-uppercase"><span class="menu-header-text">Admin Management</span></li>
-      <li class="menu-item">
-        <a href="javascript:void(0);" class="menu-link menu-toggle">
-          <i class="menu-icon tf-icons bx bx-group"></i>
-          <div data-i18n="Admin Management">Admins</div>
-        </a>
-        <ul class="menu-sub">
-          <li class="menu-item">
-            <a href="admin.php" class="menu-link">
-              <div data-i18n="Admins">Profiles</div>
-            </a>
-          </li>
-          <li class="menu-item">
-            <a href="admin.php" class="menu-link">
-              <div data-i18n="Admins">Roles</div>
-            </a>
-          </li>
-        </ul>
-      </li>
-      <li class="menu-item">
-        <a href="sign_up_key.php" class="menu-link">
-          <i class="menu-icon tf-icons bx bx-key"></i>
-          <div data-i18n="Admin Management">Sign Up Keys</div>
-        </a>
-      </li>
-    <?php } ?>
     
     <?php if ($customer_mgt_menu) { ?>
       <!-- Customer Management -->
-      <li class="menu-header small text-uppercase"><span class="menu-header-text">Customer Management</span></li>
+      <li class="menu-header small text-uppercase"><span class="menu-header-text"> <?php if ($_SESSION['nivas_adminRole'] == 5) echo 'Academics'; else echo 'Customer Management'; ?></span></li>
       <?php if ($_SESSION['nivas_adminRole'] == 5) { ?>
         <li class="menu-item <?php echo $current_page == 'school.php' ? 'active open' : ''; ?>">
           <a href="javascript:void(0);" class="menu-link menu-toggle">
@@ -188,7 +159,7 @@ $current_tab = isset($_GET['tab']) ? $_GET['tab'] : '';
     
     <?php if ($finance_mgt_menu){ ?>
       <!-- Financial report -->
-      <li class="menu-header small text-uppercase"><span class="menu-header-text">Financial report</span></li>
+      <li class="menu-header small text-uppercase"><span class="menu-header-text">Finances</span></li>
       <li class="menu-item">
         <a href="transactions.php" class="menu-link">
           <i class="menu-icon tf-icons bx bx-transfer"></i>
@@ -199,11 +170,40 @@ $current_tab = isset($_GET['tab']) ? $_GET['tab'] : '';
 
     <?php if ($resource_mgt_menu){ ?>
       <!-- Resources Management -->
-      <li class="menu-header small text-uppercase"><span class="menu-header-text">Resources Management</span></li>
+      <li class="menu-header small text-uppercase"><span class="menu-header-text">Resources</span></li>
       <li class="menu-item <?php echo $current_page == 'course_materials.php' ? 'active' : ''; ?>">
         <a href="course_materials.php" class="menu-link">
           <i class="menu-icon tf-icons bx bx-book"></i>
           <div data-i18n="Course Materials">Course Materials</div>
+        </a>
+      </li>
+    <?php } ?>
+
+    <?php if ($admin_mgt_menu){ ?>
+      <!-- Admin Management -->
+      <li class="menu-header small text-uppercase"><span class="menu-header-text">Admin Management</span></li>
+      <li class="menu-item">
+        <a href="javascript:void(0);" class="menu-link menu-toggle">
+          <i class="menu-icon tf-icons bx bx-group"></i>
+          <div data-i18n="Admin Management">Admins</div>
+        </a>
+        <ul class="menu-sub">
+          <li class="menu-item">
+            <a href="admin.php" class="menu-link">
+              <div data-i18n="Admins">Profiles</div>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="admin.php" class="menu-link">
+              <div data-i18n="Admins">Roles</div>
+            </a>
+          </li>
+        </ul>
+      </li>
+      <li class="menu-item">
+        <a href="sign_up_key.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-key"></i>
+          <div data-i18n="Admin Management">Sign Up Keys</div>
         </a>
       </li>
     <?php } ?>
