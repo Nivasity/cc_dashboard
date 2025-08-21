@@ -3,11 +3,30 @@ session_start();
 include('model/config.php');
 include('model/page_config.php');
 
-$schools_query = mysqli_query($conn, "SELECT id, name FROM schools WHERE status = 'active' ORDER BY name");
-$faculties_query = mysqli_query($conn, "SELECT id, name FROM faculties WHERE status = 'active' ORDER BY name");
-$depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' ORDER BY name");
+$admin_role = $_SESSION['nivas_adminRole'];
+$admin_school = $admin_['school'];
+$admin_faculty = $admin_['faculty'] ?? 0;
 
-$material_sql = "SELECT m.*, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id GROUP BY m.id ORDER BY m.created_at DESC";
+if ($admin_role == 5) {
+  $schools_query = mysqli_query($conn, "SELECT id, name FROM schools WHERE status = 'active' AND id = $admin_school");
+  if ($admin_faculty > 0) {
+    $faculties_query = mysqli_query($conn, "SELECT id, name FROM faculties WHERE status = 'active' AND id = $admin_faculty");
+    $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' AND faculty_id = $admin_faculty ORDER BY name");
+  } else {
+    $faculties_query = mysqli_query($conn, "SELECT id, name FROM faculties WHERE status = 'active' AND school_id = $admin_school ORDER BY name");
+    $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' AND school_id = $admin_school ORDER BY name");
+  }
+  $material_sql = "SELECT m.*, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id WHERE m.school_id = $admin_school";
+  if ($admin_faculty > 0) {
+    $material_sql .= " AND d.faculty_id = $admin_faculty";
+  }
+  $material_sql .= " GROUP BY m.id ORDER BY m.created_at DESC";
+} else {
+  $schools_query = mysqli_query($conn, "SELECT id, name FROM schools WHERE status = 'active' ORDER BY name");
+  $faculties_query = mysqli_query($conn, "SELECT id, name FROM faculties WHERE status = 'active' ORDER BY name");
+  $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' ORDER BY name");
+  $material_sql = "SELECT m.*, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id GROUP BY m.id ORDER BY m.created_at DESC";
+}
 $materials_query = mysqli_query($conn, $material_sql);
 ?>
 <!DOCTYPE html>
@@ -33,17 +52,21 @@ $materials_query = mysqli_query($conn, $material_sql);
                 <form id="filterForm" class="row g-3 mb-4">
                   <div class="col-md-4">
                     <select name="school" id="school" class="form-select">
-                      <option value="0">All Schools</option>
+                      <?php if($admin_role != 5) { ?>
+                        <option value="0">All Schools</option>
+                      <?php } ?>
                       <?php while($school = mysqli_fetch_array($schools_query)) { ?>
-                        <option value="<?php echo $school['id']; ?>"><?php echo $school['name']; ?></option>
+                        <option value="<?php echo $school['id']; ?>" <?php if($admin_role == 5) echo 'selected'; ?>><?php echo $school['name']; ?></option>
                       <?php } ?>
                     </select>
                   </div>
                   <div class="col-md-4">
                     <select name="faculty" id="faculty" class="form-select">
-                      <option value="0">All Faculties</option>
+                      <?php if(!($admin_role == 5 && $admin_faculty > 0)) { ?>
+                        <option value="0">All Faculties</option>
+                      <?php } ?>
                       <?php while($fac = mysqli_fetch_array($faculties_query)) { ?>
-                        <option value="<?php echo $fac['id']; ?>"><?php echo $fac['name']; ?></option>
+                        <option value="<?php echo $fac['id']; ?>" <?php if($admin_role == 5 && $admin_faculty == $fac['id']) echo 'selected'; ?>><?php echo $fac['name']; ?></option>
                       <?php } ?>
                     </select>
                   </div>
@@ -120,6 +143,11 @@ $materials_query = mysqli_query($conn, $material_sql);
   <!-- Main JS -->
   <script src="assets/js/ui-toasts.js"></script>
   <script src="assets/js/main.js"></script>
+  <script>
+    const adminRole = <?php echo (int)$admin_role; ?>;
+    const adminSchool = <?php echo (int)$admin_school; ?>;
+    const adminFaculty = <?php echo (int)$admin_faculty; ?>;
+  </script>
   <script src="model/functions/materials.js"></script>
 </body>
 </html>

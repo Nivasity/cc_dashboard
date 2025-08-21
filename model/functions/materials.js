@@ -1,8 +1,15 @@
 $(document).ready(function () {
+  var adminRole = window.adminRole || 0;
+  var adminSchool = window.adminSchool || 0;
+  var adminFaculty = window.adminFaculty || 0;
+
   InitiateDatatable('.table');
   $('#school, #faculty, #dept').select2({ theme: 'bootstrap-5', width: '100%' });
 
   function fetchFaculties(schoolId) {
+    if (adminRole == 5) {
+      schoolId = adminSchool;
+    }
     $.ajax({
       url: 'model/materials.php',
       method: 'GET',
@@ -11,18 +18,27 @@ $(document).ready(function () {
       success: function (res) {
         var $fac = $('#faculty');
         $fac.empty();
-        $fac.append('<option value="0">All Faculties</option>');
-        if (schoolId != 0 && res.status === 'success' && res.faculties) {
+        if (!res.restrict_faculty) {
+          $fac.append('<option value="0">All Faculties</option>');
+        }
+        if (res.status === 'success' && res.faculties) {
           $.each(res.faculties, function (i, fac) {
             $fac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
           });
         }
-        $fac.val('0').trigger('change.select2');
+        var selected = res.restrict_faculty && res.faculties.length > 0 ? res.faculties[0].id : '0';
+        $fac.val(selected).trigger('change.select2');
       }
     });
   }
 
   function fetchDepts(schoolId, facultyId) {
+    if (adminRole == 5) {
+      schoolId = adminSchool;
+      if (adminFaculty > 0) {
+        facultyId = adminFaculty;
+      }
+    }
     $.ajax({
       url: 'model/materials.php',
       method: 'GET',
@@ -32,7 +48,7 @@ $(document).ready(function () {
         var $dept = $('#dept');
         $dept.empty();
         $dept.append('<option value="0">All Departments</option>');
-        if (schoolId != 0 && facultyId != 0 && res.status === 'success' && res.departments) {
+        if (res.status === 'success' && res.departments) {
           $.each(res.departments, function (i, dept) {
             $dept.append('<option value="' + dept.id + '">' + dept.name + '</option>');
           });
@@ -43,8 +59,8 @@ $(document).ready(function () {
   }
 
   function fetchMaterials() {
-    var schoolId = $('#school').val();
-    var facultyId = $('#faculty').val();
+    var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
+    var facultyId = (adminRole == 5 && adminFaculty > 0) ? adminFaculty : $('#faculty').val();
     var deptId = $('#dept').val();
 
     $.ajax({
@@ -85,15 +101,15 @@ $(document).ready(function () {
   }
 
   $('#school').on('change', function () {
-    var schoolId = $(this).val();
+    var schoolId = adminRole == 5 ? adminSchool : $(this).val();
     fetchFaculties(schoolId);
     fetchDepts(schoolId, 0);
     fetchMaterials();
   });
 
   $('#faculty').on('change', function () {
-    var schoolId = $('#school').val();
-    var facultyId = $(this).val();
+    var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
+    var facultyId = (adminRole == 5 && adminFaculty > 0) ? adminFaculty : $(this).val();
     fetchDepts(schoolId, facultyId);
     fetchMaterials();
   });
@@ -126,6 +142,6 @@ $(document).ready(function () {
   });
 
   // Initialize dropdowns to match default selections
-  fetchFaculties($('#school').val());
-  fetchDepts($('#school').val(), $('#faculty').val());
+  fetchFaculties(adminRole == 5 ? adminSchool : $('#school').val());
+  fetchDepts(adminRole == 5 ? adminSchool : $('#school').val(), (adminRole == 5 && adminFaculty > 0) ? adminFaculty : $('#faculty').val());
 });
