@@ -16,7 +16,7 @@ if ($admin_role == 5) {
     $faculties_query = mysqli_query($conn, "SELECT id, name FROM faculties WHERE status = 'active' AND school_id = $admin_school ORDER BY name");
     $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' AND school_id = $admin_school ORDER BY name");
   }
-  $material_sql = "SELECT m.*, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id WHERE m.school_id = $admin_school";
+  $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id WHERE m.school_id = $admin_school";
   if ($admin_faculty != 0) {
     $material_sql .= " AND d.faculty_id = $admin_faculty";
   }
@@ -25,7 +25,7 @@ if ($admin_role == 5) {
   $schools_query = mysqli_query($conn, "SELECT id, name FROM schools WHERE status = 'active' ORDER BY name");
   $faculties_query = mysqli_query($conn, "SELECT id, name FROM faculties WHERE status = 'active' ORDER BY name");
   $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' ORDER BY name");
-  $material_sql = "SELECT m.*, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id GROUP BY m.id ORDER BY m.created_at DESC";
+  $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id GROUP BY m.id ORDER BY m.created_at DESC";
 }
 $materials_query = mysqli_query($conn, $material_sql);
 ?>
@@ -110,8 +110,8 @@ $materials_query = mysqli_query($conn, $material_sql);
                               <i class="bx bx-dots-vertical-rounded"></i>
                             </button>
                             <div class="dropdown-menu">
-                              <a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="<?php echo $mat['id']; ?>" data-status="<?php echo $mat['status']; ?>">
-                                <?php if($mat['status']=='open') { ?>
+                              <a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="<?php echo $mat['id']; ?>" data-status="<?php echo $mat['db_status']; ?>">
+                                <?php if($mat['db_status']=='open') { ?>
                                   <i class="bx bx-lock me-1"></i> Close Material
                                 <?php } else { ?>
                                   <i class="bx bx-lock-open me-1"></i> Open Material

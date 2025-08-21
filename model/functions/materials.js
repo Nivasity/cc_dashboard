@@ -88,8 +88,8 @@ $(document).ready(function () {
               '<button type="button" class="btn p-0 dropdown-toggle hide-arrow" data-bs-toggle="dropdown" aria-expanded="true">' +
               '<i class="bx bx-dots-vertical-rounded"></i></button>' +
               '<div class="dropdown-menu">' +
-              '<a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="' + mat.id + '" data-status="' + mat.status + '">' +
-              (mat.status === 'open' ? '<i class="bx bx-lock me-1"></i> Close Material' : '<i class="bx bx-lock-open me-1"></i> Open Material') + '</a>' +
+              '<a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="' + mat.id + '" data-status="' + mat.db_status + '">' +
+              (mat.db_status === 'open' ? '<i class="bx bx-lock me-1"></i> Close Material' : '<i class="bx bx-lock-open me-1"></i> Open Material') + '</a>' +
               '</div></div></td>' +
               '</tr>';
             tbody.append(row);
