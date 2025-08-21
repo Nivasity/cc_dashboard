@@ -119,7 +119,7 @@ if(isset($_POST['toggle_id'])){
       $statusRes = 'error';
       $messageRes = 'Unauthorized';
     } else {
-      $new_status = ($manual_res['status'] == 'open') ? 'close' : 'open';
+      $new_status = ($manual_res['status'] == 'open') ? 'closed' : 'open';
       mysqli_query($conn, "UPDATE manuals SET status = '$new_status' WHERE id = $id");
       if(mysqli_affected_rows($conn) > 0){
         $statusRes = 'success';

@@ -89,7 +89,7 @@ $(document).ready(function () {
               '<i class="bx bx-dots-vertical-rounded"></i></button>' +
               '<div class="dropdown-menu">' +
               '<a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="' + mat.id + '" data-status="' + mat.status + '">' +
-              (mat.status === 'open' ? 'Close Material' : 'Open Material') + '</a>' +
+              (mat.status === 'open' ? '<i class="bx bx-lock me-1"></i> Close Material' : '<i class="bx bx-lock-open me-1"></i> Open Material') + '</a>' +
               '</div></div></td>' +
               '</tr>';
             tbody.append(row);

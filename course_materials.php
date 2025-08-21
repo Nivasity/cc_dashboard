@@ -111,7 +111,11 @@ $materials_query = mysqli_query($conn, $material_sql);
                             </button>
                             <div class="dropdown-menu">
                               <a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="<?php echo $mat['id']; ?>" data-status="<?php echo $mat['status']; ?>">
-                                <?php echo $mat['status']=='open' ? 'Close Material' : 'Open Material'; ?>
+                                <?php if($mat['status']=='open') { ?>
+                                  <i class="bx bx-lock me-1"></i> Close Material
+                                <?php } else { ?>
+                                  <i class="bx bx-lock-open me-1"></i> Open Material
+                                <?php } ?>
                               </a>
                             </div>
                           </div>
