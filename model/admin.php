@@ -14,8 +14,13 @@ if (isset($_POST['admin_manage'])) {
   $role = intval($_POST['role']);
   $school = intval($_POST['school']);
   $faculty = intval($_POST['faculty']);
-  $school_sql = $school > 0 ? $school : 'NULL';
-  $faculty_sql = $faculty > 0 ? $faculty : 'NULL';
+  if ($role == 5) {
+    $school_sql = $school > 0 ? $school : 'NULL';
+    $faculty_sql = $faculty > 0 ? $faculty : 'NULL';
+  } else {
+    $school_sql = 'NULL';
+    $faculty_sql = 'NULL';
+  }
 
   if ($admin_id == 0) {
     $password = md5($_POST['password']);

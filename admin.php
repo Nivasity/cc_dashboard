@@ -132,7 +132,7 @@ $admins_query = mysqli_query($conn, "SELECT a.*, r.name AS role_name, s.name AS 
                   <?php } ?>
                 </select>
               </div>
-              <div class="col-md-6 mb-3">
+              <div class="col-md-6 mb-3" id="school_wrapper" style="display: none;">
                 <label for="school" class="form-label">School</label>
                 <select name="school" id="school" class="form-select">
                   <option value="0">All Schools</option>
@@ -141,7 +141,7 @@ $admins_query = mysqli_query($conn, "SELECT a.*, r.name AS role_name, s.name AS 
                   <?php } ?>
                 </select>
               </div>
-              <div class="col-md-6 mb-3">
+              <div class="col-md-6 mb-3" id="faculty_wrapper" style="display: none;">
                 <label for="faculty" class="form-label">Faculty</label>
                 <select name="faculty" id="faculty" class="form-select">
                   <option value="0">All Faculties</option>

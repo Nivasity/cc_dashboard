@@ -5,6 +5,22 @@ $(document).ready(function () {
 
   $('#role, #school, #faculty').select2({ theme: 'bootstrap-5', dropdownParent: $('#newAdminModal') });
 
+  const $schoolWrap = $('#school_wrapper');
+  const $facultyWrap = $('#faculty_wrapper');
+
+  function toggleRoleFields(roleVal) {
+    if (parseInt(roleVal) === 5) {
+      $schoolWrap.show();
+      $facultyWrap.show();
+      $('#school').trigger('change');
+    } else {
+      $schoolWrap.hide();
+      $facultyWrap.hide();
+      $('#school').val('0').trigger('change');
+      $('#faculty').val('0').trigger('change');
+    }
+  }
+
   function loadFaculties(schoolId, selected = 0) {
     const $fac = $('#faculty');
     $fac.empty();
@@ -48,17 +64,24 @@ $(document).ready(function () {
     $('#adminForm [name="email"]').val($(this).data('email'));
     $('#adminForm [name="phone"]').val($(this).data('phone'));
     $('#adminForm [name="gender"]').val($(this).data('gender'));
-    $('#role').val($(this).data('role')).trigger('change');
-    const school = $(this).data('school') || 0;
-    const faculty = $(this).data('faculty') || 0;
-    $('#school').val(school).trigger('change');
-    loadFaculties(school, faculty);
+    const role = $(this).data('role');
+    $('#role').val(role).trigger('change');
+    if (parseInt(role) === 5) {
+      const school = $(this).data('school') || 0;
+      const faculty = $(this).data('faculty') || 0;
+      $('#school').val(school).trigger('change');
+      loadFaculties(school, faculty);
+    }
     $('#adminForm [name="password"]').val('');
     $('#password_field').hide();
 
     const modal = new bootstrap.Modal(document.getElementById('newAdminModal'));
     modal.show();
     editing = false;
+  });
+
+  $('#role').on('change', function () {
+    toggleRoleFields($(this).val());
   });
 
   $('#school').on('change', function () {
