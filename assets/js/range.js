@@ -17,7 +17,7 @@ $(function() {
     var year = $(this).data('year');
     $('#growthReportId').text(year);
     $.get('model/growth_data.php', { year: year }, function(data) {
-      $('#growthChart').data('growth', data.growth_percent);
+      $('#growthChart').attr('data-growth', data.growth_percent);
       ApexCharts.exec('growthChart', 'updateSeries', [data.growth_percent]);
       $('#growth-chart-text').text(Math.round(data.growth_percent) + '% Company Growth');
       $('#current-year-label').text(data.curr_year);
