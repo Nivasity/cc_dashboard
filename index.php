@@ -21,6 +21,11 @@ switch ($range) {
     $prev_start = "DATE_SUB(NOW(), INTERVAL 2 MONTH)";
     $prev_end = "DATE_SUB(NOW(), INTERVAL 1 MONTH)";
     break;
+  case 'quarter':
+    $current_start = "DATE_SUB(NOW(), INTERVAL 3 MONTH)";
+    $prev_start = "DATE_SUB(NOW(), INTERVAL 6 MONTH)";
+    $prev_end = "DATE_SUB(NOW(), INTERVAL 3 MONTH)";
+    break;
   case 'yearly':
     $current_start = "DATE_SUB(NOW(), INTERVAL 1 YEAR)";
     $prev_start = "DATE_SUB(NOW(), INTERVAL 2 YEAR)";
@@ -32,6 +37,15 @@ switch ($range) {
     $prev_start = "DATE_SUB(NOW(), INTERVAL 2 DAY)";
     $prev_end = "DATE_SUB(NOW(), INTERVAL 1 DAY)";
 }
+
+$range_labels = [
+  '24h' => 'Past 24 Hrs',
+  'weekly' => 'Past 7 Days',
+  'monthly' => 'Past 30 Days',
+  'quarter' => 'Past 90 Days',
+  'yearly' => 'Past 365 Days'
+];
+$range_label = $range_labels[$range] ?? 'Past 24 Hrs';
 
 // Count unverified HOCs
 $hoc_count = mysqli_fetch_assoc(
@@ -53,10 +67,7 @@ $revenue_base = "SELECT COALESCE(SUM(t.profit),0) AS total FROM transactions t J
 if ($admin_role == 5) {
   $revenue_base .= " AND u.school = $admin_school";
 }
-// Revenue and sales within selected range
-$curr_year = date('Y');
-$prev_year = $curr_year - 1;
-
+// Revenue and sales within selected range (for cards)
 $revenue_sql = $revenue_base . " AND t.created_at >= $current_start";
 $total_revenue = mysqli_fetch_assoc(mysqli_query($conn, $revenue_sql))["total"];
 $prev_revenue_sql = $revenue_base . " AND t.created_at >= $prev_start AND t.created_at < $current_start";
@@ -67,10 +78,14 @@ if ($admin_role == 5) {
   $prev_revenue *= 0.1;
 }
 
-$growth_percent = $prev_revenue > 0 ? (($total_revenue - $prev_revenue) / $prev_revenue) * 100 : 0;
+$growth_diff = $total_revenue - $prev_revenue;
+$growth_percent = $prev_revenue > 0
+  ? (abs($growth_diff) / $prev_revenue) * 100
+  : ($total_revenue > 0 ? 100 : 0);
 $growth_percent = round($growth_percent, 2);
-$revenue_class = $growth_percent >= 0 ? 'text-success' : 'text-danger';
-$revenue_icon = $growth_percent >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
+$growth_sign = $growth_diff >= 0 ? '+' : '-';
+$revenue_class = $growth_diff >= 0 ? 'text-success' : 'text-danger';
+$revenue_icon = $growth_diff >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
 
 $sales_base = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'successful'";
 if ($admin_role == 5) {
@@ -80,30 +95,42 @@ $sales_sql = $sales_base . " AND t.created_at >= $current_start";
 $total_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_sql))["total"];
 $sales_prev_sql = $sales_base . " AND t.created_at >= $prev_start AND t.created_at < $current_start";
 $prev_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_prev_sql))["total"];
-$sales_growth_percent = $prev_sales > 0 ? (($total_sales - $prev_sales) / $prev_sales) * 100 : 0;
+$sales_diff = $total_sales - $prev_sales;
+$sales_growth_percent = $prev_sales > 0
+  ? (abs($sales_diff) / $prev_sales) * 100
+  : ($total_sales > 0 ? 100 : 0);
 $sales_growth_percent = round($sales_growth_percent, 2);
-$sales_class = $sales_growth_percent >= 0 ? 'text-success' : 'text-danger';
-$sales_icon = $sales_growth_percent >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
+$sales_growth_sign = $sales_diff >= 0 ? '+' : '-';
+$sales_class = $sales_diff >= 0 ? 'text-success' : 'text-danger';
+$sales_icon = $sales_diff >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
 
-// Additional metrics
-$users_sql = "SELECT COUNT(*) AS count FROM users WHERE 1{$school_clause}";
-switch ($range) {
-  case 'weekly':
-    $users_sql .= " AND last_login >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
-    break;
-  case 'monthly':
-    $users_sql .= " AND last_login >= DATE_SUB(NOW(), INTERVAL 1 MONTH)";
-    break;
-  case 'yearly':
-    $users_sql .= " AND last_login >= DATE_SUB(NOW(), INTERVAL 1 YEAR)";
-    break;
-  default:
-    $users_sql .= " AND last_login >= DATE_SUB(NOW(), INTERVAL 1 DAY)";
+// Annual revenue comparison for growth chart
+$selected_year = $_GET['year'] ?? date('Y');
+$curr_year = (int)$selected_year;
+$prev_year = $curr_year - 1;
+
+$annual_sql = $revenue_base . " AND YEAR(t.created_at) = $curr_year";
+$annual_total_revenue = mysqli_fetch_assoc(mysqli_query($conn, $annual_sql))["total"];
+$annual_prev_sql = $revenue_base . " AND YEAR(t.created_at) = $prev_year";
+$annual_prev_revenue = mysqli_fetch_assoc(mysqli_query($conn, $annual_prev_sql))["total"];
+if ($admin_role == 5) {
+  $annual_total_revenue *= 0.1;
+  $annual_prev_revenue *= 0.1;
 }
+$annual_growth_percent = 0;
+if ($annual_prev_revenue == 0) {
+  $annual_growth_percent = $annual_total_revenue > 0 ? 100 : 0;
+} elseif ($annual_total_revenue > $annual_prev_revenue) {
+  $annual_growth_percent = (($annual_total_revenue - $annual_prev_revenue) / $annual_prev_revenue) * 100;
+}
+$annual_growth_percent = round($annual_growth_percent, 2);
+
+$users_sql = "SELECT COUNT(*) AS count FROM users WHERE 1{$school_clause}";
 $total_users = mysqli_fetch_assoc(mysqli_query($conn, $users_sql))["count"];
 
+// Additional metrics (current year only)
 $transactions_base = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t";
-$transactions_where = " WHERE t.status = 'successful' AND t.created_at >= $current_start";
+$transactions_where = " WHERE t.status = 'successful' AND YEAR(t.created_at) = YEAR(CURDATE())";
 if ($admin_role == 5) {
   $transactions_base .= " JOIN users u ON t.user_id = u.id";
   $transactions_where .= " AND u.school = $admin_school";
@@ -200,21 +227,20 @@ for ($m = 1; $m <= 12; $m++) {
                             <img src="assets/img/icons/unicons/chart-success.png" alt="chart success" class="rounded" />
                           </div>
                           <div class="dropdown">
-                            <button class="btn p-0" type="button" id="cardOpt3" data-bs-toggle="dropdown"
-                              aria-haspopup="true" aria-expanded="false">
-                              <i class="bx bx-dots-vertical-rounded"></i>
+                            <button class="btn btn-sm btn-outline-primary dropdown-toggle range-display" type="button" id="rangeDropdownRevenue" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                              <?php echo $range_label; ?>
                             </button>
-                            <div class="dropdown-menu dropdown-menu-end" aria-labelledby="cardOpt3">
-                              <a class="dropdown-item" href="?range=24h">24 Hrs</a>
-                              <a class="dropdown-item" href="?range=weekly">Weekly</a>
-                              <a class="dropdown-item" href="?range=monthly">Monthly</a>
-                              <a class="dropdown-item" href="?range=yearly">Yearly</a>
+                            <div class="dropdown-menu dropdown-menu-end" aria-labelledby="rangeDropdownRevenue">
+                              <a class="dropdown-item range-option" href="#" data-range="24h">Past 24 Hrs</a>
+                              <a class="dropdown-item range-option" href="#" data-range="weekly">Past 7 Days</a>
+                              <a class="dropdown-item range-option" href="#" data-range="monthly">Past 30 Days</a>
+                              <a class="dropdown-item range-option" href="#" data-range="quarter">Past 90 Days</a>
                             </div>
                           </div>
                         </div>
                         <span class="fw-semibold d-block mb-1">Total Revenue</span>
-                        <h3 class="card-title mb-2">₦<?php echo number_format($total_revenue); ?></h3>
-                        <small class="<?php echo $revenue_class; ?> fw-semibold"><i class="bx <?php echo $revenue_icon; ?>"></i> <?php echo ($growth_percent >= 0 ? '+' : '') . $growth_percent; ?>%</small>
+                          <h3 id="total-revenue-amount" class="card-title mb-2">₦<?php echo number_format($total_revenue); ?></h3>
+                          <small id="total-revenue-growth" class="<?php echo $revenue_class; ?> fw-semibold"><i class="bx <?php echo $revenue_icon; ?>"></i> <?php echo $growth_sign . $growth_percent; ?>%</small>
                       </div>
                     </div>
                   </div>
@@ -226,21 +252,20 @@ for ($m = 1; $m <= 12; $m++) {
                             <img src="assets/img/icons/unicons/wallet-info.png" alt="Credit Card" class="rounded" />
                           </div>
                           <div class="dropdown">
-                            <button class="btn p-0" type="button" id="cardOpt6" data-bs-toggle="dropdown"
-                              aria-haspopup="true" aria-expanded="false">
-                              <i class="bx bx-dots-vertical-rounded"></i>
+                            <button class="btn btn-sm btn-outline-primary dropdown-toggle range-display" type="button" id="rangeDropdownSales" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                              <?php echo $range_label; ?>
                             </button>
-                            <div class="dropdown-menu dropdown-menu-end" aria-labelledby="cardOpt6">
-                              <a class="dropdown-item" href="?range=24h">24 Hrs</a>
-                              <a class="dropdown-item" href="?range=weekly">Weekly</a>
-                              <a class="dropdown-item" href="?range=monthly">Monthly</a>
-                              <a class="dropdown-item" href="?range=yearly">Yearly</a>
+                            <div class="dropdown-menu dropdown-menu-end" aria-labelledby="rangeDropdownSales">
+                              <a class="dropdown-item range-option" href="#" data-range="24h">Past 24 Hrs</a>
+                              <a class="dropdown-item range-option" href="#" data-range="weekly">Past 7 Days</a>
+                              <a class="dropdown-item range-option" href="#" data-range="monthly">Past 30 Days</a>
+                              <a class="dropdown-item range-option" href="#" data-range="quarter">Past 90 Days</a>
                             </div>
                           </div>
                         </div>
                         <span>Sales</span>
-                        <h3 class="card-title text-nowrap mb-1">₦<?php echo number_format($total_sales); ?></h3>
-                        <small class="<?php echo $sales_class; ?> fw-semibold"><i class="bx <?php echo $sales_icon; ?>"></i> <?php echo ($sales_growth_percent >= 0 ? '+' : '') . $sales_growth_percent; ?>%</small>
+                          <h3 id="total-sales-amount" class="card-title text-nowrap mb-1">₦<?php echo number_format($total_sales); ?></h3>
+                          <small id="total-sales-growth" class="<?php echo $sales_class; ?> fw-semibold"><i class="bx <?php echo $sales_icon; ?>"></i> <?php echo $sales_growth_sign . $sales_growth_percent; ?>%</small>
                       </div>
                     </div>
                   </div>
@@ -264,16 +289,18 @@ for ($m = 1; $m <= 12; $m++) {
                           <div class="dropdown">
                             <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button"
                               id="growthReportId" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                              2025
+                              <?php echo $curr_year; ?>
                             </button>
                             <div class="dropdown-menu dropdown-menu-end" aria-labelledby="growthReportId">
-                              <a class="dropdown-item" href="javascript:void(0);">2025</a>
+                              <?php for ($y = date('Y'); $y > date('Y') - 5; $y--): ?>
+                                <a class="dropdown-item year-option" href="#" data-year="<?php echo $y; ?>"><?php echo $y; ?></a>
+                              <?php endfor; ?>
                             </div>
                           </div>
                         </div>
                       </div>
-                      <div id="growthChart" data-growth="<?php echo $growth_percent; ?>"></div>
-                      <div class="text-center fw-semibold pt-3 mb-2"><?php echo round($growth_percent); ?>% Company Growth</div>
+                      <div id="growthChart" data-growth="<?php echo $annual_growth_percent; ?>"></div>
+                      <div id="growth-chart-text" class="text-center fw-semibold pt-3 mb-2"><?php echo round($annual_growth_percent); ?>% Company Growth</div>
 
                       <div class="d-flex px-xxl-4 px-lg-2 p-4 gap-xxl-3 gap-lg-1 gap-3 justify-content-between">
                         <div class="d-flex">
@@ -281,8 +308,8 @@ for ($m = 1; $m <= 12; $m++) {
                               <span class="badge bg-label-primary p-2"><i class="bx bx-dollar text-primary"></i></span>
                           </div>
                           <div class="d-flex flex-column">
-                            <small><?php echo $curr_year; ?></small>
-                              <h6 class="mb-0">₦<?php echo number_format($total_revenue); ?></h6>
+                            <small id="current-year-label"><?php echo $curr_year; ?></small>
+                              <h6 id="current-year-amount" class="mb-0">₦<?php echo number_format($annual_total_revenue); ?></h6>
                           </div>
                         </div>
                         <div class="d-flex">
@@ -290,8 +317,8 @@ for ($m = 1; $m <= 12; $m++) {
                               <span class="badge bg-label-info p-2"><i class="bx bx-wallet text-info"></i></span>
                           </div>
                           <div class="d-flex flex-column">
-                            <small><?php echo $prev_year; ?></small>
-                              <h6 class="mb-0">₦<?php echo number_format($prev_revenue); ?></h6>
+                            <small id="prev-year-label"><?php echo $prev_year; ?></small>
+                              <h6 id="prev-year-amount" class="mb-0">₦<?php echo number_format($annual_prev_revenue); ?></h6>
                           </div>
                         </div>
                       </div>
@@ -304,56 +331,32 @@ for ($m = 1; $m <= 12; $m++) {
                 <div class="row">
                   <div class="col-6 mb-4">
                     <div class="card">
-                      <div class="card-body">
-                        <div class="card-title d-flex align-items-start justify-content-between">
+                        <div class="card-body">
+                        <div class="card-title d-flex align-items-start">
                           <div class="avatar flex-shrink-0">
                             <img src="assets/img/icons/unicons/paypal.png" alt="Credit Card" class="rounded" />
                           </div>
-                          <div class="dropdown">
-                            <button class="btn p-0" type="button" id="cardOpt4" data-bs-toggle="dropdown"
-                              aria-haspopup="true" aria-expanded="false">
-                              <i class="bx bx-dots-vertical-rounded"></i>
-                            </button>
-                            <div class="dropdown-menu dropdown-menu-end" aria-labelledby="cardOpt4">
-                              <a class="dropdown-item" href="?range=24h">24 Hrs</a>
-                              <a class="dropdown-item" href="?range=weekly">Weekly</a>
-                              <a class="dropdown-item" href="?range=monthly">Monthly</a>
-                              <a class="dropdown-item" href="?range=yearly">Yearly</a>
-                            </div>
-                          </div>
                         </div>
-                          <span class="d-block mb-1">Total Users</span>
-                          <h3 class="card-title text-nowrap mb-2"><?php echo number_format($total_users); ?></h3>
-                        <small class="text-muted fw-semibold">Registered</small>
+                            <span class="d-block mb-1">Total Users</span>
+                            <h3 class="card-title text-nowrap mb-2"><?php echo number_format($total_users); ?></h3>
+                          <small class="text-muted fw-semibold">Registered</small>
+                      </div>
                       </div>
                     </div>
-                  </div>
-                  <div class="col-6 mb-4">
-                    <div class="card">
+                    <div class="col-6 mb-4">
+                      <div class="card">
                       <div class="card-body">
-                        <div class="card-title d-flex align-items-start justify-content-between">
+                        <div class="card-title d-flex align-items-start">
                           <div class="avatar flex-shrink-0">
                             <img src="assets/img/icons/unicons/cc-primary.png" alt="Credit Card" class="rounded" />
-                          </div>
-                          <div class="dropdown">
-                            <button class="btn p-0" type="button" id="cardOpt1" data-bs-toggle="dropdown"
-                              aria-haspopup="true" aria-expanded="false">
-                              <i class="bx bx-dots-vertical-rounded"></i>
-                            </button>
-                            <div class="dropdown-menu" aria-labelledby="cardOpt1">
-                              <a class="dropdown-item" href="?range=24h">24 Hrs</a>
-                              <a class="dropdown-item" href="?range=weekly">Weekly</a>
-                              <a class="dropdown-item" href="?range=monthly">Monthly</a>
-                              <a class="dropdown-item" href="?range=yearly">Yearly</a>
-                            </div>
                           </div>
                         </div>
                           <span class="fw-semibold d-block mb-1">Transactions</span>
                           <h3 class="card-title mb-2">₦<?php echo number_format($transactions_amount); ?></h3>
                         <small class="text-muted fw-semibold">Total amount</small>
                       </div>
+                      </div>
                     </div>
-                  </div>
                   
                   
                   <div class="col-12 mb-4">
@@ -417,6 +420,7 @@ for ($m = 1; $m <= 12; $m++) {
 
   <!-- Page JS -->
   <script src="assets/js/dashboards-analytics.js"></script>
+  <script src="assets/js/range.js"></script>
 
   <!-- Place this tag in your head or just before your close body tag. -->
   <script async defer src="https://buttons.github.io/buttons.js"></script>
