@@ -28,6 +28,7 @@
             }
           ],
           chart: {
+            id: 'totalRevenueChart',
             height: 300,
             stacked: true,
             type: 'bar',
@@ -283,6 +284,7 @@
       series: [growthChartValue],
       labels: ['Growth'],
       chart: {
+        id: 'growthChart',
         height: 240,
         type: 'radialBar'
       },

@@ -53,10 +53,7 @@ $revenue_base = "SELECT COALESCE(SUM(t.profit),0) AS total FROM transactions t J
 if ($admin_role == 5) {
   $revenue_base .= " AND u.school = $admin_school";
 }
-// Revenue and sales within selected range
-$curr_year = date('Y');
-$prev_year = $curr_year - 1;
-
+// Revenue and sales within selected range (for cards)
 $revenue_sql = $revenue_base . " AND t.created_at >= $current_start";
 $total_revenue = mysqli_fetch_assoc(mysqli_query($conn, $revenue_sql))["total"];
 $prev_revenue_sql = $revenue_base . " AND t.created_at >= $prev_start AND t.created_at < $current_start";
@@ -84,6 +81,22 @@ $sales_growth_percent = $prev_sales > 0 ? (($total_sales - $prev_sales) / $prev_
 $sales_growth_percent = round($sales_growth_percent, 2);
 $sales_class = $sales_growth_percent >= 0 ? 'text-success' : 'text-danger';
 $sales_icon = $sales_growth_percent >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
+
+// Annual revenue comparison for growth chart
+$selected_year = $_GET['year'] ?? date('Y');
+$curr_year = (int)$selected_year;
+$prev_year = $curr_year - 1;
+
+$annual_sql = $revenue_base . " AND YEAR(t.created_at) = $curr_year";
+$annual_total_revenue = mysqli_fetch_assoc(mysqli_query($conn, $annual_sql))["total"];
+$annual_prev_sql = $revenue_base . " AND YEAR(t.created_at) = $prev_year";
+$annual_prev_revenue = mysqli_fetch_assoc(mysqli_query($conn, $annual_prev_sql))["total"];
+if ($admin_role == 5) {
+  $annual_total_revenue *= 0.1;
+  $annual_prev_revenue *= 0.1;
+}
+$annual_growth_percent = $annual_prev_revenue > 0 ? (($annual_total_revenue - $annual_prev_revenue) / $annual_prev_revenue) * 100 : 0;
+$annual_growth_percent = round($annual_growth_percent, 2);
 
 // Additional metrics (current year only)
 $users_sql = "SELECT COUNT(*) AS count FROM users WHERE 1{$school_clause} AND YEAR(last_login) = YEAR(CURDATE())";
@@ -251,16 +264,18 @@ for ($m = 1; $m <= 12; $m++) {
                           <div class="dropdown">
                             <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button"
                               id="growthReportId" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                              2025
+                              <?php echo $curr_year; ?>
                             </button>
                             <div class="dropdown-menu dropdown-menu-end" aria-labelledby="growthReportId">
-                              <a class="dropdown-item" href="javascript:void(0);">2025</a>
+                              <?php for ($y = date('Y'); $y > date('Y') - 5; $y--): ?>
+                                <a class="dropdown-item year-option" href="#" data-year="<?php echo $y; ?>"><?php echo $y; ?></a>
+                              <?php endfor; ?>
                             </div>
                           </div>
                         </div>
                       </div>
-                      <div id="growthChart" data-growth="<?php echo $growth_percent; ?>"></div>
-                      <div class="text-center fw-semibold pt-3 mb-2"><?php echo round($growth_percent); ?>% Company Growth</div>
+                      <div id="growthChart" data-growth="<?php echo $annual_growth_percent; ?>"></div>
+                      <div id="growth-chart-text" class="text-center fw-semibold pt-3 mb-2"><?php echo round($annual_growth_percent); ?>% Company Growth</div>
 
                       <div class="d-flex px-xxl-4 px-lg-2 p-4 gap-xxl-3 gap-lg-1 gap-3 justify-content-between">
                         <div class="d-flex">
@@ -268,8 +283,8 @@ for ($m = 1; $m <= 12; $m++) {
                               <span class="badge bg-label-primary p-2"><i class="bx bx-dollar text-primary"></i></span>
                           </div>
                           <div class="d-flex flex-column">
-                            <small><?php echo $curr_year; ?></small>
-                              <h6 class="mb-0">₦<?php echo number_format($total_revenue); ?></h6>
+                            <small id="current-year-label"><?php echo $curr_year; ?></small>
+                              <h6 id="current-year-amount" class="mb-0">₦<?php echo number_format($annual_total_revenue); ?></h6>
                           </div>
                         </div>
                         <div class="d-flex">
@@ -277,8 +292,8 @@ for ($m = 1; $m <= 12; $m++) {
                               <span class="badge bg-label-info p-2"><i class="bx bx-wallet text-info"></i></span>
                           </div>
                           <div class="d-flex flex-column">
-                            <small><?php echo $prev_year; ?></small>
-                              <h6 class="mb-0">₦<?php echo number_format($prev_revenue); ?></h6>
+                            <small id="prev-year-label"><?php echo $prev_year; ?></small>
+                              <h6 id="prev-year-amount" class="mb-0">₦<?php echo number_format($annual_prev_revenue); ?></h6>
                           </div>
                         </div>
                       </div>
