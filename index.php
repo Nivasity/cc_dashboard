@@ -33,6 +33,14 @@ switch ($range) {
     $prev_end = "DATE_SUB(NOW(), INTERVAL 1 DAY)";
 }
 
+$range_labels = [
+  '24h' => '24 Hrs',
+  'weekly' => 'Weekly',
+  'monthly' => 'Monthly',
+  'yearly' => 'Yearly'
+];
+$range_label = $range_labels[$range] ?? '24 Hrs';
+
 // Count unverified HOCs
 $hoc_count = mysqli_fetch_assoc(
   mysqli_query(
@@ -103,10 +111,12 @@ if ($admin_role == 5) {
   $annual_total_revenue *= 0.1;
   $annual_prev_revenue *= 0.1;
 }
-$annual_diff = $annual_total_revenue - $annual_prev_revenue;
-$annual_growth_percent = $annual_prev_revenue > 0
-  ? (abs($annual_diff) / $annual_prev_revenue) * 100
-  : ($annual_total_revenue > 0 ? 100 : 0);
+$annual_growth_percent = 0;
+if ($annual_prev_revenue == 0) {
+  $annual_growth_percent = $annual_total_revenue > 0 ? 100 : 0;
+} elseif ($annual_total_revenue > $annual_prev_revenue) {
+  $annual_growth_percent = (($annual_total_revenue - $annual_prev_revenue) / $annual_prev_revenue) * 100;
+}
 $annual_growth_percent = round($annual_growth_percent, 2);
 
 // Additional metrics (current year only)
@@ -210,18 +220,17 @@ for ($m = 1; $m <= 12; $m++) {
                           <div class="avatar flex-shrink-0">
                             <img src="assets/img/icons/unicons/chart-success.png" alt="chart success" class="rounded" />
                           </div>
-                            <div class="dropdown">
-                              <button class="btn p-0" type="button" id="cardOpt3" data-bs-toggle="dropdown"
-                                aria-haspopup="true" aria-expanded="false">
-                                <i class="bx bx-dots-vertical-rounded"></i>
-                              </button>
-                              <div class="dropdown-menu dropdown-menu-end" aria-labelledby="cardOpt3">
-                                <a class="dropdown-item range-option" href="#" data-range="24h">24 Hrs</a>
-                                <a class="dropdown-item range-option" href="#" data-range="weekly">Weekly</a>
-                                <a class="dropdown-item range-option" href="#" data-range="monthly">Monthly</a>
-                                <a class="dropdown-item range-option" href="#" data-range="yearly">Yearly</a>
-                              </div>
+                          <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-primary dropdown-toggle range-display" type="button" id="rangeDropdownRevenue" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                              <?php echo $range_label; ?>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end" aria-labelledby="rangeDropdownRevenue">
+                              <a class="dropdown-item range-option" href="#" data-range="24h">24 Hrs</a>
+                              <a class="dropdown-item range-option" href="#" data-range="weekly">Weekly</a>
+                              <a class="dropdown-item range-option" href="#" data-range="monthly">Monthly</a>
+                              <a class="dropdown-item range-option" href="#" data-range="yearly">Yearly</a>
                             </div>
+                          </div>
                         </div>
                         <span class="fw-semibold d-block mb-1">Total Revenue</span>
                           <h3 id="total-revenue-amount" class="card-title mb-2">₦<?php echo number_format($total_revenue); ?></h3>
@@ -236,18 +245,17 @@ for ($m = 1; $m <= 12; $m++) {
                           <div class="avatar flex-shrink-0">
                             <img src="assets/img/icons/unicons/wallet-info.png" alt="Credit Card" class="rounded" />
                           </div>
-                            <div class="dropdown">
-                              <button class="btn p-0" type="button" id="cardOpt6" data-bs-toggle="dropdown"
-                                aria-haspopup="true" aria-expanded="false">
-                                <i class="bx bx-dots-vertical-rounded"></i>
-                              </button>
-                              <div class="dropdown-menu dropdown-menu-end" aria-labelledby="cardOpt6">
-                                <a class="dropdown-item range-option" href="#" data-range="24h">24 Hrs</a>
-                                <a class="dropdown-item range-option" href="#" data-range="weekly">Weekly</a>
-                                <a class="dropdown-item range-option" href="#" data-range="monthly">Monthly</a>
-                                <a class="dropdown-item range-option" href="#" data-range="yearly">Yearly</a>
-                              </div>
+                          <div class="dropdown">
+                            <button class="btn btn-sm btn-outline-primary dropdown-toggle range-display" type="button" id="rangeDropdownSales" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                              <?php echo $range_label; ?>
+                            </button>
+                            <div class="dropdown-menu dropdown-menu-end" aria-labelledby="rangeDropdownSales">
+                              <a class="dropdown-item range-option" href="#" data-range="24h">24 Hrs</a>
+                              <a class="dropdown-item range-option" href="#" data-range="weekly">Weekly</a>
+                              <a class="dropdown-item range-option" href="#" data-range="monthly">Monthly</a>
+                              <a class="dropdown-item range-option" href="#" data-range="yearly">Yearly</a>
                             </div>
+                          </div>
                         </div>
                         <span>Sales</span>
                           <h3 id="total-sales-amount" class="card-title text-nowrap mb-1">₦<?php echo number_format($total_sales); ?></h3>

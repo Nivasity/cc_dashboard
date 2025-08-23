@@ -2,6 +2,8 @@ $(function() {
   $('.range-option').on('click', function(e) {
     e.preventDefault();
     var range = $(this).data('range');
+    var label = $(this).text();
+    $('.range-display').text(label);
     $.get('model/range_data.php', { range: range }, function(data) {
       $('#total-revenue-amount').text('₦' + Number(data.total_revenue).toLocaleString());
       $('#total-revenue-growth').removeClass('text-success text-danger').addClass(data.revenue_class)
