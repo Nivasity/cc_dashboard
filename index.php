@@ -55,12 +55,20 @@ $hoc_count = mysqli_fetch_assoc(
   )
 )["count"];
 
-// Count open support tickets
-$support_sql = "SELECT COUNT(*) AS count FROM support_tickets st JOIN users u ON st.user_id = u.id WHERE st.status = 'open'";
+// Support ticket statistics
+$support_open_sql = "SELECT COUNT(*) AS count FROM support_tickets st JOIN users u ON st.user_id = u.id WHERE st.status = 'open'";
 if ($admin_role == 5) {
-  $support_sql .= " AND u.school = $admin_school";
+  $support_open_sql .= " AND u.school = $admin_school";
 }
-$support_count = mysqli_fetch_assoc(mysqli_query($conn, $support_sql))["count"];
+$open_tickets = mysqli_fetch_assoc(mysqli_query($conn, $support_open_sql))["count"];
+
+$support_total_sql = "SELECT COUNT(*) AS count FROM support_tickets st JOIN users u ON st.user_id = u.id";
+if ($admin_role == 5) {
+  $support_total_sql .= " WHERE u.school = $admin_school";
+}
+$total_tickets = mysqli_fetch_assoc(mysqli_query($conn, $support_total_sql))["count"];
+$resolved_tickets = $total_tickets - $open_tickets;
+$resolved_percent = $total_tickets > 0 ? round(($resolved_tickets / $total_tickets) * 100, 2) : 0;
 
 // Financial statistics
 $revenue_base = "SELECT COALESCE(SUM(t.profit),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'successful'";
@@ -203,7 +211,7 @@ for ($m = 1; $m <= 12; $m++) {
                         <h5 class="card-title text-primary">Hello <?php echo htmlspecialchars($f_name); ?>! 🎉</h5>
                         <p class="mb-4">
                           We have got: <br><span class="fw-bold"><?php echo $hoc_count; ?></span> new HOCs waiting to be verified
-                          <br><span class="fw-bold"><?php echo $support_count; ?></span> opened support tickets
+                          <br><span class="fw-bold"><?php echo $open_tickets; ?></span> opened support tickets
                         </p>
                       </div>
                     </div>
@@ -238,8 +246,8 @@ for ($m = 1; $m <= 12; $m++) {
                             </div>
                           </div>
                         </div>
-                        <span class="fw-semibold d-block mb-1">Total Revenue</span>
-                          <h3 id="total-revenue-amount" class="card-title mb-2">₦<?php echo number_format($total_revenue); ?></h3>
+                        <span>Total Revenue</span>
+                          <h3 id="total-revenue-amount" class="card-title text-nowrap mb-1">₦<?php echo number_format($total_revenue); ?></h3>
                           <small id="total-revenue-growth" class="<?php echo $revenue_class; ?> fw-semibold"><i class="bx <?php echo $revenue_icon; ?>"></i> <?php echo $growth_sign . $growth_percent; ?>%</small>
                       </div>
                     </div>
@@ -365,16 +373,15 @@ for ($m = 1; $m <= 12; $m++) {
                         <div class="d-flex justify-content-between flex-sm-row flex-column gap-3">
                           <div class="d-flex flex-sm-column flex-row align-items-start justify-content-between">
                             <div class="card-title">
-                              <h5 class="text-nowrap mb-2">Profile Report</h5>
-                              <span class="badge bg-label-warning rounded-pill">Year 2021</span>
+                              <h5 class="text-nowrap mb-2">Support Ticket Status</h5>
+                              <span class="badge bg-label-primary rounded-pill">Open Tickets</span>
                             </div>
                             <div class="mt-sm-auto">
-                              <small class="text-success text-nowrap fw-semibold"><i class="bx bx-chevron-up"></i>
-                                68.2%</small>
-                                <h3 class="mb-0">₦84,686k</h3>
+                              <small class="text-muted text-nowrap fw-semibold"><?php echo $resolved_percent; ?>% Resolved</small>
+                              <h3 class="mb-0"><?php echo $open_tickets; ?></h3>
                             </div>
                           </div>
-                          <div id="profileReportChart"></div>
+                          <div id="ticketStatusChart" data-resolved-percent="<?php echo $resolved_percent; ?>"></div>
                         </div>
                       </div>
                     </div>

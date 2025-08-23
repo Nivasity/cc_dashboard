@@ -359,67 +359,36 @@
     growthChart.render();
   }
 
-  // Profit Report Line Chart
+  // Support Ticket Resolution Chart
   // --------------------------------------------------------------------
-  const profileReportChartEl = document.querySelector('#profileReportChart'),
-    profileReportChartConfig = {
+  const ticketStatusChartEl = document.querySelector('#ticketStatusChart');
+  if (typeof ticketStatusChartEl !== undefined && ticketStatusChartEl !== null) {
+    const resolvedPercent = parseFloat(ticketStatusChartEl.dataset.resolvedPercent) || 0;
+    const ticketStatusChartConfig = {
       chart: {
         height: 80,
-        // width: 175,
-        type: 'line',
-        toolbar: {
-          show: false
-        },
-        dropShadow: {
-          enabled: true,
-          top: 10,
-          left: 5,
-          blur: 3,
-          color: config.colors.warning,
-          opacity: 0.15
-        },
-        sparkline: {
-          enabled: true
+        type: 'radialBar',
+        sparkline: { enabled: true }
+      },
+      colors: [config.colors.primary],
+      plotOptions: {
+        radialBar: {
+          hollow: { size: '45%' },
+          dataLabels: {
+            name: { show: false },
+            value: {
+              formatter: function (val) {
+                return val + '%';
+              }
+            }
+          }
         }
       },
-      grid: {
-        show: false,
-        padding: {
-          right: 8
-        }
-      },
-      colors: [config.colors.warning],
-      dataLabels: {
-        enabled: false
-      },
-      stroke: {
-        width: 5,
-        curve: 'smooth'
-      },
-      series: [
-        {
-          data: [110, 270, 145, 245, 205, 285]
-        }
-      ],
-      xaxis: {
-        show: false,
-        lines: {
-          show: false
-        },
-        labels: {
-          show: false
-        },
-        axisBorder: {
-          show: false
-        }
-      },
-      yaxis: {
-        show: false
-      }
+      series: [resolvedPercent],
+      labels: ['Resolved']
     };
-  if (typeof profileReportChartEl !== undefined && profileReportChartEl !== null) {
-    const profileReportChart = new ApexCharts(profileReportChartEl, profileReportChartConfig);
-    profileReportChart.render();
+    const ticketStatusChart = new ApexCharts(ticketStatusChartEl, ticketStatusChartConfig);
+    ticketStatusChart.render();
   }
 
   // Order Statistics Chart
