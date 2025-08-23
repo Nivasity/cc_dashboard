@@ -19,6 +19,11 @@ switch ($range) {
     $prev_start = "DATE_SUB(NOW(), INTERVAL 2 MONTH)";
     $prev_end = "DATE_SUB(NOW(), INTERVAL 1 MONTH)";
     break;
+  case 'quarter':
+    $current_start = "DATE_SUB(NOW(), INTERVAL 3 MONTH)";
+    $prev_start = "DATE_SUB(NOW(), INTERVAL 6 MONTH)";
+    $prev_end = "DATE_SUB(NOW(), INTERVAL 3 MONTH)";
+    break;
   case 'yearly':
     $current_start = "DATE_SUB(NOW(), INTERVAL 1 YEAR)";
     $prev_start = "DATE_SUB(NOW(), INTERVAL 2 YEAR)";

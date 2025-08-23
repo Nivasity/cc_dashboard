@@ -21,6 +21,11 @@ switch ($range) {
     $prev_start = "DATE_SUB(NOW(), INTERVAL 2 MONTH)";
     $prev_end = "DATE_SUB(NOW(), INTERVAL 1 MONTH)";
     break;
+  case 'quarter':
+    $current_start = "DATE_SUB(NOW(), INTERVAL 3 MONTH)";
+    $prev_start = "DATE_SUB(NOW(), INTERVAL 6 MONTH)";
+    $prev_end = "DATE_SUB(NOW(), INTERVAL 3 MONTH)";
+    break;
   case 'yearly':
     $current_start = "DATE_SUB(NOW(), INTERVAL 1 YEAR)";
     $prev_start = "DATE_SUB(NOW(), INTERVAL 2 YEAR)";
@@ -34,12 +39,13 @@ switch ($range) {
 }
 
 $range_labels = [
-  '24h' => '24 Hrs',
-  'weekly' => 'Weekly',
-  'monthly' => 'Monthly',
-  'yearly' => 'Yearly'
+  '24h' => 'Past 24 Hrs',
+  'weekly' => 'Past 7 Days',
+  'monthly' => 'Past 30 Days',
+  'quarter' => 'Past 90 Days',
+  'yearly' => 'Past 365 Days'
 ];
-$range_label = $range_labels[$range] ?? '24 Hrs';
+$range_label = $range_labels[$range] ?? 'Past 24 Hrs';
 
 // Count unverified HOCs
 $hoc_count = mysqli_fetch_assoc(
@@ -119,10 +125,10 @@ if ($annual_prev_revenue == 0) {
 }
 $annual_growth_percent = round($annual_growth_percent, 2);
 
-// Additional metrics (current year only)
-$users_sql = "SELECT COUNT(*) AS count FROM users WHERE 1{$school_clause} AND YEAR(last_login) = YEAR(CURDATE())";
+$users_sql = "SELECT COUNT(*) AS count FROM users WHERE 1{$school_clause}";
 $total_users = mysqli_fetch_assoc(mysqli_query($conn, $users_sql))["count"];
 
+// Additional metrics (current year only)
 $transactions_base = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t";
 $transactions_where = " WHERE t.status = 'successful' AND YEAR(t.created_at) = YEAR(CURDATE())";
 if ($admin_role == 5) {
@@ -225,10 +231,10 @@ for ($m = 1; $m <= 12; $m++) {
                               <?php echo $range_label; ?>
                             </button>
                             <div class="dropdown-menu dropdown-menu-end" aria-labelledby="rangeDropdownRevenue">
-                              <a class="dropdown-item range-option" href="#" data-range="24h">24 Hrs</a>
-                              <a class="dropdown-item range-option" href="#" data-range="weekly">Weekly</a>
-                              <a class="dropdown-item range-option" href="#" data-range="monthly">Monthly</a>
-                              <a class="dropdown-item range-option" href="#" data-range="yearly">Yearly</a>
+                              <a class="dropdown-item range-option" href="#" data-range="24h">Past 24 Hrs</a>
+                              <a class="dropdown-item range-option" href="#" data-range="weekly">Past 7 Days</a>
+                              <a class="dropdown-item range-option" href="#" data-range="monthly">Past 30 Days</a>
+                              <a class="dropdown-item range-option" href="#" data-range="quarter">Past 90 Days</a>
                             </div>
                           </div>
                         </div>
@@ -250,10 +256,10 @@ for ($m = 1; $m <= 12; $m++) {
                               <?php echo $range_label; ?>
                             </button>
                             <div class="dropdown-menu dropdown-menu-end" aria-labelledby="rangeDropdownSales">
-                              <a class="dropdown-item range-option" href="#" data-range="24h">24 Hrs</a>
-                              <a class="dropdown-item range-option" href="#" data-range="weekly">Weekly</a>
-                              <a class="dropdown-item range-option" href="#" data-range="monthly">Monthly</a>
-                              <a class="dropdown-item range-option" href="#" data-range="yearly">Yearly</a>
+                              <a class="dropdown-item range-option" href="#" data-range="24h">Past 24 Hrs</a>
+                              <a class="dropdown-item range-option" href="#" data-range="weekly">Past 7 Days</a>
+                              <a class="dropdown-item range-option" href="#" data-range="monthly">Past 30 Days</a>
+                              <a class="dropdown-item range-option" href="#" data-range="quarter">Past 90 Days</a>
                             </div>
                           </div>
                         </div>
