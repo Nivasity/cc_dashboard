@@ -246,8 +246,8 @@ for ($m = 1; $m <= 12; $m++) {
                             </div>
                           </div>
                         </div>
-                        <span class="fw-semibold d-block mb-1">Total Revenue</span>
-                          <h3 id="total-revenue-amount" class="card-title mb-2">₦<?php echo number_format($total_revenue); ?></h3>
+                        <span>Total Revenue</span>
+                          <h3 id="total-revenue-amount" class="card-title text-nowrap mb-1">₦<?php echo number_format($total_revenue); ?></h3>
                           <small id="total-revenue-growth" class="<?php echo $revenue_class; ?> fw-semibold"><i class="bx <?php echo $revenue_icon; ?>"></i> <?php echo $growth_sign . $growth_percent; ?>%</small>
                       </div>
                     </div>
