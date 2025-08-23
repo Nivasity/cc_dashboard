@@ -64,10 +64,14 @@ if ($admin_role == 5) {
   $prev_revenue *= 0.1;
 }
 
-$growth_percent = $prev_revenue > 0 ? (($total_revenue - $prev_revenue) / $prev_revenue) * 100 : 0;
+$growth_diff = $total_revenue - $prev_revenue;
+$growth_percent = $prev_revenue > 0
+  ? (abs($growth_diff) / $prev_revenue) * 100
+  : ($total_revenue > 0 ? 100 : 0);
 $growth_percent = round($growth_percent, 2);
-$revenue_class = $growth_percent >= 0 ? 'text-success' : 'text-danger';
-$revenue_icon = $growth_percent >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
+$growth_sign = $growth_diff >= 0 ? '+' : '-';
+$revenue_class = $growth_diff >= 0 ? 'text-success' : 'text-danger';
+$revenue_icon = $growth_diff >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
 
 $sales_base = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'successful'";
 if ($admin_role == 5) {
@@ -77,10 +81,14 @@ $sales_sql = $sales_base . " AND t.created_at >= $current_start";
 $total_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_sql))["total"];
 $sales_prev_sql = $sales_base . " AND t.created_at >= $prev_start AND t.created_at < $current_start";
 $prev_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_prev_sql))["total"];
-$sales_growth_percent = $prev_sales > 0 ? (($total_sales - $prev_sales) / $prev_sales) * 100 : 0;
+$sales_diff = $total_sales - $prev_sales;
+$sales_growth_percent = $prev_sales > 0
+  ? (abs($sales_diff) / $prev_sales) * 100
+  : ($total_sales > 0 ? 100 : 0);
 $sales_growth_percent = round($sales_growth_percent, 2);
-$sales_class = $sales_growth_percent >= 0 ? 'text-success' : 'text-danger';
-$sales_icon = $sales_growth_percent >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
+$sales_growth_sign = $sales_diff >= 0 ? '+' : '-';
+$sales_class = $sales_diff >= 0 ? 'text-success' : 'text-danger';
+$sales_icon = $sales_diff >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
 
 // Annual revenue comparison for growth chart
 $selected_year = $_GET['year'] ?? date('Y');
@@ -95,7 +103,10 @@ if ($admin_role == 5) {
   $annual_total_revenue *= 0.1;
   $annual_prev_revenue *= 0.1;
 }
-$annual_growth_percent = $annual_prev_revenue > 0 ? (($annual_total_revenue - $annual_prev_revenue) / $annual_prev_revenue) * 100 : 0;
+$annual_diff = $annual_total_revenue - $annual_prev_revenue;
+$annual_growth_percent = $annual_prev_revenue > 0
+  ? (abs($annual_diff) / $annual_prev_revenue) * 100
+  : ($annual_total_revenue > 0 ? 100 : 0);
 $annual_growth_percent = round($annual_growth_percent, 2);
 
 // Additional metrics (current year only)
@@ -214,7 +225,7 @@ for ($m = 1; $m <= 12; $m++) {
                         </div>
                         <span class="fw-semibold d-block mb-1">Total Revenue</span>
                           <h3 id="total-revenue-amount" class="card-title mb-2">₦<?php echo number_format($total_revenue); ?></h3>
-                          <small id="total-revenue-growth" class="<?php echo $revenue_class; ?> fw-semibold"><i class="bx <?php echo $revenue_icon; ?>"></i> <?php echo ($growth_percent >= 0 ? '+' : '') . $growth_percent; ?>%</small>
+                          <small id="total-revenue-growth" class="<?php echo $revenue_class; ?> fw-semibold"><i class="bx <?php echo $revenue_icon; ?>"></i> <?php echo $growth_sign . $growth_percent; ?>%</small>
                       </div>
                     </div>
                   </div>
@@ -240,7 +251,7 @@ for ($m = 1; $m <= 12; $m++) {
                         </div>
                         <span>Sales</span>
                           <h3 id="total-sales-amount" class="card-title text-nowrap mb-1">₦<?php echo number_format($total_sales); ?></h3>
-                          <small id="total-sales-growth" class="<?php echo $sales_class; ?> fw-semibold"><i class="bx <?php echo $sales_icon; ?>"></i> <?php echo ($sales_growth_percent >= 0 ? '+' : '') . $sales_growth_percent; ?>%</small>
+                          <small id="total-sales-growth" class="<?php echo $sales_class; ?> fw-semibold"><i class="bx <?php echo $sales_icon; ?>"></i> <?php echo $sales_growth_sign . $sales_growth_percent; ?>%</small>
                       </div>
                     </div>
                   </div>

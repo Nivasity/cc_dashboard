@@ -26,7 +26,10 @@ if ($admin_role == 5) {
   $prev_revenue *= 0.1;
 }
 
-$growth_percent = $prev_revenue > 0 ? (($total_revenue - $prev_revenue) / $prev_revenue) * 100 : 0;
+$growth_diff = $total_revenue - $prev_revenue;
+$growth_percent = $prev_revenue > 0
+  ? (abs($growth_diff) / $prev_revenue) * 100
+  : ($total_revenue > 0 ? 100 : 0);
 $growth_percent = round($growth_percent, 2);
 
 $monthly_current = [];
