@@ -276,7 +276,7 @@ if ($admin_role == 5) {
                   </div>
                   <div class="mb-3">
                     <label for="faculty" class="form-label">Faculty</label>
-                    <select name="faculty" class="form-select" required>
+                    <select name="faculty" class="form-select no-select2" required>
                       <option value="">Select faculty</option>
                     </select>
                   </div>
@@ -373,7 +373,7 @@ if ($admin_role == 5) {
       <?php } else { ?>
         fetchSchools();
         fetchSchools2();
-        $('.form-select').select2({
+        $('.form-select').not('.no-select2').select2({
           theme: "bootstrap-5",
           width: $(this).data('width') ? $(this).data('width') : $(this).hasClass('w-100') ? '100%' : 'style',
           placeholder: $(this).data('placeholder'),
