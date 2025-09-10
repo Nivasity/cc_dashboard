@@ -141,9 +141,11 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                             </select>
                           </div>
                         </div>
+                        <?php if ($admin_role != 5) { ?>
                         <div class="mt-2">
                           <button type="submit" class="btn btn-primary me-2 profile-form-btn">Save changes</button>
                         </div>
+                        <?php } ?>
                       </form>
                     </div>
                     <!-- /Account -->
