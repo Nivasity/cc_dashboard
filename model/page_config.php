@@ -55,6 +55,7 @@ if ($_SESSION['nivas_adminRole'] == 1) {
   $sch_mgt_menu = True;
   $public_mgt_menu = True;
   $resource_mgt_menu = True;
+  $finance_mgt_menu = True;
 } else if ($_SESSION['nivas_adminRole'] == 4) {
   $finance_mgt_menu = True;
 } else if ($_SESSION['nivas_adminRole'] == 5) {
