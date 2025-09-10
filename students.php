@@ -120,22 +120,22 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                           </div>
                           <div class="mb-3 col-md-6">
                             <label for="school" class="form-label">School Name</label>
-                            <select id="school" name="school" class="form-select" required>
+                            <select id="school" name="school" class="form-select" required <?php echo $admin_role == 5 ? 'disabled' : ''; ?>>
                             </select>
                           </div>
                           <div class="mb-3 col-md-6">
                             <label for="depts" class="form-label">Department</label>
-                            <select id="depts" name="dept" class="form-select" required>
+                            <select id="depts" name="dept" class="form-select" required <?php echo $admin_role == 5 ? 'disabled' : ''; ?>>
                               <option value="0">Select Department</option>
                             </select>
                           </div>
                           <div class="mb-3 col-md-6">
                             <label for="matric_no" class="form-label">Matric Number</label>
-                            <input class="form-control" type="text" id="matric_no" name="matric_no" required />
+                            <input class="form-control" type="text" id="matric_no" name="matric_no" required <?php echo $admin_role == 5 ? 'readonly' : ''; ?> />
                           </div>
                           <div class="mb-3 col-md-6">
                             <label class="form-label" for="role">Role</label>
-                            <select id="role" name="role" class="form-select" required>
+                            <select id="role" name="role" class="form-select" required <?php echo $admin_role == 5 ? 'disabled' : ''; ?>>
                               <option value="student">Student</option>
                               <option value="hoc">HOC</option>
                             </select>
