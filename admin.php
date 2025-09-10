@@ -3,6 +3,8 @@ session_start();
 include('model/config.php');
 include('model/page_config.php');
 
+$admin_role = $_SESSION['nivas_adminRole'];
+
 $roles_query = mysqli_query($conn, "SELECT id, name FROM admin_roles WHERE status = 'active'");
 $schools_query = mysqli_query($conn, "SELECT id, name FROM schools WHERE status = 'active'");
 $admins_query = mysqli_query($conn, "SELECT a.*, r.name AS role_name, s.name AS school_name FROM admins a LEFT JOIN admin_roles r ON a.role = r.id LEFT JOIN schools s ON a.school = s.id");

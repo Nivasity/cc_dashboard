@@ -3,6 +3,8 @@ session_start();
 include('model/config.php');
 include('model/page_config.php');
 
+$admin_role = $_SESSION['nivas_adminRole'];
+
 ?>
 
 <!DOCTYPE html>

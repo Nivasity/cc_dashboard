@@ -3,6 +3,8 @@ session_start();
 include('model/config.php');
 include('model/page_config.php');
 
+$admin_role = $_SESSION['nivas_adminRole'];
+
 $profile_pic_path = file_exists("assets/images/users/$admin_image") ? "assets/images/users/$admin_image" : "assets/img/avatars/user.png";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
