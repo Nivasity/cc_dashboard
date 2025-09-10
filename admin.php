@@ -147,9 +147,18 @@ $admins_query = mysqli_query($conn, "SELECT a.*, r.name AS role_name, s.name AS 
                   <option value="0">All Faculties</option>
                 </select>
               </div>
-              <div class="col-12 mb-3" id="password_field">
+              <div class="col-12 mb-3 form-password-toggle" id="password_field">
                 <label for="password" class="form-label">Password</label>
-                <input type="password" name="password" class="form-control">
+                <div class="input-group input-group-merge">
+                  <input
+                    type="password"
+                    name="password"
+                    class="form-control"
+                    placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;"
+                    aria-describedby="password"
+                  >
+                  <span class="input-group-text cursor-pointer"><i class="bx bx-hide"></i></span>
+                </div>
               </div>
             </div>
           </div>
