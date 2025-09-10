@@ -50,7 +50,6 @@ if ($_SESSION['nivas_adminRole'] == 1) {
   $finance_mgt_menu = True;
   $resource_mgt_menu = True;
 } else if ($_SESSION['nivas_adminRole'] == 3) {
-  $admin_mgt_menu = True;
   $student_mgt_menu = True;
   $customer_mgt_menu = True;
   $sch_mgt_menu = True;
