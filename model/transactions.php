@@ -17,6 +17,70 @@ if ($admin_role == 5 && $admin_id) {
   $admin_faculty = $info['faculty'];
 }
 
+// Handle CSV download for filtered transactions
+if (isset($_GET['download']) && $_GET['download'] === 'csv') {
+  $school = intval($_GET['school'] ?? 0);
+  $faculty = intval($_GET['faculty'] ?? 0);
+  $dept = intval($_GET['dept'] ?? 0);
+  if ($admin_role == 5) {
+    $school = $admin_school;
+    if ($admin_faculty != 0) {
+      $faculty = $admin_faculty;
+    }
+  }
+
+  $tran_sql = "SELECT t.ref_id, u.first_name, u.last_name, u.matric_no, " .
+    "COALESCE(s.name, '') AS school_name, COALESCE(f.name, '') AS faculty_name, COALESCE(d.name, '') AS dept_name, " .
+    "GROUP_CONCAT(CONCAT(m.title, ' - ', m.course_code, ' (', b.price, ')') SEPARATOR ' | ') AS materials, " .
+    "t.amount, t.status, t.created_at " .
+    "FROM transactions t " .
+    "JOIN users u ON t.user_id = u.id " .
+    "JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
+    "JOIN manuals m ON b.manual_id = m.id " .
+    "LEFT JOIN depts d ON m.dept = d.id " .
+    "LEFT JOIN faculties f ON d.faculty_id = f.id " .
+    "LEFT JOIN schools s ON b.school_id = s.id " .
+    "WHERE 1=1";
+  if ($school > 0) {
+    $tran_sql .= " AND b.school_id = $school";
+  }
+  if ($faculty != 0) {
+    $tran_sql .= " AND d.faculty_id = $faculty";
+  }
+  if ($dept > 0) {
+    $tran_sql .= " AND m.dept = $dept";
+  }
+  $tran_sql .= " GROUP BY t.id ORDER BY t.created_at DESC";
+  $tran_query = mysqli_query($conn, $tran_sql);
+
+  header('Content-Type: text/csv; charset=utf-8');
+  header('Content-Disposition: attachment; filename="transactions_' . date('Ymd_His') . '.csv"');
+
+  $out = fopen('php://output', 'w');
+  // CSV Header
+  fputcsv($out, ['Ref Id', 'Student Name', 'Matric No', 'School', 'Faculty/College', 'Department', 'Materials', 'Total Paid', 'Date', 'Time', 'Status']);
+  while ($row = mysqli_fetch_assoc($tran_query)) {
+    $dateStr = date('M j, Y', strtotime($row['created_at']));
+    $timeStr = date('h:i a', strtotime($row['created_at']));
+    $statusStr = $row['status'];
+    fputcsv($out, [
+      $row['ref_id'],
+      trim($row['first_name'] . ' ' . $row['last_name']),
+      $row['matric_no'],
+      $row['school_name'],
+      $row['faculty_name'],
+      $row['dept_name'],
+      $row['materials'],
+      $row['amount'],
+      $dateStr,
+      $timeStr,
+      $statusStr
+    ]);
+  }
+  fclose($out);
+  exit;
+}
+
 if (isset($_GET['fetch'])) {
   $fetch = $_GET['fetch'];
   $school = intval($_GET['school'] ?? 0);

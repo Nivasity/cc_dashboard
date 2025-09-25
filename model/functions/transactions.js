@@ -120,6 +120,55 @@ $(document).ready(function () {
     fetchTransactions();
   });
 
+  // Download CSV based on current filters using jQuery AJAX
+  $('#downloadCsv').on('click', function () {
+    var $btn = $(this);
+    var originalHtml = $btn.html();
+    var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
+    var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
+    var deptId = $('#dept').val();
+
+    $.ajax({
+      url: 'model/transactions.php',
+      method: 'GET',
+      data: { download: 'csv', school: schoolId, faculty: facultyId, dept: deptId },
+      xhrFields: { responseType: 'blob' },
+      beforeSend: function () {
+        $btn.prop('disabled', true)
+            .html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Downloading...');
+      },
+      success: function (data, status, xhr) {
+        var blob = data;
+        var disposition = xhr.getResponseHeader('Content-Disposition') || '';
+        var filename = 'transactions_' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15) + '.csv';
+        var match = /filename="?([^";]+)"?/i.exec(disposition);
+        if (match && match[1]) filename = match[1];
+
+        var link = document.createElement('a');
+        var url = window.URL.createObjectURL(blob);
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(function(){
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(link);
+        }, 100);
+        if (typeof showToast === 'function') {
+          showToast('bg-success', 'CSV generated. Download starting...');
+        }
+      },
+      error: function () {
+        if (typeof showToast === 'function') {
+          showToast('bg-danger', 'Failed to generate CSV. Please try again.');
+        }
+      },
+      complete: function () {
+        $btn.prop('disabled', false).html(originalHtml);
+      }
+    });
+  });
+
   fetchFaculties(adminRole == 5 ? adminSchool : $('#school').val());
   fetchDepts(adminRole == 5 ? adminSchool : $('#school').val(), (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val());
   fetchTransactions();

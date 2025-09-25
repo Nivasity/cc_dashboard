@@ -73,6 +73,7 @@ if ($admin_role == 5) {
                   </div>
                   <div class="col-12">
                     <button type="submit" class="btn btn-secondary">Search</button>
+                    <button type="button" id="downloadCsv" class="btn btn-success ms-2">Download CSV</button>
                   </div>
                 </form>
                 <div class="table-responsive text-nowrap">
