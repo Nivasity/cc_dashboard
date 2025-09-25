@@ -4,9 +4,10 @@ include('model/config.php');
 include('model/page_config.php');
 
 // Dashboard metrics
-$admin_role = $_SESSION['nivas_adminRole'];
-$admin_school = $admin_['school'];
-$school_clause = ($admin_role == 5) ? " AND school = $admin_school" : '';
+$admin_role = (int)($_SESSION['nivas_adminRole'] ?? 0);
+$admin_school = (int)($admin_['school'] ?? 0);
+$admin_faculty = (int)($admin_['faculty'] ?? 0);
+$school_clause = ($admin_role == 5 && $admin_school > 0) ? " AND school = $admin_school" : '';
 
 // Time range filtering
 $range = $_GET['range'] ?? '24h';
@@ -57,13 +58,13 @@ $hoc_count = mysqli_fetch_assoc(
 
 // Support ticket statistics
 $support_open_sql = "SELECT COUNT(*) AS count FROM support_tickets st JOIN users u ON st.user_id = u.id WHERE st.status = 'open'";
-if ($admin_role == 5) {
+if ($admin_role == 5 && $admin_school > 0) {
   $support_open_sql .= " AND u.school = $admin_school";
 }
 $open_tickets = mysqli_fetch_assoc(mysqli_query($conn, $support_open_sql))["count"];
 
 $support_total_sql = "SELECT COUNT(*) AS count FROM support_tickets st JOIN users u ON st.user_id = u.id";
-if ($admin_role == 5) {
+if ($admin_role == 5 && $admin_school > 0) {
   $support_total_sql .= " WHERE u.school = $admin_school";
 }
 $total_tickets = mysqli_fetch_assoc(mysqli_query($conn, $support_total_sql))["count"];
@@ -71,9 +72,12 @@ $resolved_tickets = $total_tickets - $open_tickets;
 $resolved_percent = $total_tickets > 0 ? round(($resolved_tickets / $total_tickets) * 100, 2) : 0;
 
 // Financial statistics
-$revenue_base = "SELECT COALESCE(SUM(t.profit),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'successful'";
-if ($admin_role == 5) {
+$revenue_base = "SELECT COALESCE(SUM(t.profit),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id LEFT JOIN depts d ON u.dept = d.id WHERE t.status = 'successful'";
+if ($admin_role == 5 && $admin_school > 0) {
   $revenue_base .= " AND u.school = $admin_school";
+  if ($admin_faculty != 0) {
+    $revenue_base .= " AND d.faculty_id = $admin_faculty";
+  }
 }
 // Revenue and sales within selected range (for cards)
 $revenue_sql = $revenue_base . " AND t.created_at >= $current_start";
@@ -95,9 +99,12 @@ $growth_sign = $growth_diff >= 0 ? '+' : '-';
 $revenue_class = $growth_diff >= 0 ? 'text-success' : 'text-danger';
 $revenue_icon = $growth_diff >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
 
-$sales_base = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'successful'";
-if ($admin_role == 5) {
+$sales_base = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id LEFT JOIN depts d ON u.dept = d.id WHERE t.status = 'successful'";
+if ($admin_role == 5 && $admin_school > 0) {
   $sales_base .= " AND u.school = $admin_school";
+  if ($admin_faculty != 0) {
+    $sales_base .= " AND d.faculty_id = $admin_faculty";
+  }
 }
 $sales_sql = $sales_base . " AND t.created_at >= $current_start";
 $total_sales = mysqli_fetch_assoc(mysqli_query($conn, $sales_sql))["total"];
@@ -111,6 +118,30 @@ $sales_growth_percent = round($sales_growth_percent, 2);
 $sales_growth_sign = $sales_diff >= 0 ? '+' : '-';
 $sales_class = $sales_diff >= 0 ? 'text-success' : 'text-danger';
 $sales_icon = $sales_diff >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
+
+// School manager (role 5) specific snapshot metrics
+$fac_count = 0;
+$dept_count = 0;
+$open_materials = 0;
+if ($admin_role == 5 && $admin_school > 0) {
+  $fac_count = 1;
+  // Faculties count: only relevant when manager is at school level (no specific faculty assigned)
+  if ($admin_faculty == 0) {
+    $fac_count = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS count FROM faculties WHERE status='active' AND school_id = $admin_school"))['count'] ?? 0);
+  }
+  // Departments scoped: by school if no faculty, else within assigned faculty
+  if ($admin_faculty == 0) {
+    $dept_count = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS count FROM depts WHERE status='active' AND school_id = $admin_school"))['count'] ?? 0);
+  } else {
+    $dept_count = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS count FROM depts WHERE status='active' AND school_id = $admin_school AND faculty_id = $admin_faculty"))['count'] ?? 0);
+  }
+  // Open materials: status open AND due date not passed; scoped by faculty if assigned
+  if ($admin_faculty == 0) {
+    $open_materials = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS count FROM manuals m WHERE m.status='open' AND m.school_id = $admin_school AND m.due_date >= NOW()"))['count'] ?? 0);
+  } else {
+    $open_materials = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS count FROM manuals m LEFT JOIN depts d ON m.dept = d.id WHERE m.status='open' AND m.school_id = $admin_school AND m.due_date >= NOW() AND d.faculty_id = $admin_faculty"))['count'] ?? 0);
+  }
+}
 
 // Annual revenue comparison for growth chart
 $selected_year = $_GET['year'] ?? date('Y');
@@ -133,15 +164,22 @@ if ($annual_prev_revenue == 0) {
 }
 $annual_growth_percent = round($annual_growth_percent, 2);
 
-$users_sql = "SELECT COUNT(*) AS count FROM users WHERE 1{$school_clause}";
+if ($admin_role == 5 && $admin_school > 0 && $admin_faculty != 0) {
+  $users_sql = "SELECT COUNT(*) AS count FROM users u LEFT JOIN depts d ON u.dept = d.id WHERE u.school = $admin_school AND d.faculty_id = $admin_faculty";
+} else {
+  $users_sql = "SELECT COUNT(*) AS count FROM users WHERE 1{$school_clause}";
+}
 $total_users = mysqli_fetch_assoc(mysqli_query($conn, $users_sql))["count"];
 
 // Additional metrics (current year only)
 $transactions_base = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t";
 $transactions_where = " WHERE t.status = 'successful' AND YEAR(t.created_at) = YEAR(CURDATE())";
-if ($admin_role == 5) {
-  $transactions_base .= " JOIN users u ON t.user_id = u.id";
+if ($admin_role == 5 && $admin_school > 0) {
+  $transactions_base .= " JOIN users u ON t.user_id = u.id LEFT JOIN depts d ON u.dept = d.id";
   $transactions_where .= " AND u.school = $admin_school";
+  if ($admin_faculty != 0) {
+    $transactions_where .= " AND d.faculty_id = $admin_faculty";
+  }
 }
 $transactions_sql = $transactions_base . $transactions_where;
 $transactions_amount = mysqli_fetch_assoc(mysqli_query($conn, $transactions_sql))["total"];
@@ -210,8 +248,17 @@ for ($m = 1; $m <= 12; $m++) {
                       <div class="card-body">
                         <h5 class="card-title text-primary">Hello <?php echo htmlspecialchars($f_name); ?>! 🎉</h5>
                         <p class="mb-4">
-                          We have got: <br><span class="fw-bold"><?php echo $hoc_count; ?></span> new HOCs waiting to be verified
-                          <br><span class="fw-bold"><?php echo $open_tickets; ?></span> opened support tickets
+                          <?php if ((int)$admin_role === 5): ?>
+                            Your <?php echo ($admin_faculty != 0 ? 'Faculty/college' : 'school'); ?> at a glance:<br>
+                            <span class="fw-bold"><?php echo number_format((int)$total_users); ?></span> active students<br>
+                            <span class="fw-bold"><?php echo (int)$fac_count; ?></span> faculties •
+                            <span class="fw-bold"><?php echo (int)$dept_count; ?></span> departments •
+                            <span class="fw-bold"><?php echo (int)$open_materials; ?></span> open materials
+                          <?php else: ?>
+                            We have got: <br>
+                            <span class="fw-bold"><?php echo (int)$hoc_count; ?></span> new HOCs waiting to be verified<br>
+                            <span class="fw-bold"><?php echo (int)$open_tickets; ?></span> open support tickets
+                          <?php endif; ?>
                         </p>
                       </div>
                     </div>
@@ -246,7 +293,7 @@ for ($m = 1; $m <= 12; $m++) {
                             </div>
                           </div>
                         </div>
-                        <span>Total Revenue</span>
+                        <span><?php echo ($admin_role == 5 ? 'Your Commission' : 'Total Revenue'); ?></span>
                           <h3 id="total-revenue-amount" class="card-title text-nowrap mb-1">₦<?php echo number_format($total_revenue); ?></h3>
                           <small id="total-revenue-growth" class="<?php echo $revenue_class; ?> fw-semibold"><i class="bx <?php echo $revenue_icon; ?>"></i> <?php echo $growth_sign . $growth_percent; ?>%</small>
                       </div>
@@ -271,7 +318,7 @@ for ($m = 1; $m <= 12; $m++) {
                             </div>
                           </div>
                         </div>
-                        <span>Sales</span>
+                        <span><?php echo ($admin_role == 5 ? 'School Sales' : 'Sales'); ?></span>
                           <h3 id="total-sales-amount" class="card-title text-nowrap mb-1">₦<?php echo number_format($total_sales); ?></h3>
                           <small id="total-sales-growth" class="<?php echo $sales_class; ?> fw-semibold"><i class="bx <?php echo $sales_icon; ?>"></i> <?php echo $sales_growth_sign . $sales_growth_percent; ?>%</small>
                       </div>
@@ -308,7 +355,7 @@ for ($m = 1; $m <= 12; $m++) {
                         </div>
                       </div>
                       <div id="growthChart" data-growth="<?php echo $annual_growth_percent; ?>"></div>
-                      <div id="growth-chart-text" class="text-center fw-semibold pt-3 mb-2"><?php echo round($annual_growth_percent); ?>% Company Growth</div>
+                      <div id="growth-chart-text" class="text-center fw-semibold pt-3 mb-2"><?php echo round($annual_growth_percent); ?>% <?php echo ($admin_role == 5 ? 'School Growth' : 'Company Growth'); ?></div>
 
                       <div class="d-flex px-xxl-4 px-lg-2 p-4 gap-xxl-3 gap-lg-1 gap-3 justify-content-between">
                         <div class="d-flex">
