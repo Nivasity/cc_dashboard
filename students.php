@@ -120,12 +120,12 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                           </div>
                           <div class="mb-3 col-md-6">
                             <label for="school" class="form-label">School Name</label>
-                            <select id="school" name="school" class="form-select" required <?php echo $admin_role == 5 ? 'disabled' : ''; ?>>
+                            <select id="school" name="school" class="form-select select_special" required <?php echo $admin_role == 5 ? 'disabled' : ''; ?>>
                             </select>
                           </div>
                           <div class="mb-3 col-md-6">
                             <label for="depts" class="form-label">Department</label>
-                            <select id="depts" name="dept" class="form-select" required <?php echo $admin_role == 5 ? 'disabled' : ''; ?>>
+                            <select id="depts" name="dept" class="form-select select_special" required <?php echo $admin_role == 5 ? 'disabled' : ''; ?>>
                               <option value="0">Select Department</option>
                             </select>
                           </div>
@@ -134,8 +134,14 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                             <input class="form-control" type="text" id="matric_no" name="matric_no" required <?php echo $admin_role == 5 ? 'readonly' : ''; ?> />
                           </div>
                           <div class="mb-3 col-md-6">
+                            <label for="admissionYear" class="form-label">Admission Year</label>
+                            <select id="admissionYear" name="adm_year" class="form-select select_special" <?php echo $admin_role == 5 ? 'disabled' : ''; ?>>
+                              <option value="">Select Admission Year</option>
+                            </select>
+                          </div>
+                          <div class="mb-3 col-md-6">
                             <label class="form-label" for="role">Role</label>
-                            <select id="role" name="role" class="form-select" required <?php echo $admin_role == 5 ? 'disabled' : ''; ?>>
+                            <select id="role" name="role" class="form-select select_special" required <?php echo $admin_role == 5 ? 'disabled' : ''; ?>>
                               <option value="student">Student</option>
                               <option value="hoc">HOC</option>
                             </select>
@@ -224,7 +230,7 @@ $admin_faculty = $admin_['faculty'] ?? 0;
 
                           <dt class="col-sm-3 text-primary">Student Status</dt>
                           <dd class="col-sm-3">
-                            <select class="form-select student_status" name="student_status">
+                            <select class="form-select select_special student_status" name="student_status">
                               <option value="verified">Verified</option>
                               <option value="unverified">Unverified</option>
                               <option value="inreview">Inreview</option>
@@ -345,6 +351,19 @@ $admin_faculty = $admin_['faculty'] ?? 0;
     const urlParams = new URLSearchParams(window.location.search);
     const tabParam = urlParams.get('tab');
 
+    // Populate Admission Year select with ranges like 2019/2020
+    function getAdmissionYears() {
+      var $selectElement = $('#admissionYear');
+      var currentYear = new Date().getFullYear();
+      var startYear = 2019;
+      // Clear existing generated options but keep placeholder
+      $selectElement.find('option').not('[value=""]').remove();
+      for (var year = currentYear + 1; year >= startYear; year--) {
+        var range = (year - 1) + '/' + year;
+        $selectElement.append($('<option/>', { value: range, text: range }));
+      }
+    }
+
     if (tabParam) {
       // Deactivate all tabs and their content
       $('.nav-link').removeClass('active');
@@ -356,6 +375,8 @@ $admin_faculty = $admin_['faculty'] ?? 0;
     }
 
     $(document).ready(function () {
+      // Initialize admission year options
+      getAdmissionYears();
       $.ajax({
         type: 'GET',
         url: 'model/getInfo.php',
@@ -391,16 +412,29 @@ $admin_faculty = $admin_['faculty'] ?? 0;
             type: 'POST',
             url: 'model/student.php',
             data: $('#search_profile-form').serialize(),
-            success: function (data) {
-              if (data.status == 'success') {
+              success: function (data) {
+                if (data.status == 'success') {
 
                 $('#first_name').val(data.student_fn);
                 $('#last_name').val(data.student_ln);
                 $('#email').val(data.student_email);
                 $('#phone').val(data.student_phone);
-                $('#school').val(data.student_sch);
+                $('#school').val(data.student_sch).trigger('change');
                 $('#matric_no').val(data.student_matric);
-                $('#role').val(data.student_role);
+                // Ensure admission years are populated
+                if ($('#admissionYear option').length <= 1) {
+                  getAdmissionYears();
+                }
+                // Set selected admission year; append if not in list
+                (function() {
+                  var admVal = data.student_adm_year;
+                  var $sel = $('#admissionYear');
+                  if (admVal && $sel.find('option').filter(function(){ return $(this).val() === admVal; }).length === 0) {
+                    $sel.append($('<option>', { value: admVal, text: admVal }));
+                  }
+                  $sel.val(admVal).trigger('change');
+                })();
+                $('#role').val(data.student_role).trigger('change');
 
                 $.ajax({
                   type: 'POST',
@@ -423,7 +457,7 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                 });
                 
                 setTimeout(function () {
-                  $('#depts').val(data.student_dept);
+                  $('#depts').val(data.student_dept).trigger('change');
                 }, 1000);
 
                 showToast('bg-success', data.message); 
@@ -468,7 +502,7 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                 $('.student_phone').html(data.student_phone);
                 $('.student_sch').html(data.student_sch);
                 $('.student_matric').html(data.student_matric);
-                $('.student_status').val(data.student_status);
+                $('.student_status').val(data.student_status).trigger('change');
                 $('.acct_no').html(data.acct_no);
                 $('.acct_name').html(data.acct_name);
 

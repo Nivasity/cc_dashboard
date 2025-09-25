@@ -141,7 +141,7 @@ $admin_role = $_SESSION['nivas_adminRole'];
                           </div>
                           <div class="mb-3 col-md-6">
                             <label class="form-label" for="role">Role</label>
-                            <select id="role" name="role" class="form-select" required>
+                            <select id="role" name="role" class="form-select select_special" required>
                               <!-- <option value="visitor">Visitor</option> -->
                               <option value="org_admin">Business Owner</option>
                             </select>
@@ -230,7 +230,7 @@ $admin_role = $_SESSION['nivas_adminRole'];
 
                           <dt class="col-sm-3 text-primary">User Status</dt>
                           <dd class="col-sm-3">
-                            <select class="form-select user_status" name="user_status">
+                            <select class="form-select select_special user_status" name="user_status">
                               <option value="verified">Verified</option>
                               <option value="unverified">Unverified</option>
                               <option value="inreview">Inreview</option>
@@ -289,7 +289,7 @@ $admin_role = $_SESSION['nivas_adminRole'];
                         <div class="row justify-content-end">
                           <div class="col-sm-10">
                             <button type="submit" class="btn btn-primary email-form-btn">Send</button>
-                            <select class="form-select user_status w-25 d-inline" name="user_status">
+                            <select class="form-select select_special user_status w-25 d-inline" name="user_status">
                               <option value="verified">Verified</option>
                               <option value="unverified">Unverified</option>
                               <option value="inreview">Inreview</option>
@@ -384,7 +384,7 @@ $admin_role = $_SESSION['nivas_adminRole'];
                 $('#last_name').val(data.user_ln);
                 $('#email').val(data.user_email);
                 $('#phone').val(data.user_phone);
-                $('#role').val(data.user_role);
+                $('#role').val(data.user_role).trigger('change');
                 $('#business_name').val(data.business_name);
                 $('#business_address').val(data.business_address);
                 $('#web_url').val(data.web_url);
@@ -429,7 +429,7 @@ $admin_role = $_SESSION['nivas_adminRole'];
                 $('#user_role').val(data.user_role);
                 $('#user_email_').val(data.user_email);
                 $('.user_phone').html(data.user_phone);
-                $('.user_status').val(data.user_status);
+                $('.user_status').val(data.user_status).trigger('change');
                 $('.acct_no').html(data.acct_no);
                 $('.acct_name').html(data.acct_name);
                 $('.business_name').html(data.business_name);

@@ -7,6 +7,7 @@ include('functions.php');
 $statusRes = $mailStatus = $messageRes = 'failed';
 $student_fn = $student_ln = $student_email = $student_phone = $student_status = null;
 $student_sch = $student_dept = $student_matric = $student_role = null;
+$student_adm_year = null;
 $acct_no = $acct_name = $acct_bank = 'N/A';
 
 $user_id = $_SESSION['nivas_adminId'];
@@ -67,6 +68,7 @@ if (isset($_POST['student_data'])) {
       $student_role = $student['role'];
       $student_sch = $student_school;
       $student_dept = $student_dept_id;
+      $student_adm_year = $student['adm_year'];
 
       if ($student_role == 'hoc') {
         $settlement_query = mysqli_query($conn, "SELECT * FROM settlement_accounts WHERE user_id = $student_id");
@@ -96,6 +98,7 @@ if (isset($_POST['edit_profile'])) {
   $school = mysqli_real_escape_string($conn, $_POST['school']);
   $dept = mysqli_real_escape_string($conn, $_POST['dept']);
   $matric_no = mysqli_real_escape_string($conn, $_POST['matric_no']);
+  $adm_year = isset($_POST['adm_year']) ? mysqli_real_escape_string($conn, $_POST['adm_year']) : '';
   $role = mysqli_real_escape_string($conn, $_POST['role']);
 
   $subject = "Confirmation: Academic Information Update Successful";
@@ -114,7 +117,7 @@ if (isset($_POST['edit_profile'])) {
     Nivasity
   ";
 
-  mysqli_query($conn, "UPDATE users SET first_name = '$first_name', last_name = '$last_name', phone = '$phone', school = $school, dept = $dept, matric_no = '$matric_no', role = '$role' WHERE email = '$email'");
+  mysqli_query($conn, "UPDATE users SET first_name = '$first_name', last_name = '$last_name', phone = '$phone', school = $school, dept = $dept, matric_no = '$matric_no', adm_year = '$adm_year', role = '$role' WHERE email = '$email'");
 
   if (mysqli_affected_rows($conn) >= 1) {
     $mailStatus = sendMail($subject, $e_message, $email);
@@ -231,6 +234,7 @@ $responseData = array(
   "student_dept" => "$student_dept",
   "student_matric" => "$student_matric",
   "student_role" => "$student_role",
+  "student_adm_year" => "$student_adm_year",
   "acct_no" => "$acct_no",
   "acct_name" => "$acct_name",
   "acct_bank" => "$acct_bank",
