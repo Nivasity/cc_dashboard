@@ -3,7 +3,123 @@ session_start();
 include('config.php');
 include('mail.php');
 include('functions.php');
-$statusRes = $messageRes = 'failed';
+$statusRes = 'failed';
+$messageRes = '';
+$tickets = null;
+$ticket = null;
+
+$admin_role = $_SESSION['nivas_adminRole'] ?? null;
+$admin_id = $_SESSION['nivas_adminId'] ?? null;
+$admin_school = 0;
+if ($admin_role == 5 && $admin_id) {
+  $info = mysqli_fetch_assoc(mysqli_query($conn, "SELECT school FROM admins WHERE id = $admin_id"));
+  $admin_school = intval($info['school'] ?? 0);
+}
+
+if (isset($_GET['fetch'])) {
+  $fetch = $_GET['fetch'];
+
+  if ($fetch === 'tickets') {
+    $status = mysqli_real_escape_string($conn, strtolower($_GET['status'] ?? 'open'));
+    $sql = "SELECT st.id, st.code, st.subject, st.message, st.status, st.response, st.response_time, st.created_at, u.first_name, u.last_name, u.email, u.school FROM support_tickets st JOIN users u ON st.user_id = u.id WHERE 1=1";
+    if ($status === 'open' || $status === 'closed') {
+      $sql .= " AND st.status = '$status'";
+    }
+    if ($admin_role == 5 && $admin_school > 0) {
+      $sql .= " AND u.school = $admin_school";
+    }
+    $sql .= " ORDER BY st.created_at DESC";
+    $q = mysqli_query($conn, $sql);
+    $tickets = array();
+    while ($row = mysqli_fetch_assoc($q)) {
+      $tickets[] = array(
+        'code' => $row['code'],
+        'subject' => $row['subject'],
+        'message' => $row['message'],
+        'status' => $row['status'],
+        'date' => date('M j, Y', strtotime($row['created_at'])),
+        'time' => date('h:i a', strtotime($row['created_at'])),
+        'student' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+        'email' => $row['email'] ?? ''
+      );
+    }
+    $statusRes = 'success';
+  }
+
+  if ($fetch === 'ticket') {
+    $code = mysqli_real_escape_string($conn, $_GET['code'] ?? '');
+    if ($code !== '') {
+      $sql = "SELECT st.id, st.code, st.subject, st.message, st.status, st.response, st.response_time, st.created_at, u.first_name, u.last_name, u.email, u.school FROM support_tickets st JOIN users u ON st.user_id = u.id WHERE st.code = '$code'";
+      if ($admin_role == 5 && $admin_school > 0) {
+        $sql .= " AND u.school = $admin_school";
+      }
+      $q = mysqli_query($conn, $sql);
+      if ($row = mysqli_fetch_assoc($q)) {
+        $ticket = array(
+          'code' => $row['code'],
+          'subject' => $row['subject'],
+          'message' => $row['message'],
+          'status' => $row['status'],
+          'response' => $row['response'] ?? '',
+          'date' => date('M j, Y', strtotime($row['created_at'])),
+          'time' => date('h:i a', strtotime($row['created_at'])),
+          'student' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+          'email' => $row['email'] ?? ''
+        );
+        $statusRes = 'success';
+      } else {
+        $statusRes = 'error';
+        $messageRes = 'Ticket not found or unauthorized';
+      }
+    } else {
+      $statusRes = 'error';
+      $messageRes = 'Invalid ticket code';
+    }
+  }
+}
+
+if (isset($_POST['respond_ticket'])) {
+  $code = mysqli_real_escape_string($conn, $_POST['code'] ?? '');
+  $response = mysqli_real_escape_string($conn, $_POST['response'] ?? '');
+  $markClosed = isset($_POST['mark_closed']) && $_POST['mark_closed'] == '1';
+  if ($code === '' || $response === '') {
+    $statusRes = 'error';
+    $messageRes = 'Ticket code and response are required';
+  } else {
+    $new_status = $markClosed ? 'closed' : 'open';
+    $authJoin = ($admin_role == 5 && $admin_school > 0) ? "JOIN users u ON u.id = st.user_id" : '';
+    $authWhere = ($admin_role == 5 && $admin_school > 0) ? " AND u.school = $admin_school" : '';
+    $sql = "UPDATE support_tickets st $authJoin SET st.response = '$response', st.status = '$new_status', st.response_time = NOW() WHERE st.code = '$code' $authWhere";
+    mysqli_query($conn, $sql);
+    if (mysqli_affected_rows($conn) > 0) {
+      $statusRes = 'success';
+      $messageRes = 'Response sent successfully';
+    } else {
+      $statusRes = 'error';
+      $messageRes = 'Update failed or unauthorized';
+    }
+  }
+}
+
+if (isset($_POST['reopen_ticket'])) {
+  $code = mysqli_real_escape_string($conn, $_POST['code'] ?? '');
+  if ($code === '') {
+    $statusRes = 'error';
+    $messageRes = 'Invalid ticket code';
+  } else {
+    $authJoin = ($admin_role == 5 && $admin_school > 0) ? "JOIN users u ON u.id = st.user_id" : '';
+    $authWhere = ($admin_role == 5 && $admin_school > 0) ? " AND u.school = $admin_school" : '';
+    $sql = "UPDATE support_tickets st $authJoin SET st.status = 'open' WHERE st.code = '$code' $authWhere";
+    mysqli_query($conn, $sql);
+    if (mysqli_affected_rows($conn) > 0) {
+      $statusRes = 'success';
+      $messageRes = 'Ticket reopened';
+    } else {
+      $statusRes = 'error';
+      $messageRes = 'Update failed or unauthorized';
+    }
+  }
+}
 
 if (isset($_POST['support_id'])) {
   // Collect form data
@@ -91,8 +207,10 @@ if (isset($_POST['email_customer'])) {
 }
 
 $responseData = array(
-  "status" => "$statusRes",
-  "message" => "$messageRes"
+  'status' => $statusRes,
+  'message' => $messageRes,
+  'tickets' => $tickets,
+  'ticket' => $ticket
 );
 
 // Set the appropriate headers for JSON response
