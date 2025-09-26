@@ -37,12 +37,13 @@ $destination = "../assets/images/supports/{$picture}";
 if (move_uploaded_file($tempname, $destination)) {
   // Send email to support
   $supportEmail = 'support@nivasity.com';
-  $subject = "Important: Academic Info Change Request - Ticket #$uniqueCode";
+  $ticketTitle = 'Academic Info Change Request';
+  $subject = "Re: Support Ticket (#$uniqueCode) - $ticketTitle";
   $supportMessage = "User: $first_name (User id: $user_id)<br>Email: $userEmail<br>Message: $message";
 
   // Send confirmation email to the user
-  $userSubject = "Support Request Received - Ticket #$uniqueCode";
-  $userMessage = "Hi $first_name,<br><br>Thank you for reaching out to us. Your academic info change request has been received, and a support ticket has been generated with the reference number #$uniqueCode. <br>Our team will get back to you within 24 working hours.<br><br>Best regards,<br>Support Team<br>Nivasity";
+  $userSubject = "Re: Support Ticket (#$uniqueCode) - $ticketTitle";
+  $userMessage = "Hi $first_name,<br><br>" . nl2br($message) . "<br><br>Best regards,<br>Support Team<br>Nivasity";
 
   $mailStatus = sendMail($subject, $supportMessage, $supportEmail);
 
@@ -56,7 +57,7 @@ if (move_uploaded_file($tempname, $destination)) {
       $currentDateTime = date("Y-m-d H:i:s");
 
       mysqli_query($conn, "INSERT INTO support_tickets (subject, code,	user_id,	message, created_at) 
-        VALUES ('Academic Info Change Request', '$uniqueCode',	$user_id,	'$message', '$currentDateTime')");
+        VALUES ('$ticketTitle', '$uniqueCode',	$user_id,	'$message', '$currentDateTime')");
 
       $statusRes = "success";
       $messageRes = "Request successfully sent!";

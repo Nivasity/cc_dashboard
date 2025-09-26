@@ -9,6 +9,7 @@ function sendMail($subject, $body, $to) {
   
     
   // HTML Email Template
+  $currentYear = date("Y");
   $body_ = '
   <html>
   <head>
@@ -108,6 +109,8 @@ function sendMail($subject, $body, $to) {
   </body>
 
   </html>';
+  // Ensure dynamic copyright year in footer
+  $body_ = str_replace('Copyright © Nivasity. 2024', 'Copyright © Nivasity. ' . $currentYear, $body_);
   // Create a new PHPMailer instance
   $mail = new PHPMailer;
   

@@ -86,17 +86,36 @@ if (isset($_POST['respond_ticket'])) {
     $statusRes = 'error';
     $messageRes = 'Ticket code and response are required';
   } else {
-    $new_status = $markClosed ? 'closed' : 'open';
-    $authJoin = ($admin_role == 5 && $admin_school > 0) ? "JOIN users u ON u.id = st.user_id" : '';
-    $authWhere = ($admin_role == 5 && $admin_school > 0) ? " AND u.school = $admin_school" : '';
-    $sql = "UPDATE support_tickets st $authJoin SET st.response = '$response', st.status = '$new_status', st.response_time = NOW() WHERE st.code = '$code' $authWhere";
-    mysqli_query($conn, $sql);
-    if (mysqli_affected_rows($conn) > 0) {
-      $statusRes = 'success';
-      $messageRes = 'Response sent successfully';
+    // Fetch ticket + user details for email and authorization
+    $ticketInfoSql = "SELECT st.subject, u.first_name, u.email, u.school FROM support_tickets st JOIN users u ON u.id = st.user_id WHERE st.code = '$code'";
+    if ($admin_role == 5 && $admin_school > 0) {
+      $ticketInfoSql .= " AND u.school = $admin_school";
+    }
+    $ticketInfoQ = mysqli_query($conn, $ticketInfoSql);
+    if ($row = mysqli_fetch_assoc($ticketInfoQ)) {
+      $new_status = $markClosed ? 'closed' : 'open';
+      $authJoin = ($admin_role == 5 && $admin_school > 0) ? "JOIN users u ON u.id = st.user_id" : '';
+      $authWhere = ($admin_role == 5 && $admin_school > 0) ? " AND u.school = $admin_school" : '';
+      $sql = "UPDATE support_tickets st $authJoin SET st.response = '$response', st.status = '$new_status', st.response_time = NOW() WHERE st.code = '$code' $authWhere";
+      mysqli_query($conn, $sql);
+      if (mysqli_affected_rows($conn) > 0) {
+        // Send email notification to the user
+        $userEmail = $row['email'];
+        $firstName = trim($row['first_name'] ?? '');
+        $ticketTitle = $row['subject'];
+        $userSubject = "Re: Support Ticket (#$code) - $ticketTitle";
+        $userBody = "Hi $firstName,<br><br>" . nl2br($response) . "<br><br>Best regards,<br>Support Team<br>Nivasity";
+        $mailStatus = sendMail($userSubject, $userBody, $userEmail);
+
+        $statusRes = 'success';
+        $messageRes = ($mailStatus === 'success') ? 'Response sent and user notified by email' : 'Response saved, but email notification failed';
+      } else {
+        $statusRes = 'error';
+        $messageRes = 'Update failed or unauthorized';
+      }
     } else {
       $statusRes = 'error';
-      $messageRes = 'Update failed or unauthorized';
+      $messageRes = 'Ticket not found or unauthorized';
     }
   }
 }
@@ -107,16 +126,35 @@ if (isset($_POST['reopen_ticket'])) {
     $statusRes = 'error';
     $messageRes = 'Invalid ticket code';
   } else {
-    $authJoin = ($admin_role == 5 && $admin_school > 0) ? "JOIN users u ON u.id = st.user_id" : '';
-    $authWhere = ($admin_role == 5 && $admin_school > 0) ? " AND u.school = $admin_school" : '';
-    $sql = "UPDATE support_tickets st $authJoin SET st.status = 'open' WHERE st.code = '$code' $authWhere";
-    mysqli_query($conn, $sql);
-    if (mysqli_affected_rows($conn) > 0) {
-      $statusRes = 'success';
-      $messageRes = 'Ticket reopened';
+    // Fetch ticket + user details for email and authorization
+    $ticketInfoSql = "SELECT st.subject, u.first_name, u.email, u.school FROM support_tickets st JOIN users u ON u.id = st.user_id WHERE st.code = '$code'";
+    if ($admin_role == 5 && $admin_school > 0) {
+      $ticketInfoSql .= " AND u.school = $admin_school";
+    }
+    $ticketInfoQ = mysqli_query($conn, $ticketInfoSql);
+    if ($row = mysqli_fetch_assoc($ticketInfoQ)) {
+      $authJoin = ($admin_role == 5 && $admin_school > 0) ? "JOIN users u ON u.id = st.user_id" : '';
+      $authWhere = ($admin_role == 5 && $admin_school > 0) ? " AND u.school = $admin_school" : '';
+      $sql = "UPDATE support_tickets st $authJoin SET st.status = 'open' WHERE st.code = '$code' $authWhere";
+      mysqli_query($conn, $sql);
+      if (mysqli_affected_rows($conn) > 0) {
+        // Notify user that the ticket has been reopened
+        $userEmail = $row['email'];
+        $firstName = trim($row['first_name'] ?? '');
+        $ticketTitle = $row['subject'];
+        $userSubject = "Re: Support Ticket (#$code) - $ticketTitle";
+        $userBody = "Hi $firstName,<br><br>Your support ticket has been reopened. Our team will follow up shortly.<br><br>Best regards,<br>Support Team<br>Nivasity";
+        $mailStatus = sendMail($userSubject, $userBody, $userEmail);
+
+        $statusRes = 'success';
+        $messageRes = ($mailStatus === 'success') ? 'Ticket reopened and user notified by email' : 'Ticket reopened; email notification failed';
+      } else {
+        $statusRes = 'error';
+        $messageRes = 'Update failed or unauthorized';
+      }
     } else {
       $statusRes = 'error';
-      $messageRes = 'Update failed or unauthorized';
+      $messageRes = 'Ticket not found or unauthorized';
     }
   }
 }
@@ -152,13 +190,15 @@ if (isset($_POST['support_id'])) {
 
   // Send email to support
   $supportEmail = 'support@nivasity.com';
-  $supportSubject = "Important: New Support Request - Ticket #$uniqueCode";
+  // Standardized subject format: Re: Support Ticket (#ID) - title
+  $supportSubject = "Re: Support Ticket (#$uniqueCode) - $subject";
   $e_message = str_replace('\r\n', '<br>', $message);
   $supportMessage = "User: $first_name (User id: $user_id)<br>Email: <a href='mailto:$userEmail'>$userEmail</a><br>Message: <br>$e_message<br><br>File attached: <a href='https://nivasity.com/assets/images/supports/$picture'>https://nivasity.com/assets/images/supports/$picture</a>";
 
   // Send confirmation email to the user
-  $userSubject = "Support Request Received - Ticket #$uniqueCode";
-  $userMessage = "Hi $first_name,<br><br>Thank you for reaching out to us. Your support request has been received, and a ticket has been generated with the reference number #$uniqueCode. <br>Our team will get back to you within 24 working hours.<br><br>Best regards,<br>Support Team<br>Nivasity";
+  $userSubject = "Re: Support Ticket (#$uniqueCode) - $subject";
+  // Body pattern: Hi Firstname, {{Message}} ...
+  $userMessage = "Hi $first_name,<br><br>" . nl2br($message) . "<br><br>Best regards,<br>Support Team<br>Nivasity";
 
   $mailStatus = sendMail($supportSubject, $supportMessage, $supportEmail);
 
