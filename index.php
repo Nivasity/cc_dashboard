@@ -249,7 +249,7 @@ for ($m = 1; $m <= 12; $m++) {
                         <h5 class="card-title text-primary">Hello <?php echo htmlspecialchars($f_name); ?>! 🎉</h5>
                         <p class="mb-4">
                           <?php if ((int)$admin_role === 5): ?>
-                            Your <?php echo ($admin_faculty != 0 ? 'Faculty/college' : 'school'); ?> at a glance:<br>
+                            Your <?php echo ($admin_faculty != 0 ? 'faculty/college' : 'school'); ?> at a glance:<br>
                             <span class="fw-bold"><?php echo number_format((int)$total_users); ?></span> active students<br>
                             <span class="fw-bold"><?php echo (int)$fac_count; ?></span> faculties •
                             <span class="fw-bold"><?php echo (int)$dept_count; ?></span> departments •
