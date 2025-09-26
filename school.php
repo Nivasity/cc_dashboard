@@ -74,13 +74,13 @@ if ($admin_role == 5) {
                         class="bx bxs-school me-1"></i> Schools</button>
                   </li>
                   <?php } ?>
-                  <?php if ($admin_faculty == 0) { ?>
+                  
                   <li class="nav-item">
                     <button type="button" class="nav-link <?php echo ($current_tab == 'faculties') ? 'active' : ''; ?>" role="tab" data-bs-toggle="tab"
                       data-bs-target="#navs-top-faculties" aria-controls="navs-top-faculties" aria-selected="false"><i
                         class='bx bxs-book-alt me-1'></i>Faculties</button>
                   </li>
-                  <?php } ?>
+                  
                   <li class="nav-item">
                     <button type="button" class="nav-link <?php echo ($current_tab == 'departments') ? 'active' : ''; ?>" role="tab" data-bs-toggle="tab"
                       data-bs-target="#navs-top-departments" aria-controls="navs-top-departments" aria-selected="false"><i
@@ -91,6 +91,9 @@ if ($admin_role == 5) {
                   <?php if ($admin_role != 5) { ?>
                   <div class="card mb-4 tab-pane fade <?php echo ($current_tab == '' || $current_tab == 'schools') ? 'active show' : ''; ?>" id="navs-top-school" role="tabpanel">
                     <div class="card-body">
+                      <div class="d-flex justify-content-end mb-3">
+                        <button type="button" id="downloadSchools" class="btn btn-success">Download CSV</button>
+                      </div>
                       <div class="table-responsive text-nowrap">
                         <table class="table">
                           <thead class="table-secondary">
@@ -110,8 +113,7 @@ if ($admin_role == 5) {
                       </div>
                     </div>
                   </div>
-<?php } ?>
-                  <?php if ($admin_faculty == 0) { ?>
+                  <?php } ?>
                   <div class="card mb-4 tab-pane fade <?php echo ($current_tab == 'faculties') ? 'active show' : ''; ?>" id="navs-top-faculties" role="tabpanel">
                     <?php if ($admin_role != 5) { ?>
                     <div class="card-header">
@@ -122,8 +124,11 @@ if ($admin_role == 5) {
                               <option value="0">Select School</option>
                             </select>
                           </div>
-                          <div class="col-sm-3">
+                          <div class="col-sm-2 mb-2 mb-sm-0">
                             <button id="submitBtnFac" type="submit" class="btn btn-secondary w-100">Search</button>
+                          </div>
+                          <div class="col-sm-2">
+                            <button type="button" id="downloadFaculties" class="btn btn-success w-100">Download CSV</button>
                           </div>
                         </div>
                       </form>
@@ -154,7 +159,6 @@ if ($admin_role == 5) {
                       </div>
                     </div>
                   </div>
-                  <?php } ?>
 
                   <div class="card mb-4 tab-pane fade <?php echo ($current_tab == 'departments') ? 'active show' : ''; ?>" id="navs-top-departments" role="tabpanel">
                     <?php if ($admin_role != 5) { ?>
@@ -166,8 +170,11 @@ if ($admin_role == 5) {
                               <option value="0">Select School</option>
                             </select>
                           </div>
-                          <div class="col-sm-3">
+                          <div class="col-sm-2 mb-2 mb-sm-0">
                             <button id="submitBtn2" type="submit" class="btn btn-secondary w-100">Search</button>
+                          </div>
+                          <div class="col-sm-2">
+                            <button type="button" id="downloadDepts" class="btn btn-success w-100">Download CSV</button>
                           </div>
                         </div>
                       </form>

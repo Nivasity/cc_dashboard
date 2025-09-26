@@ -16,7 +16,7 @@ if ($admin_role == 5) {
     $faculties_query = mysqli_query($conn, "SELECT id, name FROM faculties WHERE status = 'active' AND school_id = $admin_school ORDER BY name");
     $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' AND school_id = $admin_school ORDER BY name");
   }
-  $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id WHERE m.school_id = $admin_school";
+  $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name, u.last_name, u.matric_no FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id LEFT JOIN users u ON m.user_id = u.id WHERE m.school_id = $admin_school";
   if ($admin_faculty != 0) {
     $material_sql .= " AND d.faculty_id = $admin_faculty";
   }
@@ -25,7 +25,7 @@ if ($admin_role == 5) {
   $schools_query = mysqli_query($conn, "SELECT id, name FROM schools WHERE status = 'active' ORDER BY name");
   $faculties_query = mysqli_query($conn, "SELECT id, name FROM faculties WHERE status = 'active' ORDER BY name");
   $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' ORDER BY name");
-  $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id GROUP BY m.id ORDER BY m.created_at DESC";
+  $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name, u.last_name, u.matric_no FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id LEFT JOIN users u ON m.user_id = u.id GROUP BY m.id ORDER BY m.created_at DESC";
 }
 $materials_query = mysqli_query($conn, $material_sql);
 ?>
@@ -80,6 +80,7 @@ $materials_query = mysqli_query($conn, $material_sql);
                   </div>
                   <div class="col-12">
                     <button type="submit" class="btn btn-secondary">Search</button>
+                    <button type="button" id="downloadMaterials" class="btn btn-success ms-2">Download CSV</button>
                   </div>
                 </form>
                 <div class="table-responsive text-nowrap">
@@ -149,11 +150,11 @@ $materials_query = mysqli_query($conn, $material_sql);
   <!-- Main JS -->
   <script src="assets/js/ui-toasts.js"></script>
   <script src="assets/js/main.js"></script>
+  <script src="model/functions/materials.js"></script>
   <script>
     const adminRole = <?php echo (int)$admin_role; ?>;
     const adminSchool = <?php echo (int)$admin_school; ?>;
     const adminFaculty = <?php echo (int)$admin_faculty; ?>;
   </script>
-  <script src="model/functions/materials.js"></script>
 </body>
 </html>

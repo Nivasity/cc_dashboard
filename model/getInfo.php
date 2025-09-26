@@ -13,6 +13,81 @@ if ($admin_role == 5 && $admin_id) {
   $admin_faculty = $admin_data['faculty'];
 }
 
+// CSV downloads for schools/faculties/departments
+if (isset($_GET['download'])) {
+  $type = $_GET['download'];
+  if ($type === 'schools') {
+    $where = ($admin_role == 5 && $admin_school) ? "WHERE id = $admin_school" : "";
+    $q = mysqli_query($conn, "SELECT id, name, code, status, created_at FROM schools $where ORDER BY name");
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="schools_' . date('Ymd_His') . '.csv"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['Name', 'Short Name', 'Departments', 'Students', 'Status', 'Created At']);
+    while ($s = mysqli_fetch_assoc($q)) {
+      $dept_cnt = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM depts WHERE school_id = {$s['id']}"))['c'] ?? 0;
+      $stud_cnt = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM users WHERE (role='student' OR role='hoc') AND school = {$s['id']}"))['c'] ?? 0;
+      fputcsv($out, [
+        $s['name'],
+        $s['code'],
+        $dept_cnt,
+        $stud_cnt,
+        $s['status'],
+        date('M d, Y', strtotime($s['created_at']))
+      ]);
+    }
+    fclose($out);
+    exit;
+  }
+  if ($type === 'faculties') {
+    $school = intval($_GET['school'] ?? 0);
+    if ($admin_role == 5 && $admin_school) { $school = $admin_school; }
+    $fac_cond = ($admin_role == 5 && $admin_faculty) ? " AND id = $admin_faculty" : "";
+    $q = mysqli_query($conn, "SELECT id, name, status, created_at FROM faculties WHERE school_id = $school$fac_cond ORDER BY name");
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="faculties_' . date('Ymd_His') . '.csv"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['Name', 'Students', 'HOCs', 'Departments', 'Status', 'Created At']);
+    while ($f = mysqli_fetch_assoc($q)) {
+      $dept_cnt = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM depts WHERE faculty_id = {$f['id']}"))['c'] ?? 0;
+      $stud_cnt = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM users WHERE role='student' AND dept IN (SELECT id FROM depts WHERE faculty_id = {$f['id']})"))['c'] ?? 0;
+      $hoc_cnt = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM users WHERE role='hoc' AND dept IN (SELECT id FROM depts WHERE faculty_id = {$f['id']})"))['c'] ?? 0;
+      fputcsv($out, [
+        $f['name'],
+        $stud_cnt,
+        $hoc_cnt,
+        $dept_cnt,
+        $f['status'],
+        date('M d, Y', strtotime($f['created_at']))
+      ]);
+    }
+    fclose($out);
+    exit;
+  }
+  if ($type === 'depts') {
+    $school = intval($_GET['school'] ?? 0);
+    if ($admin_role == 5 && $admin_school) { $school = $admin_school; }
+    $dept_cond = ($admin_role == 5 && $admin_faculty) ? " AND faculty_id = $admin_faculty" : "";
+    $q = mysqli_query($conn, "SELECT id, name, faculty_id, status, created_at FROM depts WHERE school_id = $school$dept_cond ORDER BY name");
+    header('Content-Type: text/csv; charset=utf-8');
+    header('Content-Disposition: attachment; filename="departments_' . date('Ymd_His') . '.csv"');
+    $out = fopen('php://output', 'w');
+    fputcsv($out, ['Name', 'Students', 'HOCs', 'Status', 'Created At']);
+    while ($d = mysqli_fetch_assoc($q)) {
+      $stud_cnt = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM users WHERE role='student' AND dept = {$d['id']}"))['c'] ?? 0;
+      $hoc_cnt = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM users WHERE role='hoc' AND dept = {$d['id']}"))['c'] ?? 0;
+      fputcsv($out, [
+        $d['name'],
+        $stud_cnt,
+        $hoc_cnt,
+        $d['status'],
+        date('M d, Y', strtotime($d['created_at']))
+      ]);
+    }
+    fclose($out);
+    exit;
+  }
+}
+
 if (isset($_GET['get_data'])) {
   $get_data = $_GET['get_data'];
 

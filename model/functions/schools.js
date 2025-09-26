@@ -31,44 +31,44 @@ function fetchSchools2() {
 
 
 function fetchSchools() {
-	$.ajax({
-		type: 'GET',
-		url: 'model/getInfo.php',
-		data: { get_data: 'schools' },
-		success: function (response) {
-			console.log(response);
+        $.ajax({
+                type: 'GET',
+                url: 'model/getInfo.php',
+                data: { get_data: 'schools' },
+                success: function (response) {
+                        console.log(response);
 
-			// Sort schools: Active first, then alphabetical by name
-			const sortedSchools = response.schools.sort((a, b) => {
-				// Prioritize active schools
-				if (a.status === 'active' && b.status !== 'active') return -1;
-				if (a.status !== 'active' && b.status === 'active') return 1;
+                        // Sort schools: Active first, then alphabetical by name
+                        const sortedSchools = response.schools.sort((a, b) => {
+                                // Prioritize active schools
+                                if (a.status === 'active' && b.status !== 'active') return -1;
+                                if (a.status !== 'active' && b.status === 'active') return 1;
 
-				// If both are active or inactive, sort alphabetically by name
-				return a.name.localeCompare(b.name);
-			});
+                                // If both are active or inactive, sort alphabetically by name
+                                return a.name.localeCompare(b.name);
+                        });
 
-			if ($.fn.dataTable.isDataTable('.table')) {
-				const dataTableInstance = $('.table').DataTable();
-				dataTableInstance.clear().draw().destroy();
-			}
+                        if ($.fn.dataTable.isDataTable('.table')) {
+                                const dataTableInstance = $('.table').DataTable();
+                                dataTableInstance.clear().draw().destroy();
+                        }
 
-			populateschoolTable(sortedSchools, '#schools_table');
-		},
-		complete: function () {
-			InitiateDatatable('.table');
-		}
-	});
+                        populateschoolTable(sortedSchools, '#schools_table');
+                },
+                complete: function () {
+                        InitiateDatatable('.table');
+                }
+        });
 }
 
 
 // Function to populate the school table
 function populateschoolTable(Schools, tableId) {
-	const tableBody = $(tableId); // Target your <tbody>
-	tableBody.empty(); // Clear existing rows
+        const tableBody = $(tableId); // Target your <tbody>
+        tableBody.empty(); // Clear existing rows
 
-	Schools.forEach(school => {
-		const row = `
+        Schools.forEach(school => {
+                const row = `
 							<tr>
 								<td>
 									<i class="text-primary me-3"></i> <strong>${school.name}</strong>
@@ -96,8 +96,8 @@ function populateschoolTable(Schools, tableId) {
                 </td>
             </tr>
             `;
-		tableBody.append(row); // Append each row to the table
-	});
+                tableBody.append(row); // Append each row to the table
+        });
 }
 
 
@@ -127,19 +127,19 @@ $(document).on('click', '.new_formBtn', function () {
 });
 
 $(document).on('click', '.viewSchool', function () {
-	$('#newSchoolModalLabel').text("Edit School");
+        $('#newSchoolModalLabel').text("Edit School");
 
-	const school_id = $(this).data('id');
-	const school_name = $(this).data('name');
-	const school_code = $(this).data('code');
+        const school_id = $(this).data('id');
+        const school_name = $(this).data('name');
+        const school_code = $(this).data('code');
 
-	// Populate modal with school data
-	$('#newSchoolForm [name="school_id"]').val(school_id);
-	$('#newSchoolForm [name="name"]').val(school_name);
-	$('#newSchoolForm [name="code"]').val(school_code);
+        // Populate modal with school data
+        $('#newSchoolForm [name="school_id"]').val(school_id);
+        $('#newSchoolForm [name="name"]').val(school_name);
+        $('#newSchoolForm [name="code"]').val(school_code);
 
-	// Open modal
-	$('#newSchoolModal').modal('show');
+        // Open modal
+        $('#newSchoolModal').modal('show');
 });
 
 $(document).on('click', '.viewDept', function () {
@@ -161,125 +161,216 @@ $(document).on('click', '.viewDept', function () {
 
 
 $(document).on('submit', '#newDeptForm', function (e) {
-	e.preventDefault();
+        e.preventDefault();
 
-	// Get the button element
-	var submitButton = $('#submitBtn3');
-	submitButton.html('<span class="spinner-border spinner-border-sm mx-auto" role="status" aria-hidden="true"></span>').attr('disabled', true);
+        // Get the button element
+        var submitButton = $('#submitBtn3');
+        submitButton.html('<span class="spinner-border spinner-border-sm mx-auto" role="status" aria-hidden="true"></span>').attr('disabled', true);
 
-	school_id = $('#newDeptForm [name="school_id"]').val();
+        school_id = $('#newDeptForm [name="school_id"]').val();
 
-	$.ajax({
-		url: 'model/department.php',
-		method: 'POST',
-		data: $(this).serialize(),
-		success: function (data) {
-			console.log('Response:', data);
-			if (data.status == 'success') {
-				showToast('bg-success', data.message);
+        $.ajax({
+                url: 'model/department.php',
+                method: 'POST',
+                data: $(this).serialize(),
+                success: function (data) {
+                        console.log('Response:', data);
+                        if (data.status == 'success') {
+                                showToast('bg-success', data.message);
 
-				fetchDepts(school_id);
-				$("#newDeptForm")[0].reset();
-				$('#newDeptModal').modal('hide');
-			} else {
-				showToast('bg-danger', data.message);
-			}
-		},
-		complete: function () {
-			// Revert button text and re-enable the button
-			submitButton.html('Save Changes').attr('disabled', false);
-		}
-	});
+                                fetchDepts(school_id);
+                                $("#newDeptForm")[0].reset();
+                                $('#newDeptModal').modal('hide');
+                        } else {
+                                showToast('bg-danger', data.message);
+                        }
+                },
+                complete: function () {
+                        // Revert button text and re-enable the button
+                        submitButton.html('Save Changes').attr('disabled', false);
+                }
+        });
 });
 
 
 $(document).on('submit', '#newSchoolForm', function (e) {
-	e.preventDefault();
+        e.preventDefault();
 
-	// Get the button element
-	var submitButton = $('#submitBtn');
-	submitButton.html('<span class="spinner-border spinner-border-sm mx-auto" role="status" aria-hidden="true"></span>').attr('disabled', true);
+        // Get the button element
+        var submitButton = $('#submitBtn');
+        submitButton.html('<span class="spinner-border spinner-border-sm mx-auto" role="status" aria-hidden="true"></span>').attr('disabled', true);
 
-	$.ajax({
-		url: 'model/school.php',
-		method: 'POST',
-		data: $(this).serialize(),
-		success: function (data) {
-			console.log('Response:', data);
-			if (data.status == 'success') {
-				showToast('bg-success', data.message);
+        $.ajax({
+                url: 'model/school.php',
+                method: 'POST',
+                data: $(this).serialize(),
+                success: function (data) {
+                        console.log('Response:', data);
+                        if (data.status == 'success') {
+                                showToast('bg-success', data.message);
 
-				fetchSchools();
-				fetchSchools2();
-				$("#newSchoolForm")[0].reset();
-				$('#newSchoolModal').modal('hide');
-			} else {
-				showToast('bg-danger', data.message);
-			}
-		},
-		complete: function () {
-			// Revert button text and re-enable the button
-			submitButton.html('Submit').attr('disabled', false);
-		}
-	});
+                                fetchSchools();
+                                fetchSchools2();
+                                $("#newSchoolForm")[0].reset();
+                                $('#newSchoolModal').modal('hide');
+                        } else {
+                                showToast('bg-danger', data.message);
+                        }
+                },
+                complete: function () {
+                        // Revert button text and re-enable the button
+                        submitButton.html('Submit').attr('disabled', false);
+                }
+        });
 });
 
 
 $(document).on('submit', '#selectSchoolForm', function (e) {
-	e.preventDefault();
+        e.preventDefault();
 
-	school_id = $('#selectSchoolForm [name="school"]').val();
+        school_id = $('#selectSchoolForm [name="school"]').val();
 
-	fetchDepts(school_id);
+        fetchDepts(school_id);
 });
 
 function fetchDepts(school_id) {
-	// Get the button element
-	var submitButton = $('#submitBtn2');
-	submitButton.html('<span class="spinner-border spinner-border-sm mx-auto" role="status" aria-hidden="true"></span>').attr('disabled', true);
+        // Get the button element
+        var submitButton = $('#submitBtn2');
+        submitButton.html('<span class="spinner-border spinner-border-sm mx-auto" role="status" aria-hidden="true"></span>').attr('disabled', true);
 
-	$.ajax({
-		method: 'POST',
-		url: 'model/getInfo.php',
-		data: { get_data: 'depts', school: school_id},
-		success: function (response) {
-			console.log('Response:', response);
+        $.ajax({
+                method: 'POST',
+                url: 'model/getInfo.php',
+                data: { get_data: 'depts', school: school_id },
+                success: function (response) {
+                        console.log('Response:', response);
 
-			if ($.fn.dataTable.isDataTable('.dept_table')) {
-				const dataTableInstance = $('.dept_table').DataTable();
-				dataTableInstance.clear().draw().destroy();
-			}
+                        if ($.fn.dataTable.isDataTable('.dept_table')) {
+                                const dataTableInstance = $('.dept_table').DataTable();
+                                dataTableInstance.clear().draw().destroy();
+                        }
 
-			if (response.status == 'success') {
-				// Sort depts: Active first, then alphabetical by name
-				const sortedDepts = response.departments.sort((a, b) => {
-					// Prioritize active depts
-					if (a.status === 'active' && b.status !== 'active') return -1;
-					if (a.status !== 'active' && b.status === 'active') return 1;
-	
-					// If both are active or inactive, sort alphabetically by name
-					return a.name.localeCompare(b.name);
-				});
-	
-				populatedeptTable(sortedDepts, school_id,  '#depts_table');
-			}
-		},
-		complete: function () {
-			InitiateDatatable('.dept_table');
-			
-			submitButton.html('Submit').attr('disabled', false);
-		}
-	});
+                        if (response.status == 'success') {
+                                // Sort depts: Active first, then alphabetical by name
+                                const sortedDepts = response.departments.sort((a, b) => {
+                                        // Prioritize active depts
+                                        if (a.status === 'active' && b.status !== 'active') return -1;
+                                        if (a.status !== 'active' && b.status === 'active') return 1;
+
+                                        // If both are active or inactive, sort alphabetically by name
+                                        return a.name.localeCompare(b.name);
+                                });
+
+                                populatedeptTable(sortedDepts, school_id, '#depts_table');
+                        }
+                },
+                complete: function () {
+                        InitiateDatatable('.dept_table');
+
+                        submitButton.html('Submit').attr('disabled', false);
+                }
+        });
 }
+
+// CSV Downloads
+$(document).on('click', '#downloadSchools', function () {
+        var $btn = $(this);
+        var original = $btn.html();
+        $.ajax({
+                url: 'model/getInfo.php',
+                method: 'GET',
+                data: { download: 'schools' },
+                xhrFields: { responseType: 'blob' },
+                beforeSend: function () {
+                        $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Downloading...');
+                },
+                success: function (blob, status, xhr) {
+                        var disposition = xhr.getResponseHeader('Content-Disposition') || '';
+                        var filename = 'schools_' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15) + '.csv';
+                        var match = /filename="?([^";]+)"?/i.exec(disposition);
+                        if (match && match[1]) filename = match[1];
+                        var link = document.createElement('a');
+                        var url = window.URL.createObjectURL(blob);
+                        link.href = url;
+                        link.download = filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        setTimeout(function () { window.URL.revokeObjectURL(url); document.body.removeChild(link); }, 100);
+                        if (typeof showToast === 'function') showToast('bg-success', 'CSV generated. Download starting...');
+                },
+                error: function () {
+                        if (typeof showToast === 'function') showToast('bg-danger', 'Failed to generate CSV.');
+                },
+                complete: function () { $btn.prop('disabled', false).html(original); }
+        });
+});
+
+$(document).on('click', '#downloadFaculties', function () {
+        var $btn = $(this);
+        var original = $btn.html();
+        var school_id = $('#faculty_school').val();
+        $.ajax({
+                url: 'model/getInfo.php',
+                method: 'GET',
+                data: { download: 'faculties', school: school_id },
+                xhrFields: { responseType: 'blob' },
+                beforeSend: function () { $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Downloading...'); },
+                success: function (blob, status, xhr) {
+                        var disposition = xhr.getResponseHeader('Content-Disposition') || '';
+                        var filename = 'faculties_' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15) + '.csv';
+                        var match = /filename="?([^";]+)"?/i.exec(disposition);
+                        if (match && match[1]) filename = match[1];
+                        var link = document.createElement('a');
+                        var url = window.URL.createObjectURL(blob);
+                        link.href = url;
+                        link.download = filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        setTimeout(function () { window.URL.revokeObjectURL(url); document.body.removeChild(link); }, 100);
+                        if (typeof showToast === 'function') showToast('bg-success', 'CSV generated. Download starting...');
+                },
+                error: function () { if (typeof showToast === 'function') showToast('bg-danger', 'Failed to generate CSV.'); },
+                complete: function () { $btn.prop('disabled', false).html(original); }
+        });
+});
+
+$(document).on('click', '#downloadDepts', function () {
+        var $btn = $(this);
+        var original = $btn.html();
+        var school_id = $('#school').val();
+        $.ajax({
+                url: 'model/getInfo.php',
+                method: 'GET',
+                data: { download: 'depts', school: school_id },
+                xhrFields: { responseType: 'blob' },
+                beforeSend: function () { $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Downloading...'); },
+                success: function (blob, status, xhr) {
+                        var disposition = xhr.getResponseHeader('Content-Disposition') || '';
+                        var filename = 'departments_' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15) + '.csv';
+                        var match = /filename="?([^";]+)"?/i.exec(disposition);
+                        if (match && match[1]) filename = match[1];
+                        var link = document.createElement('a');
+                        var url = window.URL.createObjectURL(blob);
+                        link.href = url;
+                        link.download = filename;
+                        document.body.appendChild(link);
+                        link.click();
+                        setTimeout(function () { window.URL.revokeObjectURL(url); document.body.removeChild(link); }, 100);
+                        if (typeof showToast === 'function') showToast('bg-success', 'CSV generated. Download starting...');
+                },
+                error: function () { if (typeof showToast === 'function') showToast('bg-danger', 'Failed to generate CSV.'); },
+                complete: function () { $btn.prop('disabled', false).html(original); }
+        });
+});
 
 
 // Function to populate the dept table
 function populatedeptTable(Depts, school_id, tableId) {
-	const tableBody = $(tableId); // Target your <tbody>
-	tableBody.empty(); // Clear existing rows
+        const tableBody = $(tableId); // Target your <tbody>
+        tableBody.empty(); // Clear existing rows
 
-	Depts.forEach(dept => {
-		const row = `
+        Depts.forEach(dept => {
+                const row = `
 						<tr>
 							<td>
 								<i class="text-primary me-3"></i> <strong>${dept.name}</strong>
@@ -306,38 +397,38 @@ function populatedeptTable(Depts, school_id, tableId) {
 							</td>
 						</tr>
 					`;
-		tableBody.append(row);
-	});
+                tableBody.append(row);
+        });
 }
 
 
 $(document).on('click', '.deactivate', function (e) {
-	const school_id = $(this).data('id');
-	const status = $(this).data('status');
+        const school_id = $(this).data('id');
+        const status = $(this).data('status');
 
-	// Gather form data
-	const schoolData = {
-		school_edit: 1,
-		school_id: school_id,
-		status: status,
-	};
+        // Gather form data
+        const schoolData = {
+                school_edit: 1,
+                school_id: school_id,
+                status: status,
+        };
 
-	$.ajax({
-		url: 'model/school.php',
-		method: 'POST',
-		data: schoolData,
-		success: function (data) {
-			console.log('Response:', data);
-			if (data.status == 'success') {
-				showToast('bg-success', data.message);
+        $.ajax({
+                url: 'model/school.php',
+                method: 'POST',
+                data: schoolData,
+                success: function (data) {
+                        console.log('Response:', data);
+                        if (data.status == 'success') {
+                                showToast('bg-success', data.message);
 
-				fetchSchools();
-				fetchSchools2();
-			} else {
-				showToast('bg-danger', data.message);
-			}
-		}
-	});
+                                fetchSchools();
+                                fetchSchools2();
+                        } else {
+                                showToast('bg-danger', data.message);
+                        }
+                }
+        });
 });
 
 
@@ -346,27 +437,27 @@ $(document).on('click', '.deactivate_dept', function (e) {
         const dept_id = $(this).data('id');
         const status = $(this).data('status');
 
-	// Gather form data
-	const deptData = {
-		dept_edit: 1,
-		dept_id: dept_id,
-		status: status,
-	};
-	
-	$.ajax({
-		url: 'model/department.php',
-		method: 'POST',
-		data: deptData,
-		success: function (data) {
-			console.log('Response:', data);
-			if (data.status == 'success') {
-				showToast('bg-success', data.message);
+        // Gather form data
+        const deptData = {
+                dept_edit: 1,
+                dept_id: dept_id,
+                status: status,
+        };
 
-				fetchDepts(school_id);
-			} else {
-				showToast('bg-danger', data.message);
-			}
-		}
+        $.ajax({
+                url: 'model/department.php',
+                method: 'POST',
+                data: deptData,
+                success: function (data) {
+                        console.log('Response:', data);
+                        if (data.status == 'success') {
+                                showToast('bg-success', data.message);
+
+                                fetchDepts(school_id);
+                        } else {
+                                showToast('bg-danger', data.message);
+                        }
+                }
         });
 });
 
@@ -387,7 +478,7 @@ function fetchFaculties(school_id) {
         $.ajax({
                 method: 'POST',
                 url: 'model/getInfo.php',
-                data: { get_data: 'faculties', school: school_id},
+                data: { get_data: 'faculties', school: school_id },
                 success: function (response) {
                         if ($.fn.dataTable.isDataTable('.faculty_table')) {
                                 const dataTableInstance = $('.faculty_table').DataTable();

@@ -17,6 +17,47 @@ if ($admin_role == 5 && $admin_id) {
   $admin_faculty = $info['faculty'];
 }
 
+// Handle CSV download for filtered materials
+if (isset($_GET['download']) && $_GET['download'] === 'csv') {
+  $school = intval($_GET['school'] ?? 0);
+  $faculty = intval($_GET['faculty'] ?? 0);
+  $dept = intval($_GET['dept'] ?? 0);
+  if ($admin_role == 5) {
+    $school = $admin_school;
+    if ($admin_faculty != 0) { $faculty = $admin_faculty; }
+  }
+
+  $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
+  if ($school > 0) {
+    $material_sql .= " AND m.school_id = $school";
+  }
+  if ($faculty != 0) {
+    $material_sql .= " AND d.faculty_id = $faculty";
+  }
+  if ($dept > 0) {
+    $material_sql .= " AND m.dept = $dept";
+  }
+  $material_sql .= " GROUP BY m.id ORDER BY m.created_at DESC";
+  $mat_query = mysqli_query($conn, $material_sql);
+
+  header('Content-Type: text/csv; charset=utf-8');
+  header('Content-Disposition: attachment; filename="materials_' . date('Ymd_His') . '.csv"');
+  $out = fopen('php://output', 'w');
+  fputcsv($out, ['Title (Course Code)', 'Unit Price', 'Revenue', 'Qty Sold', 'Availability', 'Due Date']);
+  while ($row = mysqli_fetch_assoc($mat_query)) {
+    fputcsv($out, [
+      $row['title'] . ' (' . $row['course_code'] . ')',
+      $row['price'],
+      $row['revenue'],
+      $row['qty_sold'],
+      $row['status'],
+      date('M d, Y', strtotime($row['due_date']))
+    ]);
+  }
+  fclose($out);
+  exit;
+}
+
 if(isset($_GET['fetch'])){
   $fetch = $_GET['fetch'];
   $school = intval($_GET['school'] ?? 0);
