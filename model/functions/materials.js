@@ -88,8 +88,11 @@ $(document).ready(function () {
                 (mat.db_status === 'open' ? '<i class="bx bx-lock me-1"></i> Close Material' : '<i class="bx bx-lock-open me-1"></i> Open Material') + '</a>' +
                 '</div></div>';
             }
+            var postedHtml = '<span class="text-uppercase text-primary">' + (mat.posted_by || '') + '</span>';
+            if (mat.matric && String(mat.matric).trim()) { postedHtml += '<br>Matric no: ' + mat.matric; }
             var row = '<tr>' +
               '<td class="text-uppercase"><strong>' + mat.title + ' (' + mat.course_code + ')</strong></td>' +
+              '<td>' + postedHtml + '</td>' +
               '<td>₦ ' + Number(mat.price).toLocaleString() + '</td>' +
               '<td>₦ ' + Number(mat.revenue).toLocaleString() + '</td>' +
               '<td>' + mat.qty_sold + '</td>' +

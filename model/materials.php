@@ -27,7 +27,7 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
     if ($admin_faculty != 0) { $faculty = $admin_faculty; }
   }
 
-  $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
+  $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name, u.last_name, u.matric_no FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id LEFT JOIN users u ON m.user_id = u.id WHERE 1=1";
   if ($school > 0) {
     $material_sql .= " AND m.school_id = $school";
   }
@@ -43,10 +43,14 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
   header('Content-Type: text/csv; charset=utf-8');
   header('Content-Disposition: attachment; filename="materials_' . date('Ymd_His') . '.csv"');
   $out = fopen('php://output', 'w');
-  fputcsv($out, ['Title (Course Code)', 'Unit Price', 'Revenue', 'Qty Sold', 'Availability', 'Due Date']);
+  fputcsv($out, ['Title (Course Code)', 'Posted By', 'Matric No', 'Unit Price', 'Revenue', 'Qty Sold', 'Availability', 'Due Date']);
   while ($row = mysqli_fetch_assoc($mat_query)) {
+    $posted_by = trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''));
+    $matric = $row['matric_no'] ?? '';
     fputcsv($out, [
       $row['title'] . ' (' . $row['course_code'] . ')',
+      $posted_by,
+      $matric,
       $row['price'],
       $row['revenue'],
       $row['qty_sold'],
@@ -116,7 +120,7 @@ if(isset($_GET['fetch'])){
   }
 
   if($fetch == 'materials'){
-    $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
+    $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name, u.last_name, u.matric_no FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id LEFT JOIN users u ON m.user_id = u.id WHERE 1=1";
     if($admin_role == 5){
       $material_sql .= " AND m.school_id = $admin_school";
       if($admin_faculty != 0){
@@ -147,7 +151,9 @@ if(isset($_GET['fetch'])){
         'status' => $row['status'],
         'db_status' => $row['db_status'],
         'due_date' => date('M d, Y', strtotime($row['due_date'])),
-        'due_passed' => $row['due_passed'] == 1
+        'due_passed' => $row['due_passed'] == 1,
+        'posted_by' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+        'matric' => $row['matric_no'] ?? ''
       );
     }
     $statusRes = 'success';

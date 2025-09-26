@@ -88,6 +88,7 @@ $materials_query = mysqli_query($conn, $material_sql);
                     <thead class="table-secondary">
                       <tr>
                         <th>Title (Course Code)</th>
+                        <th>Posted By</th>
                         <th>Unit Price</th>
                         <th>Revenue</th>
                         <th>Qty Sold</th>
@@ -100,6 +101,12 @@ $materials_query = mysqli_query($conn, $material_sql);
                       <?php while($mat = mysqli_fetch_array($materials_query)) { ?>
                       <tr>
                         <td class="text-uppercase"><strong><?php echo $mat['title'].' ('.$mat['course_code'].')'; ?></strong></td>
+                        <td>
+                          <span class="text-uppercase text-primary"><?php echo trim(($mat['first_name'] ?? '').' '.($mat['last_name'] ?? '')); ?></span>
+                          <?php if(!empty($mat['matric_no'])) { ?>
+                            <br>Matric no: <?php echo $mat['matric_no']; ?>
+                          <?php } ?>
+                        </td>
                         <td>₦ <?php echo number_format($mat['price']); ?></td>
                         <td>₦ <?php echo number_format($mat['revenue']); ?></td>
                         <td><?php echo $mat['qty_sold']; ?></td>
