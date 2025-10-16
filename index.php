@@ -52,7 +52,7 @@ $range_label = $range_labels[$range] ?? 'Past 24 Hrs';
 $hoc_count = mysqli_fetch_assoc(
   mysqli_query(
     $conn,
-    "SELECT COUNT(*) AS count FROM users WHERE role = 'hoc' AND status = 'unverified'{$school_clause}"
+    "SELECT COUNT(*) AS count FROM users WHERE role = 'hoc' AND status = 'inreview'{$school_clause}"
   )
 )["count"];
 
