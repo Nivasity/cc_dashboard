@@ -27,12 +27,12 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
     if ($admin_faculty != 0) { $faculty = $admin_faculty; }
   }
 
-  $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name, u.last_name, u.matric_no FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id LEFT JOIN users u ON m.user_id = u.id WHERE 1=1";
+  $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name, u.last_name, u.matric_no FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
   if ($school > 0) {
     $material_sql .= " AND m.school_id = $school";
   }
   if ($faculty != 0) {
-    $material_sql .= " AND d.faculty_id = $faculty";
+    $material_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
   }
   if ($dept > 0) {
     $material_sql .= " AND m.dept = $dept";
@@ -120,18 +120,18 @@ if(isset($_GET['fetch'])){
   }
 
   if($fetch == 'materials'){
-    $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name, u.last_name, u.matric_no FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN depts d ON m.dept = d.id LEFT JOIN users u ON m.user_id = u.id WHERE 1=1";
+    $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name, u.last_name, u.matric_no FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
     if($admin_role == 5){
       $material_sql .= " AND m.school_id = $admin_school";
       if($admin_faculty != 0){
-        $material_sql .= " AND d.faculty_id = $admin_faculty";
+        $material_sql .= " AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))";
       }
     } else {
       if($school > 0){
         $material_sql .= " AND m.school_id = $school";
       }
       if($faculty != 0){
-        $material_sql .= " AND d.faculty_id = $faculty";
+        $material_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
       }
     }
     if($dept > 0){
@@ -162,9 +162,9 @@ if(isset($_GET['fetch'])){
 
 if(isset($_POST['toggle_id'])){
   $id = intval($_POST['toggle_id']);
-  $manual_res = mysqli_fetch_assoc(mysqli_query($conn, "SELECT m.status, m.school_id, d.faculty_id FROM manuals m LEFT JOIN depts d ON m.dept = d.id WHERE m.id = $id"));
+  $manual_res = mysqli_fetch_assoc(mysqli_query($conn, "SELECT m.status, m.school_id, m.faculty FROM manuals m WHERE m.id = $id"));
   if($manual_res){
-    if($admin_role == 5 && ($manual_res['school_id'] != $admin_school || ($admin_faculty != 0 && $manual_res['faculty_id'] != $admin_faculty))){
+    if($admin_role == 5 && ($manual_res['school_id'] != $admin_school || ($admin_faculty != 0 && $manual_res['faculty'] != $admin_faculty))){
       $statusRes = 'error';
       $messageRes = 'Unauthorized';
     } else {
