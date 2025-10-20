@@ -45,7 +45,7 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
     $tran_sql .= " AND b.school_id = $school";
   }
   if ($faculty != 0) {
-    $tran_sql .= " AND m.faculty = $faculty";
+    $tran_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
   }
   if ($dept > 0) {
     $tran_sql .= " AND m.dept = $dept";
@@ -150,7 +150,7 @@ if (isset($_GET['fetch'])) {
       $tran_sql .= " AND b.school_id = $school";
     }
     if ($faculty != 0) {
-      $tran_sql .= " AND m.faculty = $faculty";
+      $tran_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
     }
     if ($dept > 0) {
       $tran_sql .= " AND m.dept = $dept";

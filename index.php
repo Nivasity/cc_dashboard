@@ -74,9 +74,9 @@ $resolved_percent = $total_tickets > 0 ? round(($resolved_tickets / $total_ticke
 // Financial statistics
 $revenue_base = "SELECT COALESCE(SUM(t.profit),0) AS total FROM transactions t WHERE t.status = 'successful'";
 if ($admin_role == 5 && $admin_school > 0) {
-  $revenue_base .= " AND EXISTS (SELECT 1 FROM manuals_bought b JOIN manuals m ON b.manual_id = m.id WHERE b.ref_id = t.ref_id AND b.status='successful' AND b.school_id = $admin_school";
+  $revenue_base .= " AND EXISTS (SELECT 1 FROM manuals_bought b JOIN manuals m ON b.manual_id = m.id LEFT JOIN depts d ON m.dept = d.id WHERE b.ref_id = t.ref_id AND b.status='successful' AND b.school_id = $admin_school";
   if ($admin_faculty != 0) {
-    $revenue_base .= " AND m.faculty = $admin_faculty";
+    $revenue_base .= " AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))";
   }
   $revenue_base .= ")";
 }
@@ -102,9 +102,9 @@ $revenue_icon = $growth_diff >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
 
 $sales_base = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t WHERE t.status = 'successful'";
 if ($admin_role == 5 && $admin_school > 0) {
-  $sales_base .= " AND EXISTS (SELECT 1 FROM manuals_bought b JOIN manuals m ON b.manual_id = m.id WHERE b.ref_id = t.ref_id AND b.status='successful' AND b.school_id = $admin_school";
+  $sales_base .= " AND EXISTS (SELECT 1 FROM manuals_bought b JOIN manuals m ON b.manual_id = m.id LEFT JOIN depts d ON m.dept = d.id WHERE b.ref_id = t.ref_id AND b.status='successful' AND b.school_id = $admin_school";
   if ($admin_faculty != 0) {
-    $sales_base .= " AND m.faculty = $admin_faculty";
+    $sales_base .= " AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))";
   }
   $sales_base .= ")";
 }
@@ -141,7 +141,7 @@ if ($admin_role == 5 && $admin_school > 0) {
   if ($admin_faculty == 0) {
     $open_materials = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS count FROM manuals m WHERE m.status='open' AND m.school_id = $admin_school AND m.due_date >= NOW()"))['count'] ?? 0);
   } else {
-    $open_materials = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS count FROM manuals m WHERE m.status='open' AND m.school_id = $admin_school AND m.due_date >= NOW() AND m.faculty = $admin_faculty"))['count'] ?? 0);
+    $open_materials = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS count FROM manuals m LEFT JOIN depts d ON m.dept = d.id WHERE m.status='open' AND m.school_id = $admin_school AND m.due_date >= NOW() AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))"))['count'] ?? 0);
   }
 }
 
@@ -177,9 +177,9 @@ $total_users = mysqli_fetch_assoc(mysqli_query($conn, $users_sql))["count"];
 $transactions_base = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t";
 $transactions_where = " WHERE t.status = 'successful' AND YEAR(t.created_at) = YEAR(CURDATE())";
 if ($admin_role == 5 && $admin_school > 0) {
-  $transactions_where .= " AND EXISTS (SELECT 1 FROM manuals_bought b JOIN manuals m ON b.manual_id = m.id WHERE b.ref_id = t.ref_id AND b.status='successful' AND b.school_id = $admin_school";
+  $transactions_where .= " AND EXISTS (SELECT 1 FROM manuals_bought b JOIN manuals m ON b.manual_id = m.id LEFT JOIN depts d ON m.dept = d.id WHERE b.ref_id = t.ref_id AND b.status='successful' AND b.school_id = $admin_school";
   if ($admin_faculty != 0) {
-    $transactions_where .= " AND m.faculty = $admin_faculty";
+    $transactions_where .= " AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))";
   }
   $transactions_where .= ")";
 }
