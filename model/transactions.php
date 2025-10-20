@@ -38,14 +38,14 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
     "JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
     "JOIN manuals m ON b.manual_id = m.id " .
     "LEFT JOIN depts d ON m.dept = d.id " .
-    "LEFT JOIN faculties f ON d.faculty_id = f.id " .
+    "LEFT JOIN faculties f ON m.faculty = f.id " .
     "LEFT JOIN schools s ON b.school_id = s.id " .
     "WHERE 1=1";
   if ($school > 0) {
     $tran_sql .= " AND b.school_id = $school";
   }
   if ($faculty != 0) {
-    $tran_sql .= " AND d.faculty_id = $faculty";
+    $tran_sql .= " AND m.faculty = $faculty";
   }
   if ($dept > 0) {
     $tran_sql .= " AND m.dept = $dept";
@@ -150,7 +150,7 @@ if (isset($_GET['fetch'])) {
       $tran_sql .= " AND b.school_id = $school";
     }
     if ($faculty != 0) {
-      $tran_sql .= " AND d.faculty_id = $faculty";
+      $tran_sql .= " AND m.faculty = $faculty";
     }
     if ($dept > 0) {
       $tran_sql .= " AND m.dept = $dept";
