@@ -62,7 +62,7 @@ if (isset($_POST['admin_toggle'])) {
     $statusRes = 'error';
     $messageRes = 'Invalid request. Please try again later!';
   } else {
-    $target_status = $action === 'activate' ? 'active' : 'inactive';
+    $target_status = $action === 'activate' ? 'active' : 'deactivated';
     mysqli_query($conn, "UPDATE admins SET status = '$target_status' WHERE id = $admin_id");
     if (mysqli_affected_rows($conn) >= 1) {
       $statusRes = 'success';
