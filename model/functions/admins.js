@@ -114,24 +114,33 @@ $(document).ready(function () {
     });
   });
 
-  $('.deleteAdmin').on('click', function () {
-    if (confirm('Are you sure you want to delete this admin?')) {
-      const id = $(this).data('id');
-      $.ajax({
-        url: 'model/admin.php',
-        method: 'POST',
-        data: { admin_delete: 1, admin_id: id },
-        dataType: 'json',
-        success: function (data) {
-          showToast(data.status == 'success' ? 'bg-success' : 'bg-danger', data.message);
-          if (data.status == 'success') {
-            setTimeout(() => location.reload(), 1000);
-          }
-        },
-        error: function () {
-          showToast('bg-danger', 'Network error');
-        }
-      });
+  $('.toggleAdminStatus').on('click', function () {
+    const id = $(this).data('id');
+    const currentStatus = ($(this).data('status') || '').toString().toLowerCase();
+    const activating = currentStatus !== 'active';
+    const action = activating ? 'activate' : 'deactivate';
+    const message = activating
+      ? 'Are you sure you want to activate this admin?'
+      : 'Are you sure you want to deactivate this admin?';
+
+    if (!confirm(message)) {
+      return;
     }
+
+    $.ajax({
+      url: 'model/admin.php',
+      method: 'POST',
+      data: { admin_toggle: 1, admin_id: id, action: action },
+      dataType: 'json',
+      success: function (data) {
+        showToast(data.status == 'success' ? 'bg-success' : 'bg-danger', data.message);
+        if (data.status == 'success') {
+          setTimeout(() => location.reload(), 1000);
+        }
+      },
+      error: function () {
+        showToast('bg-danger', 'Network error');
+      }
+    });
   });
 });

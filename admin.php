@@ -43,7 +43,10 @@ $admins_query = mysqli_query($conn, "SELECT a.*, r.name AS role_name, s.name AS 
                       </tr>
                     </thead>
                     <tbody class="table-border-bottom-0" id="admins_table">
-                      <?php while($admin = mysqli_fetch_array($admins_query)) { ?>
+                      <?php while($admin = mysqli_fetch_array($admins_query)) { 
+                        $admin_status = strtolower($admin['status']);
+                        $is_active = $admin_status === 'active';
+                      ?>
                       <tr>
                         <td class="text-uppercase"><?php echo $admin['first_name'] . ' ' . $admin['last_name']; ?></td>
                         <td><?php echo $admin['email']; ?></td>
@@ -66,8 +69,10 @@ $admins_query = mysqli_query($conn, "SELECT a.*, r.name AS role_name, s.name AS 
                                 data-faculty="<?php echo $admin['faculty'] ?? 0; ?>">
                                 <i class="bx bx-edit-alt me-1"></i> Edit
                               </a>
-                              <a class="dropdown-item deleteAdmin" href="javascript:void(0);" data-id="<?php echo $admin['id']; ?>">
-                                <i class="bx bx-trash me-1"></i> Delete
+                              <a class="dropdown-item toggleAdminStatus" href="javascript:void(0);"
+                                data-id="<?php echo $admin['id']; ?>"
+                                data-status="<?php echo $admin_status; ?>">
+                                <i class="bx bx-power-off me-1"></i> <?php echo $is_active ? 'Deactivate' : 'Activate'; ?>
                               </a>
                             </div>
                           </div>

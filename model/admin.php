@@ -55,15 +55,22 @@ if (isset($_POST['admin_manage'])) {
   }
 }
 
-if (isset($_POST['admin_delete'])) {
+if (isset($_POST['admin_toggle'])) {
   $admin_id = intval($_POST['admin_id']);
-  mysqli_query($conn, "DELETE FROM admins WHERE id = $admin_id");
-  if (mysqli_affected_rows($conn) >= 1) {
-    $statusRes = "success";
-    $messageRes = "Admin removed successfully!";
+  $action = $_POST['action'] ?? '';
+  if (!$admin_id || !in_array($action, ['activate', 'deactivate'], true)) {
+    $statusRes = 'error';
+    $messageRes = 'Invalid request. Please try again later!';
   } else {
-    $statusRes = "error";
-    $messageRes = "Internal Server Error. Please try again later!";
+    $target_status = $action === 'activate' ? 'active' : 'deactivated';
+    mysqli_query($conn, "UPDATE admins SET status = '$target_status' WHERE id = $admin_id");
+    if (mysqli_affected_rows($conn) >= 1) {
+      $statusRes = 'success';
+      $messageRes = $action === 'activate' ? 'Admin activated successfully!' : 'Admin deactivated successfully!';
+    } else {
+      $statusRes = 'error';
+      $messageRes = 'Update failed or no changes made. Please try again later!';
+    }
   }
 }
 
