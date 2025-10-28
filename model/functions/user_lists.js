@@ -13,9 +13,18 @@ $(document).ready(function () {
   const fallback = (value, placeholder = 'N/A') => value && value.length ? value : placeholder;
 
   const statusBadge = (user) => {
-    const active = !!user.is_active;
-    const badgeClass = active ? 'success' : 'danger';
-    return `<span class="badge bg-label-${badgeClass}">${escapeHtml(user.status || (active ? 'Active' : 'Inactive'))}</span>`;
+    const rawStatus = (user.raw_status || '').toString().toLowerCase();
+    const badgeClassMap = {
+      verified: 'success',
+      inreview: 'warning',
+      unverified: 'secondary',
+      deactivated: 'danger',
+      denied: 'danger',
+      deactivate: 'danger',
+    };
+    const badgeClass = badgeClassMap[rawStatus] || (user.is_active ? 'success' : 'secondary');
+    const label = user.status || (rawStatus ? rawStatus.charAt(0).toUpperCase() + rawStatus.slice(1) : 'N/A');
+    return `<span class="badge bg-label-${badgeClass}">${escapeHtml(label)}</span>`;
   };
 
   const metaColumn = (user) => {
@@ -54,7 +63,7 @@ $(document).ready(function () {
     $tbody.empty();
 
     if (!users || !users.length) {
-      $tbody.append(`<tr><td colspan="8" class="text-center text-muted">No records found.</td></tr>`);
+      $tbody.append(`<tr><td colspan="7" class="text-center text-muted">No records found.</td></tr>`);
       return;
     }
 
@@ -65,10 +74,6 @@ $(document).ready(function () {
       const status = statusBadge(user);
       const dateJoined = escapeHtml(fallback(user.date_joined, 'N/A'));
       const lastLogin = escapeHtml(fallback(user.last_login, 'N/A'));
-      const action = user.is_active ? 'deactivate' : 'activate';
-      const actionLabel = user.is_active ? 'Deactivate' : 'Activate';
-      const actionClass = user.is_active ? 'btn-outline-danger' : 'btn-outline-success';
-
       const row = `<tr>
         <td class="text-uppercase">${name}</td>
         <td>${email}</td>
@@ -77,11 +82,6 @@ $(document).ready(function () {
         <td>${status}</td>
         <td>${dateJoined}</td>
         <td>${lastLogin}</td>
-        <td>
-          <button type="button" class="btn btn-sm ${actionClass} toggleStatus" data-id="${user.id}" data-action="${action}">
-            ${actionLabel}
-          </button>
-        </td>
       </tr>`;
 
       $tbody.append(row);
@@ -115,49 +115,6 @@ $(document).ready(function () {
       },
     });
   };
-
-  $table.on('click', '.toggleStatus', function () {
-    const $btn = $(this);
-    const userId = $btn.data('id');
-    const action = $btn.data('action');
-    if (!userId || !action) {
-      return;
-    }
-
-    const confirmMessage = action === 'deactivate'
-      ? 'Are you sure you want to deactivate this user?'
-      : 'Are you sure you want to activate this user?';
-
-    if (!window.confirm(confirmMessage)) {
-      return;
-    }
-
-    $.ajax({
-      url: 'model/user_list.php',
-      method: 'POST',
-      data: {
-        toggle_status: 1,
-        user_id: userId,
-        action: action,
-        type: config.type,
-      },
-      dataType: 'json',
-      success: function (res) {
-        if (typeof showToast === 'function') {
-          const color = res.status === 'success' ? 'bg-success' : 'bg-danger';
-          showToast(color, res.message || 'Request processed');
-        }
-        if (res.status === 'success') {
-          loadUsers();
-        }
-      },
-      error: function () {
-        if (typeof showToast === 'function') {
-          showToast('bg-danger', 'Network error');
-        }
-      },
-    });
-  });
 
   loadUsers();
 });

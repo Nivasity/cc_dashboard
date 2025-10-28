@@ -50,7 +50,6 @@ if ($admin_role === null || !in_array($admin_role, [1, 2, 3], true)) {
                         <th>Status</th>
                         <th>Date Joined</th>
                         <th>Last Login</th>
-                        <th>Action</th>
                       </tr>
                     </thead>
                     <tbody class="table-border-bottom-0"></tbody>

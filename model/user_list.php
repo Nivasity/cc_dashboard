@@ -31,8 +31,11 @@ function formatStatus(string $status): string {
   if ($status === 'inreview') {
     return 'In Review';
   }
-  if ($status === 'denied' || $status === 'deactivate') {
+  if (in_array($status, ['deactivated', 'denied', 'deactivate'], true)) {
     return 'Deactivated';
+  }
+  if ($status === 'unverified') {
+    return 'Unverified';
   }
   return ucfirst($status);
 }
@@ -49,34 +52,6 @@ function formatDateTime(?string $value): ?string {
     return null;
   }
   return date('M j, Y g:i a', strtotime($value));
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_status'])) {
-  $user_id = intval($_POST['user_id'] ?? 0);
-  $action = $_POST['action'] ?? '';
-
-  if (!$user_id || !in_array($type, ['hoc', 'org_admin'], true)) {
-    echo json_encode(['status' => 'error', 'message' => 'Invalid request']);
-    exit();
-  }
-
-  if (!in_array($action, ['activate', 'deactivate'], true)) {
-    echo json_encode(['status' => 'error', 'message' => 'Unknown action']);
-    exit();
-  }
-
-  $target_status = $action === 'activate' ? 'verified' : 'denied';
-  $role_check = $type === 'hoc' ? "'hoc'" : "'org_admin'";
-
-  mysqli_query($conn, "UPDATE users SET status = '$target_status' WHERE id = $user_id AND role = $role_check");
-
-  if (mysqli_affected_rows($conn) > 0) {
-    $message = $action === 'activate' ? 'User activated successfully!' : 'User deactivated successfully!';
-    echo json_encode(['status' => 'success', 'message' => $message]);
-  } else {
-    echo json_encode(['status' => 'error', 'message' => 'Update failed or no changes made']);
-  }
-  exit();
 }
 
 if ($type === '') {
@@ -108,7 +83,8 @@ $query = mysqli_query($conn, $sql);
 if ($query) {
   while ($row = mysqli_fetch_assoc($query)) {
     $raw_status = $row['status'] ?? '';
-    $is_active = !in_array(strtolower((string)$raw_status), ['denied', 'deactivate'], true);
+    $inactiveStatuses = ['deactivated', 'denied', 'deactivate'];
+    $is_active = !in_array(strtolower((string)$raw_status), $inactiveStatuses, true);
     $joined = $hasCreatedAt
       ? ($row['created_at'] ?? null)
       : ($type === 'org_admin' ? ($row['organisation_created_at'] ?? null) : null);
