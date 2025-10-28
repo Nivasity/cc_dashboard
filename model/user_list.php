@@ -28,11 +28,13 @@ function columnExists(mysqli $conn, string $table, string $column): bool {
 
 function formatStatus(string $status): string {
   $status = strtolower($status);
-  return match ($status) {
-    'inreview' => 'In Review',
-    'denied', 'deactivate' => 'Deactivated',
-    default => ucfirst($status),
-  };
+  if ($status === 'inreview') {
+    return 'In Review';
+  }
+  if ($status === 'denied' || $status === 'deactivate') {
+    return 'Deactivated';
+  }
+  return ucfirst($status);
 }
 
 function formatDate(?string $value): ?string {
