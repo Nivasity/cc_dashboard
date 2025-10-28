@@ -48,7 +48,6 @@ if ($admin_role === null || !in_array($admin_role, [1, 2, 3], true)) {
                         <th>Phone</th>
                         <th>Business Info</th>
                         <th>Status</th>
-                        <th>Date Joined</th>
                         <th>Last Login</th>
                       </tr>
                     </thead>

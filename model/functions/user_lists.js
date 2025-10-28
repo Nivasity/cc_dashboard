@@ -63,7 +63,7 @@ $(document).ready(function () {
     $tbody.empty();
 
     if (!users || !users.length) {
-      $tbody.append(`<tr><td colspan="7" class="text-center text-muted">No records found.</td></tr>`);
+      $tbody.append(`<tr><td colspan="6" class="text-center text-muted">No records found.</td></tr>`);
       return;
     }
 
@@ -72,7 +72,6 @@ $(document).ready(function () {
       const email = escapeHtml(user.email || '-');
       const phone = escapeHtml(user.phone || '-');
       const status = statusBadge(user);
-      const dateJoined = escapeHtml(fallback(user.date_joined, 'N/A'));
       const lastLogin = escapeHtml(fallback(user.last_login, 'N/A'));
       const row = `<tr>
         <td class="text-uppercase">${name}</td>
@@ -80,7 +79,6 @@ $(document).ready(function () {
         <td>${phone}</td>
         <td>${metaColumn(user)}</td>
         <td>${status}</td>
-        <td>${dateJoined}</td>
         <td>${lastLogin}</td>
       </tr>`;
 
