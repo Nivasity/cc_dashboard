@@ -85,7 +85,7 @@ $admin_faculty = $admin_['faculty'] ?? 0;
         </li>
       <?php } ?>
       <?php if ($student_mgt_menu) { ?>
-        <li class="menu-item <?php echo $current_page == 'students.php' ? 'active open' : ''; ?>">
+        <li class="menu-item <?php echo in_array($current_page, ['students.php', 'students_hoc.php']) ? 'active open' : ''; ?>">
           <a href="javascript:void(0);" class="menu-link menu-toggle">
             <i class="menu-icon tf-icons bx bx-user-pin"></i>
             <div data-i18n="Customer Management">Students</div>
@@ -108,11 +108,18 @@ $admin_faculty = $admin_['faculty'] ?? 0;
               </a>
             </li>
             <?php } ?>
+            <?php if (in_array($_SESSION['nivas_adminRole'], [1, 2, 3])) { ?>
+            <li class="menu-item <?php echo $current_page == 'students_hoc.php' ? 'active' : ''; ?>">
+              <a href="students_hoc.php" class="menu-link">
+                <div>HOC Directory</div>
+              </a>
+            </li>
+            <?php } ?>
           </ul>
         </li>
       <?php } ?>
       <?php if ($public_mgt_menu) { ?>
-        <li class="menu-item <?php echo $current_page == 'visitors.php' ? 'active open' : ''; ?>">
+        <li class="menu-item <?php echo in_array($current_page, ['visitors.php', 'business_admins.php']) ? 'active open' : ''; ?>">
           <a href="javascript:void(0);" class="menu-link menu-toggle">
             <i class="menu-icon tf-icons bx bx-group"></i>
             <div data-i18n="Customer Management">Public Users</div>
@@ -133,6 +140,13 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                 <div>Email User</div>
               </a>
             </li>
+            <?php if (in_array($_SESSION['nivas_adminRole'], [1, 2, 3])) { ?>
+            <li class="menu-item <?php echo $current_page == 'business_admins.php' ? 'active' : ''; ?>">
+              <a href="business_admins.php" class="menu-link">
+                <div>Business Admins</div>
+              </a>
+            </li>
+            <?php } ?>
           </ul>
         </li>
       <?php } ?>
