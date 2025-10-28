@@ -3,8 +3,8 @@ session_start();
 include('model/config.php');
 include('model/page_config.php');
 
-$admin_role = $_SESSION['nivas_adminRole'] ?? null;
-if (!in_array($admin_role, [1, 2, 3], true)) {
+$admin_role = isset($_SESSION['nivas_adminRole']) ? (int) $_SESSION['nivas_adminRole'] : null;
+if ($admin_role === null || !in_array($admin_role, [1, 2, 3], true)) {
   header('Location: index.php');
   exit();
 }

@@ -5,9 +5,9 @@ header('Content-Type: application/json');
 include('config.php');
 
 $response = ['status' => 'error', 'message' => 'Unauthorized'];
-$admin_role = $_SESSION['nivas_adminRole'] ?? null;
+$admin_role = isset($_SESSION['nivas_adminRole']) ? (int) $_SESSION['nivas_adminRole'] : null;
 
-if (!in_array($admin_role, [1, 2, 3], true)) {
+if ($admin_role === null || !in_array($admin_role, [1, 2, 3], true)) {
   echo json_encode($response);
   exit();
 }
