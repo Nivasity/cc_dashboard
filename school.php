@@ -164,16 +164,21 @@ if ($admin_role == 5) {
                     <?php if ($admin_role != 5) { ?>
                     <div class="card-header">
                       <form id="selectSchoolForm">
-                        <div class="row mb-3">
-                          <div class="col-sm-8 mb-3 mb-sm-0">
+                        <div class="row g-3 mb-3">
+                          <div class="col-md-4">
                             <select id="school" name="school" class="form-select" required>
                               <option value="0">Select School</option>
                             </select>
                           </div>
-                          <div class="col-sm-2 mb-2 mb-sm-0">
+                          <div class="col-md-4">
+                            <select id="department_faculty" name="faculty" class="form-select" disabled>
+                              <option value="0">All Faculties</option>
+                            </select>
+                          </div>
+                          <div class="col-md-2">
                             <button id="submitBtn2" type="submit" class="btn btn-secondary w-100">Search</button>
                           </div>
-                          <div class="col-sm-2">
+                          <div class="col-md-2">
                             <button type="button" id="downloadDepts" class="btn btn-success w-100">Download CSV</button>
                           </div>
                         </div>
@@ -376,7 +381,7 @@ if ($admin_role == 5) {
         $('#faculty_school').html('<option value="<?php echo $admin_school; ?>"><?php echo $admin_school_name; ?></option>');
         fetchFaculties(<?php echo $admin_school; ?>);
         <?php } ?>
-        fetchDepts(<?php echo $admin_school; ?>);
+        fetchDepts(<?php echo $admin_school; ?><?php echo $admin_faculty ? ', ' . $admin_faculty : ''; ?>);
       <?php } else { ?>
         fetchSchools();
         fetchSchools2();

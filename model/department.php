@@ -21,6 +21,10 @@ if (isset($_POST['dept_edit'])) {
     if (mysqli_affected_rows($conn) >= 1) {
       $statusRes = "success";
       $messageRes = "Status changed successfully!";
+      log_audit_event($conn, $user_id, 'status_change', 'department', $dept_id, [
+        'new_status' => $status,
+        'restricted_school' => $admin_role == 5 ? $admin_school : null
+      ]);
     } else {
       $statusRes = "error";
       $messageRes = "Internal Server Error. Please try again later!";
@@ -32,6 +36,9 @@ if (isset($_POST['dept_edit'])) {
     if (mysqli_affected_rows($conn) >= 1) {
       $statusRes = "success";
       $messageRes = "dept deleted successfully!";
+      log_audit_event($conn, $user_id, 'delete', 'department', $dept_id, [
+        'restricted_school' => $admin_role == 5 ? $admin_school : null
+      ]);
     } else {
       $statusRes = "error";
       $messageRes = "Internal Server Error. Please try again later!";
@@ -59,6 +66,12 @@ if (isset($_POST['dept_edit'])) {
       if (mysqli_affected_rows($conn) >= 1) {
         $statusRes = "success";
         $messageRes = "dept successfully added!";
+        $insert_id = mysqli_insert_id($conn);
+        log_audit_event($conn, $user_id, 'create', 'department', $insert_id, [
+          'name' => $name,
+          'school_id' => $school_id,
+          'faculty_id' => $faculty_id
+        ]);
       } else {
         $statusRes = "error";
         $messageRes = "Internal Server Error. Please try again later!";
@@ -69,6 +82,11 @@ if (isset($_POST['dept_edit'])) {
       if (mysqli_affected_rows($conn) >= 1) {
         $statusRes = "success";
         $messageRes = "dept successfully edited!";
+        log_audit_event($conn, $user_id, 'update', 'department', $dept_id, [
+          'name' => $name,
+          'school_id' => $school_id,
+          'faculty_id' => $faculty_id
+        ]);
       } else {
         $statusRes = "error";
         $messageRes = "No changes made!";

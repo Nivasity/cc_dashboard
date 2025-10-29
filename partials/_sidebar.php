@@ -223,6 +223,16 @@ $admin_faculty = $admin_['faculty'] ?? 0;
       </li>
     <?php } ?>
 
+    <?php if (in_array($_SESSION['nivas_adminRole'], [1, 2])) { ?>
+      <li class="menu-header small text-uppercase"><span class="menu-header-text">System</span></li>
+      <li class="menu-item <?php echo $current_page == 'audit_logs.php' ? 'active' : ''; ?>">
+        <a href="audit_logs.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-clipboard"></i>
+          <div data-i18n="Audit Logs">Audit Logs</div>
+        </a>
+      </li>
+    <?php } ?>
+
     <!-- Sign Out -->
     <li class="menu-header small text-uppercase"></li>
     <li class="menu-item">

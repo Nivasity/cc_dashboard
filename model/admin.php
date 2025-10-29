@@ -1,8 +1,13 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+  session_start();
+}
 include('config.php');
 include('mail.php');
 include('functions.php');
 $statusRes = $messageRes = 'failed';
+$acting_admin_id = $_SESSION['nivas_adminId'] ?? null;
+$acting_admin_role = $_SESSION['nivas_adminRole'] ?? null;
 
 if (isset($_POST['admin_manage'])) {
   $admin_id = intval($_POST['admin_id']);
@@ -33,6 +38,18 @@ if (isset($_POST['admin_manage'])) {
       if (mysqli_affected_rows($conn) >= 1) {
         $statusRes = "success";
         $messageRes = "Admin successfully added!";
+        if (!empty($acting_admin_id)) {
+          $new_admin_id = mysqli_insert_id($conn);
+          log_audit_event($conn, $acting_admin_id, 'create', 'admin', $new_admin_id ?: null, [
+            'first_name' => $first_name,
+            'last_name' => $last_name,
+            'email' => $email,
+            'phone' => $phone,
+            'role' => $role,
+            'school' => $school > 0 ? $school : null,
+            'faculty' => $faculty > 0 ? $faculty : null
+          ]);
+        }
       } else {
         $statusRes = "error";
         $messageRes = "Internal Server Error. Please try again later!";
@@ -48,6 +65,18 @@ if (isset($_POST['admin_manage'])) {
     if (mysqli_affected_rows($conn) >= 1) {
       $statusRes = "success";
       $messageRes = "Admin successfully updated!";
+      if (!empty($acting_admin_id)) {
+        log_audit_event($conn, $acting_admin_id, 'update', 'admin', $admin_id, [
+          'first_name' => $first_name,
+          'last_name' => $last_name,
+          'email' => $email,
+          'phone' => $phone,
+          'role' => $role,
+          'school' => $school > 0 ? $school : null,
+          'faculty' => $faculty > 0 ? $faculty : null,
+          'password_changed' => !empty($password_sql)
+        ]);
+      }
     } else {
       $statusRes = "error";
       $messageRes = "Internal Server Error. Please try again later!";
@@ -67,6 +96,12 @@ if (isset($_POST['admin_toggle'])) {
     if (mysqli_affected_rows($conn) >= 1) {
       $statusRes = 'success';
       $messageRes = $action === 'activate' ? 'Admin activated successfully!' : 'Admin deactivated successfully!';
+      if (!empty($acting_admin_id)) {
+        log_audit_event($conn, $acting_admin_id, 'status_change', 'admin', $admin_id, [
+          'action' => $action,
+          'new_status' => $target_status
+        ]);
+      }
     } else {
       $statusRes = 'error';
       $messageRes = 'Update failed or no changes made. Please try again later!';
@@ -140,7 +175,9 @@ if (isset($_POST['signup'])) {
 }
 
 if (isset($_POST['edit_profile'])) {
-  session_start();
+  if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+  }
   $user_id = $_SESSION['nivas_adminId'];
   $firstname = mysqli_real_escape_string($conn, $_POST['firstname']);
   $lastname = mysqli_real_escape_string($conn, $_POST['lastname']);
@@ -166,6 +203,14 @@ if (isset($_POST['edit_profile'])) {
   if (mysqli_affected_rows($conn) >= 1) {
     $statusRes = "success";
     $messageRes = "Profile successfully edited!.";
+    if (!empty($user_id)) {
+      log_audit_event($conn, $user_id, 'update_profile', 'admin', $user_id, [
+        'first_name' => $firstname,
+        'last_name' => $lastname,
+        'phone' => $phone,
+        'profile_pic' => $picture
+      ]);
+    }
   } else {
     $statusRes = "error";
     $messageRes = "Internal Server Error. Please try again later!";
@@ -173,7 +218,9 @@ if (isset($_POST['edit_profile'])) {
 }
 
 if (isset($_POST['change_password'])) {
-  session_start();
+  if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+  }
   $user_id = $_SESSION['nivas_adminId'];
   $curr_password = md5($_POST['curr_password']);
   $new_password = md5($_POST['new_password']);
@@ -187,6 +234,11 @@ if (isset($_POST['change_password'])) {
     if (mysqli_affected_rows($conn) >= 1) {
       $statusRes = "success";
       $messageRes = "Password successfully changed!.";
+      if (!empty($user_id)) {
+        log_audit_event($conn, $user_id, 'password_change', 'admin', $user_id, [
+          'self_service' => true
+        ]);
+      }
     } else {
       $statusRes = "error";
       $messageRes = "Internal Server Error. Please try again later!";
@@ -210,7 +262,9 @@ if (isset($_POST['login'])) {
     $user_query = mysqli_query($conn, "SELECT * FROM admins WHERE email = '$email'");
   } 
   if (mysqli_num_rows($user_query) == 1) {
-    session_start();
+    if (session_status() === PHP_SESSION_NONE) {
+      session_start();
+    }
     $user = mysqli_fetch_array($user_query);
     if ($user['status'] == 'deactivated') {
       $statusRes = "denied";
@@ -230,7 +284,9 @@ if (isset($_POST['login'])) {
 }
 
 if (isset($_POST['deactivate_acct'])) {
-  session_start();
+  if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+  }
   $user_id = $_SESSION['nivas_adminId'];
   $password = md5($_POST['password']);
 
@@ -243,6 +299,12 @@ if (isset($_POST['deactivate_acct'])) {
     if (mysqli_affected_rows($conn) >= 1) {
       $statusRes = "success";
       $messageRes = "Account successfully deleted!.";
+      if (!empty($user_id)) {
+        log_audit_event($conn, $user_id, 'status_change', 'admin', $user_id, [
+          'new_status' => 'deactivated',
+          'self_service' => true
+        ]);
+      }
     }
   } else {
     $statusRes = "failed";
@@ -251,7 +313,9 @@ if (isset($_POST['deactivate_acct'])) {
 }
 
 if (isset($_POST['logout'])) {
-  session_start();
+  if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+  }
   session_unset();
   session_destroy();
 

@@ -100,6 +100,9 @@ if (isset($_POST['edit_profile'])) {
   $matric_no = mysqli_real_escape_string($conn, $_POST['matric_no']);
   $adm_year = isset($_POST['adm_year']) ? mysqli_real_escape_string($conn, $_POST['adm_year']) : '';
   $role = mysqli_real_escape_string($conn, $_POST['role']);
+  $student_lookup = mysqli_query($conn, "SELECT id FROM users WHERE email = '$email' LIMIT 1");
+  $student_target = $student_lookup ? mysqli_fetch_assoc($student_lookup) : null;
+  $target_student_id = $student_target ? (int) $student_target['id'] : 0;
 
   $subject = "Confirmation: Academic Information Update Successful";
 
@@ -124,6 +127,19 @@ if (isset($_POST['edit_profile'])) {
 
     $statusRes = "success";
     $messageRes = "Profile successfully edited!";
+    if (!empty($user_id)) {
+      log_audit_event($conn, $user_id, 'update', 'student', $target_student_id ?: null, [
+        'email' => $email,
+        'first_name' => $first_name,
+        'last_name' => $last_name,
+        'phone' => $phone,
+        'school' => $school,
+        'dept' => $dept,
+        'matric_no' => $matric_no,
+        'adm_year' => $adm_year,
+        'role' => $role
+      ]);
+    }
   } else {
     $statusRes = "error";
     $messageRes = "Internal Server Error. Please try again later!";
@@ -136,6 +152,9 @@ if (isset($_POST['student_email_'])) {
   $student_role = mysqli_real_escape_string($conn, $_POST['student_role']);
   $email = mysqli_real_escape_string($conn, $_POST['student_email_']);
   $student_status = mysqli_real_escape_string($conn, $_POST['student_status']);
+  $student_lookup = mysqli_query($conn, "SELECT id FROM users WHERE email = '$email' LIMIT 1");
+  $student_target = $student_lookup ? mysqli_fetch_assoc($student_lookup) : null;
+  $target_student_id = $student_target ? (int) $student_target['id'] : 0;
 
   mysqli_query($conn, "UPDATE users SET status = '$student_status' WHERE email = '$email'");
 
@@ -216,6 +235,14 @@ if (isset($_POST['student_email_'])) {
 
     $statusRes = "success";
     $messageRes = "Status changed successfully!";
+    if (!empty($user_id)) {
+      log_audit_event($conn, $user_id, 'status_change', 'student', $target_student_id ?: null, [
+        'email' => $email,
+        'new_status' => $student_status,
+        'role' => $student_role,
+        'mail_status' => $mailStatus
+      ]);
+    }
   } else {
     $statusRes = "error";
     $messageRes = "Internal Server Error. Please try again later!";

@@ -70,6 +70,24 @@ CREATE TABLE `admin_roles` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `audit_logs`
+--
+
+CREATE TABLE `audit_logs` (
+  `id` int(11) NOT NULL,
+  `admin_id` int(11) NOT NULL,
+  `action` varchar(50) NOT NULL,
+  `entity_type` varchar(100) NOT NULL,
+  `entity_id` varchar(100) DEFAULT NULL,
+  `details` text DEFAULT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `user_agent` varchar(255) DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `cart`
 --
 
@@ -336,6 +354,16 @@ ALTER TABLE `admin_roles`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `audit_logs`
+--
+ALTER TABLE `audit_logs`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `admin_id` (`admin_id`),
+  ADD KEY `action` (`action`),
+  ADD KEY `entity_type` (`entity_type`),
+  ADD KEY `created_at` (`created_at`);
+
+--
 -- Indexes for table `cart`
 --
 ALTER TABLE `cart`
@@ -421,6 +449,12 @@ ALTER TABLE `admins`
 -- AUTO_INCREMENT for table `admin_roles`
 --
 ALTER TABLE `admin_roles`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `audit_logs`
+--
+ALTER TABLE `audit_logs`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --

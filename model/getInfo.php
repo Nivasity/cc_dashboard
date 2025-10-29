@@ -66,7 +66,14 @@ if (isset($_GET['download'])) {
   if ($type === 'depts') {
     $school = intval($_GET['school'] ?? 0);
     if ($admin_role == 5 && $admin_school) { $school = $admin_school; }
-    $dept_cond = ($admin_role == 5 && $admin_faculty) ? " AND faculty_id = $admin_faculty" : "";
+    $faculty = intval($_GET['faculty'] ?? 0);
+    if ($admin_role == 5 && $admin_faculty) {
+      $dept_cond = " AND faculty_id = $admin_faculty";
+    } elseif ($faculty) {
+      $dept_cond = " AND faculty_id = $faculty";
+    } else {
+      $dept_cond = "";
+    }
     $q = mysqli_query($conn, "SELECT id, name, faculty_id, status, created_at FROM depts WHERE school_id = $school$dept_cond ORDER BY name");
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="departments_' . date('Ymd_His') . '.csv"');
@@ -149,8 +156,11 @@ if (isset($_POST['get_data'])) {
 
   if ($get_data == 'depts') {
     $school = ($_SESSION['nivas_adminRole'] == 5) ? $admin_school : $_POST['school'];
+    $faculty = intval($_POST['faculty'] ?? 0);
     if ($admin_role == 5 && $admin_faculty) {
       $dept_query = mysqli_query($conn, "SELECT * FROM `depts` WHERE school_id = $school AND faculty_id = $admin_faculty");
+    } elseif ($faculty) {
+      $dept_query = mysqli_query($conn, "SELECT * FROM `depts` WHERE school_id = $school AND faculty_id = $faculty");
     } else {
       $dept_query = mysqli_query($conn, "SELECT * FROM `depts` WHERE school_id = $school");
     }
