@@ -87,11 +87,12 @@ if (isset($_POST['edit_profile'])) {
   $socials = mysqli_real_escape_string($conn, $_POST['socials']);
 
   $user_query = mysqli_query($conn, "SELECT * FROM users WHERE email = '$email'");
-  $user_id = mysqli_fetch_array($user_query)['id'];
+  $user_record = $user_query ? mysqli_fetch_array($user_query) : null;
+  $target_user_id = $user_record['id'] ?? 0;
 
-  $org_result = mysqli_query($conn, "UPDATE organisation 
-                SET business_name = '$business_name', business_address = '$business_address', web_url = '$web_url', work_email = '$work_email', socials = '$socials' 
-                WHERE user_id = $user_id");
+  $org_result = mysqli_query($conn, "UPDATE organisation
+                SET business_name = '$business_name', business_address = '$business_address', web_url = '$web_url', work_email = '$work_email', socials = '$socials'
+                WHERE user_id = $target_user_id");
 
   $subject = "Confirmation: Business Information Updated";
 
@@ -116,9 +117,23 @@ if (isset($_POST['edit_profile'])) {
 
     $statusRes = "success";
     $messageRes = "Profile successfully edited!";
+    if (!empty($admin_id)) {
+      log_audit_event($conn, $admin_id, 'update', 'public_user', $target_user_id ?: null, [
+        'email' => $email,
+        'first_name' => $first_name,
+        'last_name' => $last_name,
+        'phone' => $phone,
+        'role' => $user_role,
+        'business_name' => $business_name,
+        'business_address' => $business_address,
+        'web_url' => $web_url,
+        'work_email' => $work_email,
+        'socials' => $socials
+      ]);
+    }
   } else {
     $statusRes = "error";
-    $messageRes = "No changes made. Please try again later! $user_id";
+    $messageRes = "No changes made. Please try again later! $target_user_id";
   }
 }
 
@@ -128,6 +143,9 @@ if (isset($_POST['user_email_'])) {
   $user_role = mysqli_real_escape_string($conn, $_POST['user_role']);
   $email = mysqli_real_escape_string($conn, $_POST['user_email_']);
   $user_status = mysqli_real_escape_string($conn, $_POST['user_status']);
+  $user_lookup = mysqli_query($conn, "SELECT id FROM users WHERE email = '$email' LIMIT 1");
+  $user_target = $user_lookup ? mysqli_fetch_assoc($user_lookup) : null;
+  $target_user_id = $user_target ? (int) $user_target['id'] : 0;
 
   mysqli_query($conn, "UPDATE users SET status = '$user_status' WHERE email = '$email'");
 
@@ -207,6 +225,14 @@ if (isset($_POST['user_email_'])) {
 
     $statusRes = "success";
     $messageRes = "Status changed successfully!";
+    if (!empty($admin_id)) {
+      log_audit_event($conn, $admin_id, 'status_change', 'public_user', $target_user_id ?: null, [
+        'email' => $email,
+        'new_status' => $user_status,
+        'role' => $user_role,
+        'mail_status' => $mailStatus
+      ]);
+    }
   } else {
     $statusRes = "error";
     $messageRes = "Internal Server Error. Please try again later!";

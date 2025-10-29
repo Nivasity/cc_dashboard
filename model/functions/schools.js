@@ -7,6 +7,7 @@ function fetchSchools2() {
                 success: function (response) {
                         var school_select = $('#school');
                         var faculty_select = $('#faculty_school');
+                        var dept_faculty_select = $('#department_faculty');
 
                         // Filter out deactivated schools and then sort the remaining schools
                         const sortedSchools = response.schools
@@ -15,8 +16,23 @@ function fetchSchools2() {
                                         return a.name.localeCompare(b.name);
                                 });
 
-                        school_select.empty();
-                        faculty_select.empty();
+                        school_select.empty().append($('<option>', {
+                                value: 0,
+                                text: 'Select School'
+                        }));
+                        faculty_select.empty().append($('<option>', {
+                                value: 0,
+                                text: 'Select School'
+                        }));
+
+                        if (dept_faculty_select.length) {
+                                dept_faculty_select
+                                        .empty()
+                                        .append($('<option>', { value: 0, text: 'All Faculties' }))
+                                        .prop('disabled', true)
+                                        .trigger('change');
+                        }
+
                         $.each(sortedSchools, function (index, schools) {
                                 var option = $('<option>', {
                                         value: schools.id,
@@ -25,6 +41,9 @@ function fetchSchools2() {
                                 school_select.append(option.clone());
                                 faculty_select.append(option.clone());
                         });
+
+                        school_select.val('0').trigger('change');
+                        faculty_select.val('0').trigger('change');
                 }
         });
 }
@@ -178,7 +197,8 @@ $(document).on('submit', '#newDeptForm', function (e) {
                         if (data.status == 'success') {
                                 showToast('bg-success', data.message);
 
-                                fetchDepts(school_id);
+                                const facultyFilter = $('#department_faculty').length ? ($('#department_faculty').val() || 0) : 0;
+                                fetchDepts(school_id, facultyFilter);
                                 $("#newDeptForm")[0].reset();
                                 $('#newDeptModal').modal('hide');
                         } else {
@@ -229,19 +249,22 @@ $(document).on('submit', '#selectSchoolForm', function (e) {
         e.preventDefault();
 
         school_id = $('#selectSchoolForm [name="school"]').val();
+        const faculty_id = $('#selectSchoolForm [name="faculty"]').val() || 0;
 
-        fetchDepts(school_id);
+        fetchDepts(school_id, faculty_id);
 });
 
-function fetchDepts(school_id) {
+function fetchDepts(school_id, faculty_id = 0) {
         // Get the button element
         var submitButton = $('#submitBtn2');
-        submitButton.html('<span class="spinner-border spinner-border-sm mx-auto" role="status" aria-hidden="true"></span>').attr('disabled', true);
+        if (submitButton.length) {
+                submitButton.html('<span class="spinner-border spinner-border-sm mx-auto" role="status" aria-hidden="true"></span>').attr('disabled', true);
+        }
 
         $.ajax({
                 method: 'POST',
                 url: 'model/getInfo.php',
-                data: { get_data: 'depts', school: school_id },
+                data: { get_data: 'depts', school: school_id, faculty: faculty_id },
                 success: function (response) {
                         console.log('Response:', response);
 
@@ -267,7 +290,9 @@ function fetchDepts(school_id) {
                 complete: function () {
                         InitiateDatatable('.dept_table');
 
-                        submitButton.html('Submit').attr('disabled', false);
+                        if (submitButton.length) {
+                                submitButton.html('Search').attr('disabled', false);
+                        }
                 }
         });
 }
@@ -338,10 +363,11 @@ $(document).on('click', '#downloadDepts', function () {
         var $btn = $(this);
         var original = $btn.html();
         var school_id = $('#school').val();
+        var faculty_id = $('#department_faculty').length ? $('#department_faculty').val() : 0;
         $.ajax({
                 url: 'model/getInfo.php',
                 method: 'GET',
-                data: { download: 'depts', school: school_id },
+                data: { download: 'depts', school: school_id, faculty: faculty_id },
                 xhrFields: { responseType: 'blob' },
                 beforeSend: function () { $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Downloading...'); },
                 success: function (blob, status, xhr) {
@@ -453,7 +479,8 @@ $(document).on('click', '.deactivate_dept', function (e) {
                         if (data.status == 'success') {
                                 showToast('bg-success', data.message);
 
-                                fetchDepts(school_id);
+                                const facultyFilter = $('#department_faculty').length ? ($('#department_faculty').val() || 0) : 0;
+                                fetchDepts(school_id, facultyFilter);
                         } else {
                                 showToast('bg-danger', data.message);
                         }
@@ -626,3 +653,48 @@ function loadFacultyOptions(school_id, selected_id = 0) {
                 }
         });
 }
+
+// Function to populate the department faculty filter
+function loadDeptFacultyFilter(school_id, selected_id = 0) {
+        const select = $('#department_faculty');
+        if (!select.length) {
+                return;
+        }
+
+        select.empty().append($('<option>', { value: 0, text: 'All Faculties' }));
+
+        if (!school_id || school_id === '0') {
+                select.prop('disabled', true).val('0').trigger('change');
+                return;
+        }
+
+        $.ajax({
+                method: 'POST',
+                url: 'model/getInfo.php',
+                data: { get_data: 'faculties', school: school_id },
+                success: function (response) {
+                        if (response.status == 'success') {
+                                $.each(response.faculties, function (index, fac) {
+                                        const option = $('<option>', {
+                                                value: fac.id,
+                                                text: fac.name
+                                        });
+                                        select.append(option);
+                                });
+                        }
+                        if (selected_id) {
+                                select.val(String(selected_id));
+                        } else {
+                                select.val('0');
+                        }
+                },
+                complete: function () {
+                        select.prop('disabled', false).trigger('change');
+                }
+        });
+}
+
+$(document).on('change', '#school', function () {
+        const schoolId = $(this).val();
+        loadDeptFacultyFilter(schoolId);
+});

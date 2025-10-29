@@ -87,7 +87,7 @@ if (isset($_POST['respond_ticket'])) {
     $messageRes = 'Ticket code and response are required';
   } else {
     // Fetch ticket + user details for email and authorization
-    $ticketInfoSql = "SELECT st.subject, u.first_name, u.email, u.school FROM support_tickets st JOIN users u ON u.id = st.user_id WHERE st.code = '$code'";
+    $ticketInfoSql = "SELECT st.id, st.subject, u.first_name, u.email, u.school FROM support_tickets st JOIN users u ON u.id = st.user_id WHERE st.code = '$code'";
     if ($admin_role == 5 && $admin_school > 0) {
       $ticketInfoSql .= " AND u.school = $admin_school";
     }
@@ -109,6 +109,15 @@ if (isset($_POST['respond_ticket'])) {
 
         $statusRes = 'success';
         $messageRes = ($mailStatus === 'success') ? 'Response sent and user notified by email' : 'Response saved, but email notification failed';
+        if (!empty($admin_id)) {
+          $ticket_id = isset($row['id']) ? (int) $row['id'] : 0;
+          log_audit_event($conn, $admin_id, 'respond', 'support_ticket', $ticket_id ?: null, [
+            'ticket_code' => $code,
+            'new_status' => $new_status,
+            'closed' => $markClosed,
+            'mail_status' => $mailStatus
+          ]);
+        }
       } else {
         $statusRes = 'error';
         $messageRes = 'Update failed or unauthorized';
@@ -127,7 +136,7 @@ if (isset($_POST['reopen_ticket'])) {
     $messageRes = 'Invalid ticket code';
   } else {
     // Fetch ticket + user details for email and authorization
-    $ticketInfoSql = "SELECT st.subject, u.first_name, u.email, u.school FROM support_tickets st JOIN users u ON u.id = st.user_id WHERE st.code = '$code'";
+    $ticketInfoSql = "SELECT st.id, st.subject, u.first_name, u.email, u.school FROM support_tickets st JOIN users u ON u.id = st.user_id WHERE st.code = '$code'";
     if ($admin_role == 5 && $admin_school > 0) {
       $ticketInfoSql .= " AND u.school = $admin_school";
     }
@@ -148,6 +157,13 @@ if (isset($_POST['reopen_ticket'])) {
 
         $statusRes = 'success';
         $messageRes = ($mailStatus === 'success') ? 'Ticket reopened and user notified by email' : 'Ticket reopened; email notification failed';
+        if (!empty($admin_id)) {
+          $ticket_id = isset($row['id']) ? (int) $row['id'] : 0;
+          log_audit_event($conn, $admin_id, 'reopen', 'support_ticket', $ticket_id ?: null, [
+            'ticket_code' => $code,
+            'mail_status' => $mailStatus
+          ]);
+        }
       } else {
         $statusRes = 'error';
         $messageRes = 'Update failed or unauthorized';
@@ -240,6 +256,12 @@ if (isset($_POST['email_customer'])) {
   if ($mailStatus === "success") {
     $statusRes = "success";
     $messageRes = "Request successfully sent!";
+    if (!empty($admin_id)) {
+      log_audit_event($conn, $admin_id, 'email_customer', 'support_ticket', null, [
+        'email' => $email,
+        'subject' => $subject
+      ]);
+    }
   } else {
     $statusRes = "error";
     $messageRes = "Couldn't send email. Please try again later!";

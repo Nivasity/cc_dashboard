@@ -18,6 +18,9 @@ if (isset($_POST['school_edit'])) {
     if (mysqli_affected_rows($conn) >= 1) {
       $statusRes = "success";
       $messageRes = "Status changed successfully!";
+      log_audit_event($conn, $user_id, 'status_change', 'school', $school_id, [
+        'new_status' => $status
+      ]);
     } else {
       $statusRes = "error";
       $messageRes = "Internal Server Error. Please try again later!";
@@ -28,6 +31,7 @@ if (isset($_POST['school_edit'])) {
     if (mysqli_affected_rows($conn) >= 1) {
       $statusRes = "success";
       $messageRes = "School deleted successfully!";
+      log_audit_event($conn, $user_id, 'delete', 'school', $school_id);
     } else {
       $statusRes = "error";
       $messageRes = "Internal Server Error. Please try again later!";
@@ -51,6 +55,11 @@ if (isset($_POST['school_edit'])) {
       if (mysqli_affected_rows($conn) >= 1) {
         $statusRes = "success";
         $messageRes = "School successfully added!";
+        $insert_id = mysqli_insert_id($conn);
+        log_audit_event($conn, $user_id, 'create', 'school', $insert_id, [
+          'name' => $name,
+          'code' => $code
+        ]);
       } else {
         $statusRes = "error";
         $messageRes = "Internal Server Error. Please try again later!";
@@ -61,6 +70,10 @@ if (isset($_POST['school_edit'])) {
       if (mysqli_affected_rows($conn) >= 1) {
         $statusRes = "success";
         $messageRes = "School successfully edited!";
+        log_audit_event($conn, $user_id, 'update', 'school', $school_id, [
+          'name' => $name,
+          'code' => $code
+        ]);
       } else {
         $statusRes = "error";
         $messageRes = "No changes made!";
