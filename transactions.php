@@ -135,6 +135,7 @@ if ($admin_role == 5) {
               <input type="email" class="form-control" id="manualUserEmail" name="email" placeholder="student@example.com"
                 required autocomplete="off" />
               <div class="form-text">Enter the student's email to load their profile.</div>
+              <div id="manualUserFeedback" class="mt-3 d-none" aria-live="polite"></div>
               <div id="manualUserDetails" class="mt-3"></div>
             </div>
             <div class="mb-4">

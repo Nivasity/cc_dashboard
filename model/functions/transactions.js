@@ -6,6 +6,7 @@ $(document).ready(function () {
   var $manualForm = $('#manualTransactionForm');
   var $manualAlert = $('#manualTransactionAlert');
   var $manualEmail = $('#manualUserEmail');
+  var $manualFeedback = $('#manualUserFeedback');
   var $manualDetails = $('#manualUserDetails');
   var $manualSelect = $('#manualMaterialSelect');
   var $manualSummary = $('#manualMaterialSummary');
@@ -16,6 +17,8 @@ $(document).ready(function () {
   var emailLookupTimer = null;
   var emailLookupRequest = null;
   var materialsRequest = null;
+  var feedbackTimer = null;
+  var lastLookupEmail = '';
 
   InitiateDatatable('.table');
   $('#school, #faculty, #dept').select2({ theme: 'bootstrap-5', width: '100%' });
@@ -65,10 +68,14 @@ $(document).ready(function () {
     $manualDetails.html(detailsHtml);
   }
 
-  function renderUserMessage(color, message) {
-    if (!$manualDetails.length) return;
+  function renderUserFeedback(color, message) {
+    if (!$manualFeedback.length) return;
+    if (feedbackTimer) {
+      clearTimeout(feedbackTimer);
+      feedbackTimer = null;
+    }
     if (!message) {
-      $manualDetails.empty();
+      $manualFeedback.addClass('d-none').empty();
       return;
     }
     var classes = {
@@ -79,7 +86,7 @@ $(document).ready(function () {
     };
     var tone = classes[color] || 'secondary';
     var alertHtml = '<div class="alert alert-' + tone + ' mb-0">' + message + '</div>';
-    $manualDetails.html(alertHtml);
+    $manualFeedback.removeClass('d-none').html(alertHtml);
   }
 
   function updateManualSummary() {
@@ -173,15 +180,16 @@ $(document).ready(function () {
     if (!email) {
       selectedUser = null;
       renderUserDetails(null);
-      renderUserMessage(null, null);
+      renderUserFeedback(null, null);
       showManualAlert(null, null);
       loadManualOptions(null);
       updateManualSubmitState();
       return;
     }
     renderUserDetails(null);
-    renderUserMessage('info', 'Looking up user details...');
+    renderUserFeedback('info', '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Looking up user details...');
     selectedUser = null;
+    lastLookupEmail = (email || '').toLowerCase();
     updateManualSubmitState();
     emailLookupRequest = $.ajax({
       url: 'model/transactions.php',
@@ -192,13 +200,21 @@ $(document).ready(function () {
         if (res.status === 'success' && res.user) {
           selectedUser = res.user;
           renderUserDetails(res.user);
+          renderUserFeedback('success', 'User found. Materials list updated for their school.');
+          if (res.user.email) {
+            feedbackTimer = setTimeout(function () {
+              if ((res.user.email || '').toLowerCase() === lastLookupEmail) {
+                renderUserFeedback(null, null);
+              }
+            }, 3000);
+          }
           showManualAlert(null, null);
           loadManualOptions(res.user.school);
         } else {
           selectedUser = null;
-          renderUserDetails(null);
           var errorMessage = res.message || 'User not found for the supplied email.';
-          renderUserMessage('danger', errorMessage);
+          renderUserDetails(null);
+          renderUserFeedback('danger', errorMessage);
           if (typeof showToast === 'function') {
             showToast('bg-danger', errorMessage);
           }
@@ -208,9 +224,9 @@ $(document).ready(function () {
       },
       error: function () {
         selectedUser = null;
-        renderUserDetails(null);
         var errorMessage = 'Unable to fetch user details. Please try again.';
-        renderUserMessage('danger', errorMessage);
+        renderUserDetails(null);
+        renderUserFeedback('danger', errorMessage);
         if (typeof showToast === 'function') {
           showToast('bg-danger', errorMessage);
         }
@@ -227,7 +243,7 @@ $(document).ready(function () {
       $manualSelect.val([]).trigger('change');
     }
     renderUserDetails(null);
-    renderUserMessage(null, null);
+    renderUserFeedback(null, null);
     selectedUser = null;
     showManualAlert(null, null);
     $manualSummary.text('');
