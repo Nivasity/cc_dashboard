@@ -94,25 +94,32 @@ $(document).ready(function () {
     $manualSubmit.prop('disabled', !(hasUser && hasMaterials && hasRef));
   }
 
-  function loadManualOptions() {
+  function loadManualOptions(userSchoolId) {
     if (!$manualSelect.length) return;
     if (materialsRequest && materialsRequest.readyState !== 4) {
       materialsRequest.abort();
     }
+
+    $manualSelect.empty();
+    updateManualSummary();
+
+    var schoolId = Number(userSchoolId || 0);
+    if (!schoolId) {
+      $manualSelect.prop('disabled', true);
+      showManualAlert('info', 'Enter a user email to load course materials.');
+      updateManualSubmitState();
+      return;
+    }
+
     showManualAlert('info', 'Loading course materials...');
     $manualSelect.prop('disabled', true);
-    $manualSelect.empty();
-    var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
-    var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
-    var deptId = $('#dept').val();
+
     materialsRequest = $.ajax({
       url: 'model/transactions.php',
       method: 'GET',
       data: {
         fetch: 'materials',
-        school: schoolId,
-        faculty: facultyId,
-        dept: deptId
+        user_school: schoolId
       },
       dataType: 'json',
       success: function (res) {
@@ -126,7 +133,7 @@ $(document).ready(function () {
           $manualSelect.prop('disabled', false);
           $manualSelect.trigger('change');
           if (res.materials.length === 0) {
-            showManualAlert('warning', res.message || 'No course materials match the selected filters.');
+            showManualAlert('warning', res.message || 'No course materials were found for this user\'s school.');
           } else {
             showManualAlert(null, null);
           }
@@ -155,6 +162,7 @@ $(document).ready(function () {
       selectedUser = null;
       renderUserDetails(null);
       showManualAlert(null, null);
+      loadManualOptions(null);
       updateManualSubmitState();
       return;
     }
@@ -172,10 +180,12 @@ $(document).ready(function () {
           selectedUser = res.user;
           renderUserDetails(res.user);
           showManualAlert(null, null);
+          loadManualOptions(res.user.school);
         } else {
           selectedUser = null;
           renderUserDetails(null);
           showManualAlert('danger', res.message || 'User not found for the supplied email.');
+          loadManualOptions(null);
         }
         updateManualSubmitState();
       },
@@ -183,6 +193,7 @@ $(document).ready(function () {
         selectedUser = null;
         renderUserDetails(null);
         showManualAlert('danger', 'Unable to fetch user details. Please try again.');
+        loadManualOptions(null);
         updateManualSubmitState();
       }
     });
@@ -222,7 +233,7 @@ $(document).ready(function () {
 
   $manualModal.on('show.bs.modal', function () {
     resetManualForm();
-    loadManualOptions();
+    loadManualOptions(null);
   });
 
   $manualModal.on('hidden.bs.modal', function () {

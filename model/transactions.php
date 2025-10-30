@@ -229,6 +229,7 @@ if (isset($_GET['fetch'])) {
   $school = intval($_GET['school'] ?? 0);
   $faculty = intval($_GET['faculty'] ?? 0);
   $dept = intval($_GET['dept'] ?? 0);
+  $user_school = intval($_GET['user_school'] ?? 0);
   if ($admin_role == 5) {
     $school = $admin_school;
     if ($admin_faculty != 0) {
@@ -318,7 +319,9 @@ if (isset($_GET['fetch'])) {
 
   if ($fetch == 'materials') {
     $material_sql = "SELECT m.id, m.title, m.course_code, m.code, m.price FROM manuals m LEFT JOIN depts d ON m.dept = d.id WHERE m.status = 'open'";
-    if ($admin_role == 5) {
+    if ($user_school > 0) {
+      $material_sql .= " AND m.school_id = $user_school";
+    } elseif ($admin_role == 5) {
       $material_sql .= " AND m.school_id = $admin_school";
       if ($admin_faculty != 0) {
         $material_sql .= " AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))";
@@ -331,7 +334,7 @@ if (isset($_GET['fetch'])) {
         $material_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
       }
     }
-    if ($dept > 0) {
+    if ($dept > 0 && $user_school == 0) {
       $material_sql .= " AND m.dept = $dept";
     }
     $material_sql .= " ORDER BY m.title ASC";
