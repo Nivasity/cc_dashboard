@@ -65,6 +65,23 @@ $(document).ready(function () {
     $manualDetails.html(detailsHtml);
   }
 
+  function renderUserMessage(color, message) {
+    if (!$manualDetails.length) return;
+    if (!message) {
+      $manualDetails.empty();
+      return;
+    }
+    var classes = {
+      info: 'info',
+      danger: 'danger',
+      warning: 'warning',
+      success: 'success'
+    };
+    var tone = classes[color] || 'secondary';
+    var alertHtml = '<div class="alert alert-' + tone + ' mb-0">' + message + '</div>';
+    $manualDetails.html(alertHtml);
+  }
+
   function updateManualSummary() {
     if (!$manualSummary.length) return;
     var selectedOptions = $manualSelect.find('option:selected');
@@ -156,13 +173,14 @@ $(document).ready(function () {
     if (!email) {
       selectedUser = null;
       renderUserDetails(null);
+      renderUserMessage(null, null);
       showManualAlert(null, null);
       loadManualOptions(null);
       updateManualSubmitState();
       return;
     }
-    showManualAlert('info', 'Looking up user details...');
     renderUserDetails(null);
+    renderUserMessage('info', 'Looking up user details...');
     selectedUser = null;
     updateManualSubmitState();
     emailLookupRequest = $.ajax({
@@ -179,7 +197,11 @@ $(document).ready(function () {
         } else {
           selectedUser = null;
           renderUserDetails(null);
-          showManualAlert('danger', res.message || 'User not found for the supplied email.');
+          var errorMessage = res.message || 'User not found for the supplied email.';
+          renderUserMessage('danger', errorMessage);
+          if (typeof showToast === 'function') {
+            showToast('bg-danger', errorMessage);
+          }
           loadManualOptions(null);
         }
         updateManualSubmitState();
@@ -187,7 +209,11 @@ $(document).ready(function () {
       error: function () {
         selectedUser = null;
         renderUserDetails(null);
-        showManualAlert('danger', 'Unable to fetch user details. Please try again.');
+        var errorMessage = 'Unable to fetch user details. Please try again.';
+        renderUserMessage('danger', errorMessage);
+        if (typeof showToast === 'function') {
+          showToast('bg-danger', errorMessage);
+        }
         loadManualOptions(null);
         updateManualSubmitState();
       }
@@ -201,6 +227,7 @@ $(document).ready(function () {
       $manualSelect.val([]).trigger('change');
     }
     renderUserDetails(null);
+    renderUserMessage(null, null);
     selectedUser = null;
     showManualAlert(null, null);
     $manualSummary.text('');
