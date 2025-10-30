@@ -20,12 +20,7 @@ $(document).ready(function () {
   InitiateDatatable('.table');
   $('#school, #faculty, #dept').select2({ theme: 'bootstrap-5', width: '100%' });
   if ($manualSelect.length) {
-    $manualSelect.select2({
-      theme: 'bootstrap-5',
-      width: '100%',
-      placeholder: 'Select course materials',
-      dropdownParent: $manualModal
-    });
+    $manualSelect.prop('disabled', true);
   }
 
   function showManualAlert(color, message) {
@@ -203,7 +198,7 @@ $(document).ready(function () {
     if (!$manualForm.length) return;
     $manualForm[0].reset();
     if ($manualSelect.length) {
-      $manualSelect.val(null).trigger('change');
+      $manualSelect.val([]).trigger('change');
     }
     renderUserDetails(null);
     selectedUser = null;
