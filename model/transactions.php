@@ -18,6 +18,41 @@ if ($admin_role == 5 && $admin_id) {
   $admin_faculty = $info['faculty'];
 }
 
+function calculate_handling_charge(int $subtotal): int
+{
+  if ($subtotal <= 0) {
+    return 0;
+  }
+
+  if ($subtotal < 2500) {
+    return 70;
+  }
+
+  $percentage_fee = $subtotal * 0.02;
+  if ($subtotal < 5000) {
+    $addon = 20;
+  } elseif ($subtotal < 10000) {
+    $addon = 30;
+  } else {
+    $addon = 50;
+  }
+
+  return (int)round($percentage_fee + $addon);
+}
+
+function calculate_transaction_profit(int $subtotal, int $charge): int
+{
+  if ($charge <= 0) {
+    return 0;
+  }
+
+  $transferAmount = $subtotal + $charge;
+  $gateway_fee = round($transferAmount * 0.02, 2);
+  $profit = max($charge - $gateway_fee, 0);
+
+  return (int)round($profit);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   $action = $_POST['action'] ?? '';
   if ($action === 'create_manual_transaction') {
@@ -101,8 +136,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   mysqli_begin_transaction($conn);
                   $manual_stmt = null;
                   try {
-                    $charge = 0;
-                    $profit = 0;
+                    $charge = calculate_handling_charge($total_amount);
+                    $profit = calculate_transaction_profit($total_amount, $charge);
                     $status = 'successful';
                     $medium = 'MANUAL';
                     $user_id = (int)$user_data['id'];
