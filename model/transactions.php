@@ -99,6 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   }
 
                   mysqli_begin_transaction($conn);
+                  $manual_stmt = null;
                   try {
                     $charge = 0;
                     $profit = 0;
@@ -137,6 +138,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                       'amount' => $total_amount
                     ]);
                   } catch (Exception $e) {
+                    if ($manual_stmt instanceof mysqli_stmt) {
+                      $manual_stmt->close();
+                    }
+                    if ($transaction_ref !== '') {
+                      // manuals_bought currently uses MyISAM, so explicitly delete any partial rows
+                      // to keep the manual transaction operation atomic.
+                      $cleanup_stmt = $conn->prepare('DELETE FROM manuals_bought WHERE ref_id = ?');
+                      if ($cleanup_stmt) {
+                        $cleanup_stmt->bind_param('s', $transaction_ref);
+                        $cleanup_stmt->execute();
+                        $cleanup_stmt->close();
+                      }
+                    }
                     mysqli_rollback($conn);
                     $statusRes = 'failed';
                     $messageRes = $e->getMessage();
