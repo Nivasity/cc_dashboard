@@ -150,7 +150,6 @@ $(document).ready(function () {
             $manualSelect.append(option);
           });
           $manualSelect.prop('disabled', false);
-          $manualSelect.trigger('change');
           if (res.materials.length === 0) {
             showManualAlert('warning', res.message || 'No course materials were found for this user\'s school.');
           } else {
@@ -240,7 +239,7 @@ $(document).ready(function () {
     if (!$manualForm.length) return;
     $manualForm[0].reset();
     if ($manualSelect.length) {
-      $manualSelect.val([]).trigger('change');
+      $manualSelect.val([]);
     }
     renderUserDetails(null);
     renderUserFeedback(null, null);
