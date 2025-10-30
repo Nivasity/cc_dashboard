@@ -102,10 +102,18 @@ $(document).ready(function () {
     showManualAlert('info', 'Loading course materials...');
     $manualSelect.prop('disabled', true);
     $manualSelect.empty();
+    var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
+    var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
+    var deptId = $('#dept').val();
     materialsRequest = $.ajax({
       url: 'model/transactions.php',
       method: 'GET',
-      data: { fetch: 'materials' },
+      data: {
+        fetch: 'materials',
+        school: schoolId,
+        faculty: facultyId,
+        dept: deptId
+      },
       dataType: 'json',
       success: function (res) {
         if (res.status === 'success' && Array.isArray(res.materials)) {
@@ -116,8 +124,12 @@ $(document).ready(function () {
             $manualSelect.append(option);
           });
           $manualSelect.prop('disabled', false);
-          $manualSelect.trigger('change.select2');
-          showManualAlert(null, null);
+          $manualSelect.trigger('change');
+          if (res.materials.length === 0) {
+            showManualAlert('warning', res.message || 'No course materials match the selected filters.');
+          } else {
+            showManualAlert(null, null);
+          }
         } else {
           $manualSelect.prop('disabled', true);
           showManualAlert('danger', res.message || 'Unable to load materials.');

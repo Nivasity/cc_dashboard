@@ -317,11 +317,24 @@ if (isset($_GET['fetch'])) {
   }
 
   if ($fetch == 'materials') {
-    $material_sql = "SELECT id, title, course_code, code, price FROM manuals WHERE 1=1";
+    $material_sql = "SELECT m.id, m.title, m.course_code, m.code, m.price FROM manuals m LEFT JOIN depts d ON m.dept = d.id WHERE m.status = 'open'";
     if ($admin_role == 5) {
-      $material_sql .= " AND school_id = $admin_school";
+      $material_sql .= " AND m.school_id = $admin_school";
+      if ($admin_faculty != 0) {
+        $material_sql .= " AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))";
+      }
+    } else {
+      if ($school > 0) {
+        $material_sql .= " AND m.school_id = $school";
+      }
+      if ($faculty != 0) {
+        $material_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
+      }
     }
-    $material_sql .= " ORDER BY title ASC";
+    if ($dept > 0) {
+      $material_sql .= " AND m.dept = $dept";
+    }
+    $material_sql .= " ORDER BY m.title ASC";
     $material_query = mysqli_query($conn, $material_sql);
     $materials = array();
     while ($row = mysqli_fetch_assoc($material_query)) {
@@ -335,7 +348,7 @@ if (isset($_GET['fetch'])) {
     }
     $statusRes = 'success';
     if (count($materials) === 0) {
-      $messageRes = 'No course materials found.';
+      $messageRes = 'No course materials match the selected filters.';
     }
   }
 
