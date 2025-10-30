@@ -24,13 +24,13 @@ if ($admin_role == 5) {
 ?>
 <!DOCTYPE html>
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/" data-template="vertical-menu-template-free">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
-  <title>Transactions | Nivasity Command Center</title>
-  <meta name="description" content="" />
-  <?php include('partials/_head.php') ?>
-</head>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
+    <title>Transactions | Nivasity Command Center</title>
+    <meta name="description" content="" />
+    <?php include('partials/_head.php') ?>
+  </head>
 <body>
   <div class="layout-wrapper layout-content-navbar">
     <div class="layout-container">
@@ -94,6 +94,10 @@ if ($admin_role == 5) {
               </div>
             </div>
           </div>
+          <button type="button" class="btn btn-primary new_formBtn" data-bs-toggle="modal"
+            data-bs-target="#manualTransactionModal" aria-label="Add manual transaction">
+            <i class='bx bx-plus fs-3'></i>
+          </button>
           <?php include('partials/_footer.php') ?>
           <div class="content-backdrop fade"></div>
         </div>
@@ -116,6 +120,45 @@ if ($admin_role == 5) {
     const adminSchool = <?php echo (int)$admin_school; ?>;
     const adminFaculty = <?php echo (int)$admin_faculty; ?>;
   </script>
+  <div class="modal fade" id="manualTransactionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Add Manual Transaction</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="manualTransactionForm" novalidate>
+          <div class="modal-body">
+            <div id="manualTransactionAlert" class="alert d-none" role="alert"></div>
+            <div class="mb-4">
+              <label for="manualUserEmail" class="form-label">User Email</label>
+              <input type="email" class="form-control" id="manualUserEmail" name="email" placeholder="student@example.com"
+                required autocomplete="off" />
+              <div class="form-text">Enter the student's email to load their profile.</div>
+              <div id="manualUserDetails" class="mt-3"></div>
+            </div>
+            <div class="mb-4">
+              <label for="manualMaterialSelect" class="form-label">Course Materials</label>
+              <select id="manualMaterialSelect" name="manuals[]" class="form-select" multiple required>
+              </select>
+              <div class="form-text">Select one or more materials. Each option shows the title, course code, manual code and ID.</div>
+              <div id="manualMaterialSummary" class="mt-2 text-muted"></div>
+            </div>
+            <div class="mb-3">
+              <label for="manualTransactionRef" class="form-label">Transaction Reference</label>
+              <input type="text" class="form-control" id="manualTransactionRef" name="transaction_ref"
+                placeholder="e.g. MANUAL-REF-001" required autocomplete="off" />
+              <div class="form-text">Reference must be unique.</div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="manualTransactionSubmit" disabled>Save Transaction</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
   <script src="model/functions/transactions.js"></script>
 </body>
 </html>
