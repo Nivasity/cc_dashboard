@@ -78,19 +78,22 @@ $(document).ready(function () {
         tbody.empty();
         if (res.status === 'success' && res.materials) {
           $.each(res.materials, function (i, mat) {
-            var actionHtml = '';
-            if (!mat.due_passed) {
-              actionHtml = '<div class="dropstart">' +
-                '<button type="button" class="btn p-0 dropdown-toggle hide-arrow" data-bs-toggle="dropdown" aria-expanded="true">' +
-                '<i class="bx bx-dots-vertical-rounded"></i></button>' +
-                '<div class="dropdown-menu">' +
-                '<a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="' + mat.id + '" data-status="' + mat.db_status + '">' +
-                (mat.db_status === 'open' ? '<i class="bx bx-lock me-1"></i> Close Material' : '<i class="bx bx-lock-open me-1"></i> Open Material') + '</a>' +
-                '</div></div>';
+            var actionHtml = '<div class="dropstart">' +
+              '<button type="button" class="btn p-0 dropdown-toggle hide-arrow" data-bs-toggle="dropdown" aria-expanded="true">' +
+              '<i class="bx bx-dots-vertical-rounded"></i></button>' +
+              '<div class="dropdown-menu">';
+
+            // Only include toggle when material is open and not due-passed
+            if (!mat.due_passed && mat.db_status === 'open') {
+              actionHtml += '<a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="' + mat.id + '" data-status="' + mat.db_status + '"><i class="bx bx-lock me-1"></i> Close Material</a>';
             }
+
+            actionHtml += '<a href="javascript:void(0);" class="dropdown-item downloadMaterialTransactions" data-id="' + mat.id + '" data-code="' + (mat.code || '') + '"><i class="bx bx-download me-1"></i> Download transactions list</a>' +
+              '</div></div>';
             var postedHtml = '<span class="text-uppercase text-primary">' + (mat.posted_by || '') + '</span>';
             if (mat.matric && String(mat.matric).trim()) { postedHtml += '<br>Matric no: ' + mat.matric; }
             var row = '<tr>' +
+              '<td class="text-uppercase">' + (mat.code || '') + '</td>' +
               '<td class="text-uppercase"><strong>' + mat.title + ' (' + mat.course_code + ')</strong></td>' +
               '<td>' + postedHtml + '</td>' +
               '<td>₦ ' + Number(mat.price).toLocaleString() + '</td>' +
@@ -129,6 +132,20 @@ $(document).ready(function () {
   $('#filterForm').on('submit', function (e) {
     e.preventDefault();
     fetchMaterials();
+  });
+
+  // Download transactions for a specific material by navigating to CSV URL (browser handles download)
+  $(document).on('click', '.downloadMaterialTransactions', function (e) {
+    e.preventDefault();
+    var $link = $(this);
+    var id = Number($link.data('id')) || 0;
+    if (!id) {
+      if (typeof showToast === 'function') showToast('bg-danger', 'Invalid material selected.');
+      return;
+    }
+    var url = 'model/transactions.php?download=csv&material_id=' + encodeURIComponent(id);
+    window.location.href = url;
+    if (typeof showToast === 'function') showToast('bg-success', 'Preparing CSV download...');
   });
 
   // Download CSV based on current filters

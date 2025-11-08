@@ -23,7 +23,15 @@ $(document).ready(function () {
   InitiateDatatable('.table');
   $('#school, #faculty, #dept').select2({ theme: 'bootstrap-5', width: '100%' });
   if ($manualSelect.length) {
-    $manualSelect.prop('disabled', true);
+    $manualSelect.select2({
+      theme: 'bootstrap-5',
+      width: '100%',
+      placeholder: 'Select course materials',
+      allowClear: true,
+      closeOnSelect: false,
+      dropdownParent: $manualModal
+    });
+    $manualSelect.prop('disabled', true).trigger('change.select2');
   }
 
   function showManualAlert(color, message) {
@@ -105,12 +113,24 @@ $(document).ready(function () {
     $manualSummary.text(summaryText);
   }
 
+  function requiredRefPrefix() {
+    return selectedUser && selectedUser.id ? ('nivas_' + selectedUser.id) : '';
+  }
+
+  function isValidRefFormat() {
+    var ref = ($manualRef.val() || '').trim().toLowerCase();
+    var prefix = requiredRefPrefix().toLowerCase();
+    if (!ref || !prefix) return false;
+    return ref.startsWith(prefix);
+  }
+
   function updateManualSubmitState() {
     if (!$manualSubmit.length) return;
     var hasUser = selectedUser && selectedUser.id;
     var hasMaterials = ($manualSelect.val() || []).length > 0;
     var hasRef = $manualRef.val().trim().length > 0;
-    $manualSubmit.prop('disabled', !(hasUser && hasMaterials && hasRef));
+    var refOk = isValidRefFormat();
+    $manualSubmit.prop('disabled', !(hasUser && hasMaterials && hasRef && refOk));
   }
 
   function loadManualOptions(userSchoolId) {
@@ -119,19 +139,19 @@ $(document).ready(function () {
       materialsRequest.abort();
     }
 
-    $manualSelect.empty();
+    $manualSelect.empty().trigger('change.select2');
     updateManualSummary();
 
     var schoolId = Number(userSchoolId || 0);
     if (!schoolId) {
-      $manualSelect.prop('disabled', true);
+      $manualSelect.prop('disabled', true).trigger('change.select2');
       showManualAlert('info', 'Enter a user email to load course materials.');
       updateManualSubmitState();
       return;
     }
 
     showManualAlert('info', 'Loading course materials...');
-    $manualSelect.prop('disabled', true);
+    $manualSelect.prop('disabled', true).trigger('change.select2');
 
     materialsRequest = $.ajax({
       url: 'model/transactions.php',
@@ -149,21 +169,21 @@ $(document).ready(function () {
             $(option).data('price', Number(material.price) || 0);
             $manualSelect.append(option);
           });
-          $manualSelect.prop('disabled', false);
+          $manualSelect.prop('disabled', false).trigger('change.select2');
           if (res.materials.length === 0) {
             showManualAlert('warning', res.message || 'No course materials were found for this user\'s school.');
           } else {
             showManualAlert(null, null);
           }
         } else {
-          $manualSelect.prop('disabled', true);
+          $manualSelect.prop('disabled', true).trigger('change.select2');
           showManualAlert('danger', res.message || 'Unable to load materials.');
         }
         updateManualSummary();
         updateManualSubmitState();
       },
       error: function () {
-        $manualSelect.prop('disabled', true);
+        $manualSelect.prop('disabled', true).trigger('change.select2');
         showManualAlert('danger', 'Failed to load materials. Please try again.');
         updateManualSummary();
         updateManualSubmitState();
@@ -207,7 +227,12 @@ $(document).ready(function () {
               }
             }, 3000);
           }
-          showManualAlert(null, null);
+          // Re-validate reference prefix using the found user id
+          if ($manualRef.val().trim().length && !isValidRefFormat()) {
+            showManualAlert('warning', 'Reference must start with "' + requiredRefPrefix() + '"');
+          } else {
+            showManualAlert(null, null);
+          }
           loadManualOptions(res.user.school);
         } else {
           selectedUser = null;
@@ -239,7 +264,7 @@ $(document).ready(function () {
     if (!$manualForm.length) return;
     $manualForm[0].reset();
     if ($manualSelect.length) {
-      $manualSelect.val([]);
+      $manualSelect.val([]).trigger('change.select2');
     }
     renderUserDetails(null);
     renderUserFeedback(null, null);
@@ -255,6 +280,14 @@ $(document).ready(function () {
   });
 
   $manualRef.on('input', function () {
+    var hasUser = selectedUser && selectedUser.id;
+    if (hasUser) {
+      if (!isValidRefFormat()) {
+        showManualAlert('warning', 'Reference must start with "' + requiredRefPrefix() + '"');
+      } else {
+        showManualAlert(null, null);
+      }
+    }
     updateManualSubmitState();
   });
 
@@ -281,11 +314,16 @@ $(document).ready(function () {
     e.preventDefault();
     if (!$manualSubmit.length) return;
     if ($manualSubmit.prop('disabled')) return;
+    if (!isValidRefFormat()) {
+      showManualAlert('danger', 'Reference must start with "' + requiredRefPrefix() + '"');
+      return;
+    }
     var payload = {
       action: 'create_manual_transaction',
       email: $manualEmail.val().trim(),
       transaction_ref: $manualRef.val().trim(),
-      manuals: $manualSelect.val() || []
+      manuals: $manualSelect.val() || [],
+      user_id: selectedUser ? selectedUser.id : null
     };
 
     $.ajax({
@@ -452,13 +490,25 @@ $(document).ready(function () {
       url: 'model/transactions.php',
       method: 'GET',
       data: { download: 'csv', school: schoolId, faculty: facultyId, dept: deptId },
+      xhr: function () {
+        var xhr = new window.XMLHttpRequest();
+        xhr.responseType = 'blob';
+        return xhr;
+      },
       xhrFields: { responseType: 'blob' },
       beforeSend: function () {
         $btn.prop('disabled', true)
             .html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Downloading...');
       },
       success: function (data, status, xhr) {
-        var blob = data;
+        var blob = (xhr && xhr.response) ? xhr.response : data;
+        if (!(blob instanceof Blob)) {
+          try {
+            blob = new Blob([blob], { type: 'text/csv;charset=utf-8' });
+          } catch (e) {
+            blob = new Blob([String(blob || '')], { type: 'text/csv;charset=utf-8' });
+          }
+        }
         var disposition = xhr.getResponseHeader('Content-Disposition') || '';
         var filename = 'transactions_' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15) + '.csv';
         var match = /filename="?([^";]+)"?/i.exec(disposition);

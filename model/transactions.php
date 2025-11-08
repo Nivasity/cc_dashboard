@@ -61,6 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
       $email = trim($_POST['email'] ?? '');
       $transaction_ref = trim($_POST['transaction_ref'] ?? '');
+      $posted_user_id = intval($_POST['user_id'] ?? 0);
       $manual_ids = $_POST['manuals'] ?? [];
       if (!is_array($manual_ids)) {
         $manual_ids = $manual_ids !== '' ? [$manual_ids] : [];
@@ -88,6 +89,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$user_data) {
           $messageRes = 'No user found with the provided email address.';
         } else {
+          $user_id = (int)$user_data['id'];
+          if ($posted_user_id > 0 && $posted_user_id !== $user_id) {
+            $messageRes = 'User mismatch: Please reselect the user.';
+          } else {
+            // Enforce transaction reference prefix: nivas_{user_id}
+            $required_prefix = 'nivas_' . $user_id;
+            if (stripos($transaction_ref, $required_prefix) !== 0) {
+              $messageRes = 'Transaction reference must start with "' . $required_prefix . '"';
+            } else {
           $ref_stmt = $conn->prepare('SELECT id FROM transactions WHERE ref_id = ? LIMIT 1');
           $ref_stmt->bind_param('s', $transaction_ref);
           $ref_stmt->execute();
@@ -194,10 +204,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               }
             }
           }
+          }
         }
       }
     }
-  } else {
+  }
+
+  // If POST with unknown action, set message
+  if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($action ?? '') !== 'create_manual_transaction' && $messageRes === '') {
     $messageRes = 'Invalid action supplied.';
   }
 
@@ -215,6 +229,7 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
   $school = intval($_GET['school'] ?? 0);
   $faculty = intval($_GET['faculty'] ?? 0);
   $dept = intval($_GET['dept'] ?? 0);
+  $material_id = intval($_GET['material_id'] ?? 0);
   if ($admin_role == 5) {
     $school = $admin_school;
     if ($admin_faculty != 0) {
@@ -222,7 +237,7 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
     }
   }
 
-  $tran_sql = "SELECT t.ref_id, u.first_name, u.last_name, u.matric_no, " .
+  $tran_sql = "SELECT t.ref_id, u.first_name, u.last_name, u.matric_no, u.adm_year, " .
     "COALESCE(s.name, '') AS school_name, COALESCE(f.name, '') AS faculty_name, COALESCE(d.name, '') AS dept_name, " .
     "GROUP_CONCAT(CONCAT(m.title, ' - ', m.course_code, ' (', b.price, ')') SEPARATOR ' | ') AS materials, " .
     "t.amount, t.status, t.created_at " .
@@ -243,14 +258,23 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
   if ($dept > 0) {
     $tran_sql .= " AND m.dept = $dept";
   }
+  if ($material_id > 0) {
+    $tran_sql .= " AND m.id = $material_id";
+  }
   $tran_sql .= " GROUP BY t.id ORDER BY t.created_at DESC";
   $tran_query = mysqli_query($conn, $tran_sql);
 
   header('Content-Type: text/csv; charset=utf-8');
-  header('Content-Disposition: attachment; filename="transactions_' . date('Ymd_His') . '.csv"');
+  $filename = 'transactions_' . date('Ymd_His') . '.csv';
+  if ($material_id > 0) {
+    $code_res = mysqli_fetch_assoc(mysqli_query($conn, "SELECT code FROM manuals WHERE id = $material_id LIMIT 1"));
+    $mcode = $code_res && !empty($code_res['code']) ? preg_replace('/[^A-Za-z0-9_-]/', '_', $code_res['code']) : 'material_' . $material_id;
+    $filename = 'material_' . $mcode . '_transactions_' . date('Ymd_His') . '.csv';
+  }
+  header('Content-Disposition: attachment; filename="' . $filename . '"');
 
   $out = fopen('php://output', 'w');
-  fputcsv($out, ['Ref Id', 'Student Name', 'Matric No', 'School', 'Faculty/College', 'Department', 'Materials', 'Total Paid', 'Date', 'Time', 'Status']);
+  fputcsv($out, ['Ref Id', 'Student Name', 'Matric No', 'Admission Year', 'School', 'Faculty/College', 'Department', 'Materials', 'Total Paid', 'Date', 'Time', 'Status']);
   while ($row = mysqli_fetch_assoc($tran_query)) {
     $dateStr = date('M j, Y', strtotime($row['created_at']));
     $timeStr = date('h:i a', strtotime($row['created_at']));
@@ -259,6 +283,7 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
       $row['ref_id'],
       trim($row['first_name'] . ' ' . $row['last_name']),
       $row['matric_no'],
+      $row['adm_year'],
       $row['school_name'],
       $row['faculty_name'],
       $row['dept_name'],
@@ -439,4 +464,5 @@ $responseData = array(
 
 header('Content-Type: application/json');
 echo json_encode($responseData);
+}
 ?>

@@ -140,7 +140,7 @@ if ($admin_role == 5) {
             </div>
             <div class="mb-4">
               <label for="manualMaterialSelect" class="form-label">Course Materials</label>
-              <select id="manualMaterialSelect" name="manuals[]" class="form-select no-select2" multiple required>
+              <select id="manualMaterialSelect" name="manuals[]" class="form-select" multiple required>
               </select>
               <div class="form-text">Select one or more materials. Each option shows the title, course code, manual code and ID.</div>
               <div id="manualMaterialSummary" class="mt-2 text-muted"></div>

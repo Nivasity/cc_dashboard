@@ -61,3 +61,8 @@
     transform: none;
   }
 }
+
+/* Ensure Select2 dropdowns render above Bootstrap modals */
+.modal .select2-container {
+  z-index: 2050 !important; /* higher than .modal (1055) and backdrop (1050) */
+}
