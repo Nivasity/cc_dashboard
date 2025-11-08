@@ -5,7 +5,8 @@ include('functions.php');
 
 $statusRes = 'failed';
 $messageRes = '';
-$faculties = $departments = $transactions = null;
+$faculties = $departments = $transactions = $materials = null;
+$user = null;
 $restrict_faculty = false;
 
 $admin_role = $_SESSION['nivas_adminRole'] ?? null;
@@ -17,7 +18,199 @@ if ($admin_role == 5 && $admin_id) {
   $admin_faculty = $info['faculty'];
 }
 
-// Handle CSV download for filtered transactions
+function calculate_handling_charge(int $subtotal): int
+{
+  if ($subtotal <= 0) {
+    return 0;
+  }
+
+  if ($subtotal < 2500) {
+    return 70;
+  }
+
+  $percentage_fee = $subtotal * 0.02;
+  if ($subtotal < 5000) {
+    $addon = 20;
+  } elseif ($subtotal < 10000) {
+    $addon = 30;
+  } else {
+    $addon = 50;
+  }
+
+  return (int)round($percentage_fee + $addon);
+}
+
+function calculate_transaction_profit(int $subtotal, int $charge): int
+{
+  if ($charge <= 0) {
+    return 0;
+  }
+
+  $transferAmount = $subtotal + $charge;
+  $gateway_fee = round($transferAmount * 0.02, 2);
+  $profit = max($charge - $gateway_fee, 0);
+
+  return (int)round($profit);
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $action = $_POST['action'] ?? '';
+  if ($action === 'create_manual_transaction') {
+    if (!$admin_id) {
+      $messageRes = 'You must be signed in to record a manual transaction.';
+    } else {
+      $email = trim($_POST['email'] ?? '');
+      $transaction_ref = trim($_POST['transaction_ref'] ?? '');
+      $manual_ids = $_POST['manuals'] ?? [];
+      if (!is_array($manual_ids)) {
+        $manual_ids = $manual_ids !== '' ? [$manual_ids] : [];
+      }
+      $manual_ids = array_values(array_unique(array_filter(array_map(function ($id) {
+        return (int)$id;
+      }, $manual_ids), function ($id) {
+        return $id > 0;
+      })));
+
+      if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $messageRes = 'Please provide a valid email address.';
+      } elseif (empty($manual_ids)) {
+        $messageRes = 'Select at least one course material.';
+      } elseif ($transaction_ref === '') {
+        $messageRes = 'Transaction reference is required.';
+      } else {
+        $user_stmt = $conn->prepare('SELECT id, email, first_name, last_name, school, dept, status FROM users WHERE email = ? LIMIT 1');
+        $user_stmt->bind_param('s', $email);
+        $user_stmt->execute();
+        $user_result = $user_stmt->get_result();
+        $user_data = $user_result ? $user_result->fetch_assoc() : null;
+        $user_stmt->close();
+
+        if (!$user_data) {
+          $messageRes = 'No user found with the provided email address.';
+        } else {
+          $ref_stmt = $conn->prepare('SELECT id FROM transactions WHERE ref_id = ? LIMIT 1');
+          $ref_stmt->bind_param('s', $transaction_ref);
+          $ref_stmt->execute();
+          $ref_stmt->store_result();
+          $ref_exists = $ref_stmt->num_rows > 0;
+          $ref_stmt->close();
+
+          if ($ref_exists) {
+            $messageRes = 'The supplied transaction reference already exists.';
+          } else {
+            $manual_id_list = implode(',', $manual_ids);
+            if ($manual_id_list === '') {
+              $messageRes = 'No valid materials were provided.';
+            } else {
+              $manual_sql = "SELECT id, title, course_code, code, price, user_id AS seller, school_id, dept, faculty FROM manuals WHERE id IN ($manual_id_list)";
+              if ($admin_role == 5) {
+                $manual_sql .= " AND school_id = $admin_school";
+              }
+              $manual_query = mysqli_query($conn, $manual_sql);
+              $manual_records = array();
+              while ($manual_row = mysqli_fetch_assoc($manual_query)) {
+                $manual_records[] = $manual_row;
+              }
+
+              if (count($manual_records) !== count($manual_ids)) {
+                $messageRes = 'Some selected materials could not be found or you do not have permission to access them.';
+              } else {
+                $user_school = (int)($user_data['school'] ?? 0);
+                $all_school_match = true;
+                foreach ($manual_records as $record) {
+                  $manual_school = (int)($record['school_id'] ?? 0);
+                  if ($manual_school > 0 && $user_school > 0 && $manual_school !== $user_school) {
+                    $all_school_match = false;
+                    break;
+                  }
+                }
+
+                if (!$all_school_match) {
+                  $messageRes = 'Selected materials must belong to the same school as the user.';
+                } else {
+                  $total_amount = 0;
+                  foreach ($manual_records as $record) {
+                    $total_amount += (int)($record['price'] ?? 0);
+                  }
+
+                  mysqli_begin_transaction($conn);
+                  $manual_stmt = null;
+                  try {
+                    $charge = calculate_handling_charge($total_amount);
+                    $profit = calculate_transaction_profit($total_amount, $charge);
+                    $status = 'successful';
+                    $medium = 'MANUAL';
+                    $user_id = (int)$user_data['id'];
+
+                    $txn_stmt = $conn->prepare('INSERT INTO transactions (ref_id, user_id, amount, charge, profit, status, medium) VALUES (?, ?, ?, ?, ?, ?, ?)');
+                    $txn_stmt->bind_param('siiiiss', $transaction_ref, $user_id, $total_amount, $charge, $profit, $status, $medium);
+                    if (!$txn_stmt->execute()) {
+                      throw new Exception('Unable to save transaction record.');
+                    }
+                    $txn_stmt->close();
+
+                    $manual_stmt = $conn->prepare('INSERT INTO manuals_bought (manual_id, price, seller, buyer, school_id, ref_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)');
+                    $manual_status = 'successful';
+                    foreach ($manual_records as $record) {
+                      $manual_id = (int)$record['id'];
+                      $price = (int)($record['price'] ?? 0);
+                      $seller = (int)($record['seller'] ?? 0);
+                      $school_id = (int)($record['school_id'] ?? 0);
+                      $manual_stmt->bind_param('iiiiiss', $manual_id, $price, $seller, $user_id, $school_id, $transaction_ref, $manual_status);
+                      if (!$manual_stmt->execute()) {
+                        throw new Exception('Failed to attach material #' . $manual_id . ' to the transaction.');
+                      }
+                    }
+                    $manual_stmt->close();
+
+                    mysqli_commit($conn);
+                    $statusRes = 'success';
+                    $messageRes = 'Manual transaction recorded successfully.';
+                    log_audit_event($conn, $admin_id, 'create', 'manual_transaction', null, [
+                      'ref_id' => $transaction_ref,
+                      'user_id' => $user_id,
+                      'manual_ids' => $manual_ids,
+                      'amount' => $total_amount
+                    ]);
+                  } catch (Exception $e) {
+                    if ($manual_stmt instanceof mysqli_stmt) {
+                      $manual_stmt->close();
+                    }
+                    if ($transaction_ref !== '') {
+                      // manuals_bought currently uses MyISAM, so explicitly delete any partial rows
+                      // to keep the manual transaction operation atomic.
+                      $cleanup_stmt = $conn->prepare('DELETE FROM manuals_bought WHERE ref_id = ?');
+                      if ($cleanup_stmt) {
+                        $cleanup_stmt->bind_param('s', $transaction_ref);
+                        $cleanup_stmt->execute();
+                        $cleanup_stmt->close();
+                      }
+                    }
+                    mysqli_rollback($conn);
+                    $statusRes = 'failed';
+                    $messageRes = $e->getMessage();
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  } else {
+    $messageRes = 'Invalid action supplied.';
+  }
+
+  $responseData = array(
+    'status' => $statusRes,
+    'message' => $messageRes
+  );
+
+  header('Content-Type: application/json');
+  echo json_encode($responseData);
+  exit;
+}
+
 if (isset($_GET['download']) && $_GET['download'] === 'csv') {
   $school = intval($_GET['school'] ?? 0);
   $faculty = intval($_GET['faculty'] ?? 0);
@@ -57,7 +250,6 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
   header('Content-Disposition: attachment; filename="transactions_' . date('Ymd_His') . '.csv"');
 
   $out = fopen('php://output', 'w');
-  // CSV Header
   fputcsv($out, ['Ref Id', 'Student Name', 'Matric No', 'School', 'Faculty/College', 'Department', 'Materials', 'Total Paid', 'Date', 'Time', 'Status']);
   while ($row = mysqli_fetch_assoc($tran_query)) {
     $dateStr = date('M j, Y', strtotime($row['created_at']));
@@ -86,6 +278,7 @@ if (isset($_GET['fetch'])) {
   $school = intval($_GET['school'] ?? 0);
   $faculty = intval($_GET['faculty'] ?? 0);
   $dept = intval($_GET['dept'] ?? 0);
+  $user_school = intval($_GET['user_school'] ?? 0);
   if ($admin_role == 5) {
     $school = $admin_school;
     if ($admin_faculty != 0) {
@@ -172,6 +365,65 @@ if (isset($_GET['fetch'])) {
     }
     $statusRes = 'success';
   }
+
+  if ($fetch == 'materials') {
+    $material_sql = "SELECT m.id, m.title, m.course_code, m.code, m.price FROM manuals m LEFT JOIN depts d ON m.dept = d.id WHERE m.status = 'open'";
+    if ($user_school > 0) {
+      $material_sql .= " AND m.school_id = $user_school";
+    } elseif ($admin_role == 5) {
+      $material_sql .= " AND m.school_id = $admin_school";
+      if ($admin_faculty != 0) {
+        $material_sql .= " AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))";
+      }
+    } else {
+      if ($school > 0) {
+        $material_sql .= " AND m.school_id = $school";
+      }
+      if ($faculty != 0) {
+        $material_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
+      }
+    }
+    if ($dept > 0 && $user_school == 0) {
+      $material_sql .= " AND m.dept = $dept";
+    }
+    $material_sql .= " ORDER BY m.title ASC";
+    $material_query = mysqli_query($conn, $material_sql);
+    $materials = array();
+    while ($row = mysqli_fetch_assoc($material_query)) {
+      $materials[] = array(
+        'id' => (int)$row['id'],
+        'title' => $row['title'],
+        'course_code' => $row['course_code'],
+        'code' => $row['code'],
+        'price' => (int)$row['price']
+      );
+    }
+    $statusRes = 'success';
+    if (count($materials) === 0) {
+      $messageRes = 'No course materials match the selected filters.';
+    }
+  }
+
+  if ($fetch == 'user_details') {
+    $email = trim($_GET['email'] ?? '');
+    if ($email === '') {
+      $messageRes = 'Email address is required.';
+    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+      $messageRes = 'Please provide a valid email address.';
+    } else {
+      $user_stmt = $conn->prepare('SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.matric_no, u.status, u.school, u.dept, s.name AS school_name, d.name AS dept_name, f.name AS faculty_name FROM users u LEFT JOIN schools s ON u.school = s.id LEFT JOIN depts d ON u.dept = d.id LEFT JOIN faculties f ON d.faculty_id = f.id WHERE u.email = ? LIMIT 1');
+      $user_stmt->bind_param('s', $email);
+      $user_stmt->execute();
+      $result = $user_stmt->get_result();
+      if ($result && $result->num_rows > 0) {
+        $user = $result->fetch_assoc();
+        $statusRes = 'success';
+      } else {
+        $messageRes = 'No user found with the provided email address.';
+      }
+      $user_stmt->close();
+    }
+  }
 }
 
 $responseData = array(
@@ -180,6 +432,8 @@ $responseData = array(
   'faculties' => $faculties,
   'departments' => $departments,
   'transactions' => $transactions,
+  'materials' => $materials,
+  'user' => $user,
   'restrict_faculty' => $restrict_faculty
 );
 
