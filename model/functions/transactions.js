@@ -1,4 +1,4 @@
-$(document).ready(function () {
+﻿$(document).ready(function () {
   var adminRole = window.adminRole || 0;
   var adminSchool = window.adminSchool || 0;
   var adminFaculty = window.adminFaculty || 0;
@@ -154,10 +154,9 @@ $(document).ready(function () {
     $manualSelect.prop('disabled', true).trigger('change.select2');
 
     materialsRequest = $.ajax({
-      url: 'model/transactions.php',
+      url: 'model/transactions_materials.php',
       method: 'GET',
       data: {
-        fetch: 'materials',
         user_school: schoolId
       },
       dataType: 'json',
@@ -211,9 +210,9 @@ $(document).ready(function () {
     lastLookupEmail = (email || '').toLowerCase();
     updateManualSubmitState();
     emailLookupRequest = $.ajax({
-      url: 'model/transactions.php',
+      url: 'model/transactions_user_details.php',
       method: 'GET',
-      data: { fetch: 'user_details', email: email },
+      data: { email: email },
       dataType: 'json',
       success: function (res) {
         if (res.status === 'success' && res.user) {
@@ -369,9 +368,9 @@ $(document).ready(function () {
       schoolId = adminSchool;
     }
     $.ajax({
-      url: 'model/transactions.php',
+      url: 'model/transactions_faculties.php',
       method: 'GET',
-      data: { fetch: 'faculties', school: schoolId },
+      data: { school: schoolId },
       dataType: 'json',
       success: function (res) {
         var $fac = $('#faculty');
@@ -398,9 +397,9 @@ $(document).ready(function () {
       }
     }
     $.ajax({
-      url: 'model/transactions.php',
+      url: 'model/transactions_departments.php',
       method: 'GET',
-      data: { fetch: 'departments', school: schoolId, faculty: facultyId },
+      data: { school: schoolId, faculty: facultyId },
       dataType: 'json',
       success: function (res) {
         var $dept = $('#dept');
@@ -422,9 +421,9 @@ $(document).ready(function () {
     var deptId = $('#dept').val();
 
     $.ajax({
-      url: 'model/transactions.php',
+      url: 'model/transactions_list.php',
       method: 'GET',
-      data: { fetch: 'transactions', school: schoolId, faculty: facultyId, dept: deptId },
+      data: { school: schoolId, faculty: facultyId, dept: deptId },
       dataType: 'json',
       success: function (res) {
         if ($.fn.dataTable.isDataTable('.table')) {
@@ -487,9 +486,9 @@ $(document).ready(function () {
     var deptId = $('#dept').val();
 
     $.ajax({
-      url: 'model/transactions.php',
+      url: 'model/transactions_download.php',
       method: 'GET',
-      data: { download: 'csv', school: schoolId, faculty: facultyId, dept: deptId },
+      data: { school: schoolId, faculty: facultyId, dept: deptId },
       xhr: function () {
         var xhr = new window.XMLHttpRequest();
         xhr.responseType = 'blob';

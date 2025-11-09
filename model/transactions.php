@@ -225,78 +225,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   exit;
 }
 
-if (isset($_GET['download']) && $_GET['download'] === 'csv') {
-  $school = intval($_GET['school'] ?? 0);
-  $faculty = intval($_GET['faculty'] ?? 0);
-  $dept = intval($_GET['dept'] ?? 0);
-  $material_id = intval($_GET['material_id'] ?? 0);
-  if ($admin_role == 5) {
-    $school = $admin_school;
-    if ($admin_faculty != 0) {
-      $faculty = $admin_faculty;
-    }
-  }
-
-  $tran_sql = "SELECT t.ref_id, u.first_name, u.last_name, u.matric_no, u.adm_year, " .
-    "COALESCE(s.name, '') AS school_name, COALESCE(f.name, '') AS faculty_name, COALESCE(d.name, '') AS dept_name, " .
-    "GROUP_CONCAT(CONCAT(m.title, ' - ', m.course_code, ' (', b.price, ')') SEPARATOR ' | ') AS materials, " .
-    "t.amount, t.status, t.created_at " .
-    "FROM transactions t " .
-    "JOIN users u ON t.user_id = u.id " .
-    "JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
-    "JOIN manuals m ON b.manual_id = m.id " .
-    "LEFT JOIN depts d ON m.dept = d.id " .
-    "LEFT JOIN faculties f ON m.faculty = f.id " .
-    "LEFT JOIN schools s ON b.school_id = s.id " .
-    "WHERE 1=1";
-  if ($school > 0) {
-    $tran_sql .= " AND b.school_id = $school";
-  }
-  if ($faculty != 0) {
-    $tran_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
-  }
-  if ($dept > 0) {
-    $tran_sql .= " AND m.dept = $dept";
-  }
-  if ($material_id > 0) {
-    $tran_sql .= " AND m.id = $material_id";
-  }
-  $tran_sql .= " GROUP BY t.id ORDER BY t.created_at DESC";
-  $tran_query = mysqli_query($conn, $tran_sql);
-
-  header('Content-Type: text/csv; charset=utf-8');
-  $filename = 'transactions_' . date('Ymd_His') . '.csv';
-  if ($material_id > 0) {
-    $code_res = mysqli_fetch_assoc(mysqli_query($conn, "SELECT code FROM manuals WHERE id = $material_id LIMIT 1"));
-    $mcode = $code_res && !empty($code_res['code']) ? preg_replace('/[^A-Za-z0-9_-]/', '_', $code_res['code']) : 'material_' . $material_id;
-    $filename = 'material_' . $mcode . '_transactions_' . date('Ymd_His') . '.csv';
-  }
-  header('Content-Disposition: attachment; filename="' . $filename . '"');
-
-  $out = fopen('php://output', 'w');
-  fputcsv($out, ['Ref Id', 'Student Name', 'Matric No', 'Admission Year', 'School', 'Faculty/College', 'Department', 'Materials', 'Total Paid', 'Date', 'Time', 'Status']);
-  while ($row = mysqli_fetch_assoc($tran_query)) {
-    $dateStr = date('M j, Y', strtotime($row['created_at']));
-    $timeStr = date('h:i a', strtotime($row['created_at']));
-    $statusStr = $row['status'];
-    fputcsv($out, [
-      $row['ref_id'],
-      trim($row['first_name'] . ' ' . $row['last_name']),
-      $row['matric_no'],
-      $row['adm_year'],
-      $row['school_name'],
-      $row['faculty_name'],
-      $row['dept_name'],
-      $row['materials'],
-      $row['amount'],
-      $dateStr,
-      $timeStr,
-      $statusStr
-    ]);
-  }
-  fclose($out);
-  exit;
-}
+// CSV download moved to standalone endpoint: model/transactions_download.php
 
 if (isset($_GET['fetch'])) {
   $fetch = $_GET['fetch'];
@@ -361,11 +290,11 @@ if (isset($_GET['fetch'])) {
       "GROUP_CONCAT(CONCAT(m.title, ' - ', m.course_code, ' (₦ ', b.price, ')') SEPARATOR '<br>') AS materials " .
       "FROM transactions t " .
       "JOIN users u ON t.user_id = u.id " .
-      "JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
-      "JOIN manuals m ON b.manual_id = m.id " .
+      "LEFT JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
+      "LEFT JOIN manuals m ON b.manual_id = m.id " .
       "LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
     if ($school > 0) {
-      $tran_sql .= " AND b.school_id = $school";
+      $tran_sql .= " AND (b.school_id = $school OR (b.school_id IS NULL AND u.school = $school))";
     }
     if ($faculty != 0) {
       $tran_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
@@ -373,22 +302,27 @@ if (isset($_GET['fetch'])) {
     if ($dept > 0) {
       $tran_sql .= " AND m.dept = $dept";
     }
-    $tran_sql .= " GROUP BY t.id ORDER BY t.created_at DESC";
+  // Group by all non-aggregated columns to satisfy ONLY_FULL_GROUP_BY
+    $tran_sql .= " GROUP BY t.id, t.ref_id, t.amount, t.status, t.created_at, u.first_name, u.last_name, u.matric_no ORDER BY t.created_at DESC";
     $tran_query = mysqli_query($conn, $tran_sql);
     $transactions = array();
-    while ($row = mysqli_fetch_assoc($tran_query)) {
-      $transactions[] = array(
-        'ref_id' => $row['ref_id'],
-        'student' => $row['first_name'] . ' ' . $row['last_name'],
-        'matric' => $row['matric_no'],
-        'materials' => $row['materials'] ?? '',
-        'amount' => $row['amount'],
-        'date' => date('M j, Y', strtotime($row['created_at'])),
-        'time' => date('h:i a', strtotime($row['created_at'])),
-        'status' => $row['status']
-      );
+    if ($tran_query) {
+      while ($row = mysqli_fetch_assoc($tran_query)) {
+        $transactions[] = array(
+          'ref_id' => $row['ref_id'],
+          'student' => $row['first_name'] . ' ' . $row['last_name'],
+          'matric' => $row['matric_no'],
+          'materials' => $row['materials'] ?? '',
+          'amount' => $row['amount'],
+          'date' => date('M j, Y', strtotime($row['created_at'])),
+          'time' => date('h:i a', strtotime($row['created_at'])),
+          'status' => $row['status']
+        );
+      }
+      $statusRes = 'success';
+    } else {
+      $messageRes = 'Failed to fetch transactions.';
     }
-    $statusRes = 'success';
   }
 
   if ($fetch == 'materials') {
@@ -429,26 +363,7 @@ if (isset($_GET['fetch'])) {
     }
   }
 
-  if ($fetch == 'user_details') {
-    $email = trim($_GET['email'] ?? '');
-    if ($email === '') {
-      $messageRes = 'Email address is required.';
-    } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-      $messageRes = 'Please provide a valid email address.';
-    } else {
-      $user_stmt = $conn->prepare('SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.matric_no, u.status, u.school, u.dept, s.name AS school_name, d.name AS dept_name, f.name AS faculty_name FROM users u LEFT JOIN schools s ON u.school = s.id LEFT JOIN depts d ON u.dept = d.id LEFT JOIN faculties f ON d.faculty_id = f.id WHERE u.email = ? LIMIT 1');
-      $user_stmt->bind_param('s', $email);
-      $user_stmt->execute();
-      $result = $user_stmt->get_result();
-      if ($result && $result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-        $statusRes = 'success';
-      } else {
-        $messageRes = 'No user found with the provided email address.';
-      }
-      $user_stmt->close();
-    }
-  }
+  // User details fetch moved to standalone endpoint: model/transactions_user_details.php
 }
 
 $responseData = array(

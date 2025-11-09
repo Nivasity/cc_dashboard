@@ -134,7 +134,7 @@ $(document).ready(function () {
     fetchMaterials();
   });
 
-  // Download transactions for a specific material by navigating to CSV URL (browser handles download)
+  // Download transactions for a specific material using the robust CSV blob logic
   $(document).on('click', '.downloadMaterialTransactions', function (e) {
     e.preventDefault();
     var $link = $(this);
@@ -143,9 +143,59 @@ $(document).ready(function () {
       if (typeof showToast === 'function') showToast('bg-danger', 'Invalid material selected.');
       return;
     }
-    var url = 'model/transactions.php?download=csv&material_id=' + encodeURIComponent(id);
-    window.location.href = url;
-    if (typeof showToast === 'function') showToast('bg-success', 'Preparing CSV download...');
+
+    // Optional: show a temporary state on the triggering control
+    var originalHtml = $link.html();
+    $link.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Downloading...');
+
+    $.ajax({
+      url: 'model/transactions_download.php',
+      method: 'GET',
+      data: { material_id: id },
+      xhr: function () {
+        var xhr = new window.XMLHttpRequest();
+        xhr.responseType = 'blob';
+        return xhr;
+      },
+      xhrFields: { responseType: 'blob' },
+      success: function (data, status, xhr) {
+        var blob = (xhr && xhr.response) ? xhr.response : data;
+        if (!(blob instanceof Blob)) {
+          try {
+            blob = new Blob([blob], { type: 'text/csv;charset=utf-8' });
+          } catch (e) {
+            blob = new Blob([String(blob || '')], { type: 'text/csv;charset=utf-8' });
+          }
+        }
+
+        var disposition = xhr.getResponseHeader('Content-Disposition') || '';
+        var filename = 'material_transactions_' + new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15) + '.csv';
+        var match = /filename="?([^";]+)"?/i.exec(disposition);
+        if (match && match[1]) filename = match[1];
+
+        var link = document.createElement('a');
+        var url = window.URL.createObjectURL(blob);
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(function(){
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(link);
+        }, 100);
+        if (typeof showToast === 'function') {
+          showToast('bg-success', 'CSV generated. Download starting...');
+        }
+      },
+      error: function () {
+        if (typeof showToast === 'function') {
+          showToast('bg-danger', 'Failed to generate CSV. Please try again.');
+        }
+      },
+      complete: function () {
+        $link.prop('disabled', false).html(originalHtml);
+      }
+    });
   });
 
   // Download CSV based on current filters
