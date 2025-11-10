@@ -12,6 +12,9 @@
   var $manualSummary = $('#manualMaterialSummary');
   var $manualRef = $('#manualTransactionRef');
   var $manualSubmit = $('#manualTransactionSubmit');
+  var $manualStatus = $('#manualTransactionStatus');
+  var $refundGroup = $('#manualRefundAmountGroup');
+  var $refundAmount = $('#manualRefundAmount');
   var manualSubmitText = $manualSubmit.length ? $manualSubmit.html() : '';
   var selectedUser = null;
   var emailLookupTimer = null;
@@ -99,6 +102,11 @@
 
   function updateManualSummary() {
     if (!$manualSummary.length) return;
+    var status = ($manualStatus.val() || 'successful');
+    if (status === 'refunded') {
+      $manualSummary.text('');
+      return;
+    }
     var selectedOptions = $manualSelect.find('option:selected');
     if (!selectedOptions.length) {
       $manualSummary.text('');
@@ -127,14 +135,28 @@
   function updateManualSubmitState() {
     if (!$manualSubmit.length) return;
     var hasUser = selectedUser && selectedUser.id;
-    var hasMaterials = ($manualSelect.val() || []).length > 0;
     var hasRef = $manualRef.val().trim().length > 0;
     var refOk = isValidRefFormat();
-    $manualSubmit.prop('disabled', !(hasUser && hasMaterials && hasRef && refOk));
+    var status = ($manualStatus.val() || 'successful');
+    var ok = false;
+    if (status === 'refunded') {
+      var amt = Number($refundAmount.val() || 0);
+      ok = hasUser && hasRef && refOk && amt > 0;
+    } else {
+      var hasMaterials = ($manualSelect.val() || []).length > 0;
+      ok = hasUser && hasMaterials && hasRef && refOk;
+    }
+    $manualSubmit.prop('disabled', !ok);
   }
 
   function loadManualOptions(userSchoolId) {
     if (!$manualSelect.length) return;
+    if ($manualStatus.length && ($manualStatus.val() || 'successful') === 'refunded') {
+      $manualSelect.empty().prop('disabled', true).trigger('change.select2');
+      updateManualSummary();
+      updateManualSubmitState();
+      return;
+    }
     if (materialsRequest && materialsRequest.readyState !== 4) {
       materialsRequest.abort();
     }
@@ -265,6 +287,12 @@
     if ($manualSelect.length) {
       $manualSelect.val([]).trigger('change.select2');
     }
+    if ($manualStatus.length) {
+      $manualStatus.val('successful').trigger('change');
+    }
+    if ($refundAmount.length) {
+      $refundAmount.val('');
+    }
     renderUserDetails(null);
     renderUserFeedback(null, null);
     selectedUser = null;
@@ -317,11 +345,14 @@
       showManualAlert('danger', 'Reference must start with "' + requiredRefPrefix() + '"');
       return;
     }
+    var status = ($manualStatus.val() || 'successful');
     var payload = {
       action: 'create_manual_transaction',
+      status: status,
       email: $manualEmail.val().trim(),
       transaction_ref: $manualRef.val().trim(),
-      manuals: $manualSelect.val() || [],
+      manuals: status === 'successful' ? ($manualSelect.val() || []) : [],
+      amount: status === 'refunded' ? Number($refundAmount.val() || 0) : undefined,
       user_id: selectedUser ? selectedUser.id : null
     };
 
@@ -362,6 +393,27 @@
       }
     });
   });
+
+  // Toggle UI on status change
+  $(document).on('change', '#manualTransactionStatus', function () {
+    var status = ($manualStatus.val() || 'successful');
+    if (status === 'refunded') {
+      $refundGroup.removeClass('d-none');
+      $manualSelect.closest('.mb-4').addClass('d-none');
+      $manualSelect.val([]).trigger('change.select2');
+    } else {
+      $refundGroup.addClass('d-none');
+      $manualSelect.closest('.mb-4').removeClass('d-none');
+      if (selectedUser && selectedUser.school) {
+        loadManualOptions(selectedUser.school);
+      }
+    }
+    updateManualSummary();
+    updateManualSubmitState();
+  });
+
+  // Amount change should re-validate
+  $(document).on('input', '#manualRefundAmount', function () { updateManualSubmitState(); });
 
   function fetchFaculties(schoolId) {
     if (adminRole == 5) {

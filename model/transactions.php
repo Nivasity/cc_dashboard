@@ -62,6 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $email = trim($_POST['email'] ?? '');
       $transaction_ref = trim($_POST['transaction_ref'] ?? '');
       $posted_user_id = intval($_POST['user_id'] ?? 0);
+      $posted_status = strtolower(trim($_POST['status'] ?? 'successful'));
+      $posted_amount = intval($_POST['amount'] ?? 0);
       $manual_ids = $_POST['manuals'] ?? [];
       if (!is_array($manual_ids)) {
         $manual_ids = $manual_ids !== '' ? [$manual_ids] : [];
@@ -74,8 +76,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
       if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $messageRes = 'Please provide a valid email address.';
-      } elseif (empty($manual_ids)) {
+      } elseif ($posted_status !== 'refunded' && empty($manual_ids)) {
         $messageRes = 'Select at least one course material.';
+      } elseif ($posted_status === 'refunded' && $posted_amount <= 0) {
+        $messageRes = 'Enter a valid amount for the refund.';
       } elseif ($transaction_ref === '') {
         $messageRes = 'Transaction reference is required.';
       } else {
@@ -108,97 +112,126 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           if ($ref_exists) {
             $messageRes = 'The supplied transaction reference already exists.';
           } else {
-            $manual_id_list = implode(',', $manual_ids);
-            if ($manual_id_list === '') {
-              $messageRes = 'No valid materials were provided.';
-            } else {
-              $manual_sql = "SELECT id, title, course_code, code, price, user_id AS seller, school_id, dept, faculty FROM manuals WHERE id IN ($manual_id_list)";
-              if ($admin_role == 5) {
-                $manual_sql .= " AND school_id = $admin_school";
-              }
-              $manual_query = mysqli_query($conn, $manual_sql);
-              $manual_records = array();
-              while ($manual_row = mysqli_fetch_assoc($manual_query)) {
-                $manual_records[] = $manual_row;
-              }
+            if ($posted_status === 'refunded') {
+              // Record a refund without materials
+              $user_id = (int)$user_data['id'];
+              $status = 'refunded';
+              $charge = 0;
+              $profit = 0;
+              $medium = 'MANUAL';
+              $txn_amount = max(0, (int)$posted_amount);
 
-              if (count($manual_records) !== count($manual_ids)) {
-                $messageRes = 'Some selected materials could not be found or you do not have permission to access them.';
+              $txn_stmt = $conn->prepare('INSERT INTO transactions (ref_id, user_id, amount, charge, profit, status, medium) VALUES (?, ?, ?, ?, ?, ?, ?)');
+              $txn_stmt->bind_param('siiiiss', $transaction_ref, $user_id, $txn_amount, $charge, $profit, $status, $medium);
+              if ($txn_stmt->execute()) {
+                $txn_stmt->close();
+                $statusRes = 'success';
+                $messageRes = 'Refund transaction recorded successfully.';
+                log_audit_event($conn, $admin_id, 'create', 'manual_transaction_refund', null, [
+                  'ref_id' => $transaction_ref,
+                  'user_id' => $user_id,
+                  'amount' => $txn_amount
+                ]);
               } else {
-                $user_school = (int)($user_data['school'] ?? 0);
-                $all_school_match = true;
-                foreach ($manual_records as $record) {
-                  $manual_school = (int)($record['school_id'] ?? 0);
-                  if ($manual_school > 0 && $user_school > 0 && $manual_school !== $user_school) {
-                    $all_school_match = false;
-                    break;
-                  }
+                $txn_stmt->close();
+                $messageRes = 'Unable to save refund transaction record.';
+              }
+            } else {
+              $manual_id_list = implode(',', $manual_ids);
+              if ($manual_id_list === '') {
+                $messageRes = 'No valid materials were provided.';
+              } else {
+                $manual_sql = "SELECT id, title, course_code, code, price, user_id AS seller, school_id, dept, faculty FROM manuals WHERE id IN ($manual_id_list)";
+                if ($admin_role == 5) {
+                  $manual_sql .= " AND school_id = $admin_school";
+                }
+                $manual_query = mysqli_query($conn, $manual_sql);
+                $manual_records = array();
+                while ($manual_row = mysqli_fetch_assoc($manual_query)) {
+                  $manual_records[] = $manual_row;
                 }
 
-                if (!$all_school_match) {
-                  $messageRes = 'Selected materials must belong to the same school as the user.';
+                if (count($manual_records) !== count($manual_ids)) {
+                  $messageRes = 'Some selected materials could not be found or you do not have permission to access them.';
                 } else {
-                  $total_amount = 0;
+                  $user_school = (int)($user_data['school'] ?? 0);
+                  $all_school_match = true;
                   foreach ($manual_records as $record) {
-                    $total_amount += (int)($record['price'] ?? 0);
+                    $manual_school = (int)($record['school_id'] ?? 0);
+                    if ($manual_school > 0 && $user_school > 0 && $manual_school !== $user_school) {
+                      $all_school_match = false;
+                      break;
+                    }
                   }
 
-                  mysqli_begin_transaction($conn);
-                  $manual_stmt = null;
-                  try {
-                    $charge = calculate_handling_charge($total_amount);
-                    $profit = calculate_transaction_profit($total_amount, $charge);
-                    $status = 'successful';
-                    $medium = 'MANUAL';
-                    $user_id = (int)$user_data['id'];
-
-                    $txn_stmt = $conn->prepare('INSERT INTO transactions (ref_id, user_id, amount, charge, profit, status, medium) VALUES (?, ?, ?, ?, ?, ?, ?)');
-                    $txn_stmt->bind_param('siiiiss', $transaction_ref, $user_id, $total_amount, $charge, $profit, $status, $medium);
-                    if (!$txn_stmt->execute()) {
-                      throw new Exception('Unable to save transaction record.');
-                    }
-                    $txn_stmt->close();
-
-                    $manual_stmt = $conn->prepare('INSERT INTO manuals_bought (manual_id, price, seller, buyer, school_id, ref_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)');
-                    $manual_status = 'successful';
+                  if (!$all_school_match) {
+                    $messageRes = 'Selected materials must belong to the same school as the user.';
+                  } else {
+                    $subtotal = 0;
                     foreach ($manual_records as $record) {
-                      $manual_id = (int)$record['id'];
-                      $price = (int)($record['price'] ?? 0);
-                      $seller = (int)($record['seller'] ?? 0);
-                      $school_id = (int)($record['school_id'] ?? 0);
-                      $manual_stmt->bind_param('iiiiiss', $manual_id, $price, $seller, $user_id, $school_id, $transaction_ref, $manual_status);
-                      if (!$manual_stmt->execute()) {
-                        throw new Exception('Failed to attach material #' . $manual_id . ' to the transaction.');
-                      }
+                      $subtotal += (int)($record['price'] ?? 0);
                     }
-                    $manual_stmt->close();
 
-                    mysqli_commit($conn);
-                    $statusRes = 'success';
-                    $messageRes = 'Manual transaction recorded successfully.';
-                    log_audit_event($conn, $admin_id, 'create', 'manual_transaction', null, [
-                      'ref_id' => $transaction_ref,
-                      'user_id' => $user_id,
-                      'manual_ids' => $manual_ids,
-                      'amount' => $total_amount
-                    ]);
-                  } catch (Exception $e) {
-                    if ($manual_stmt instanceof mysqli_stmt) {
-                      $manual_stmt->close();
-                    }
-                    if ($transaction_ref !== '') {
-                      // manuals_bought currently uses MyISAM, so explicitly delete any partial rows
-                      // to keep the manual transaction operation atomic.
-                      $cleanup_stmt = $conn->prepare('DELETE FROM manuals_bought WHERE ref_id = ?');
-                      if ($cleanup_stmt) {
-                        $cleanup_stmt->bind_param('s', $transaction_ref);
-                        $cleanup_stmt->execute();
-                        $cleanup_stmt->close();
+                    mysqli_begin_transaction($conn);
+                    $manual_stmt = null;
+                    try {
+                      $charge = calculate_handling_charge($subtotal);
+                      $profit = calculate_transaction_profit($subtotal, $charge);
+                      $status = 'successful';
+                      $medium = 'MANUAL';
+                      $user_id = (int)$user_data['id'];
+                      $txn_amount = $subtotal + $charge; // total paid = subtotal + charge
+
+                      $txn_stmt = $conn->prepare('INSERT INTO transactions (ref_id, user_id, amount, charge, profit, status, medium) VALUES (?, ?, ?, ?, ?, ?, ?)');
+                      $txn_stmt->bind_param('siiiiss', $transaction_ref, $user_id, $txn_amount, $charge, $profit, $status, $medium);
+                      if (!$txn_stmt->execute()) {
+                        throw new Exception('Unable to save transaction record.');
                       }
+                      $txn_stmt->close();
+
+                      $manual_stmt = $conn->prepare('INSERT INTO manuals_bought (manual_id, price, seller, buyer, school_id, ref_id, status) VALUES (?, ?, ?, ?, ?, ?, ?)');
+                      $manual_status = 'successful';
+                      foreach ($manual_records as $record) {
+                        $manual_id = (int)$record['id'];
+                        $price = (int)($record['price'] ?? 0);
+                        $seller = (int)($record['seller'] ?? 0);
+                        $school_id = (int)($record['school_id'] ?? 0);
+                        $manual_stmt->bind_param('iiiiiss', $manual_id, $price, $seller, $user_id, $school_id, $transaction_ref, $manual_status);
+                        if (!$manual_stmt->execute()) {
+                          throw new Exception('Failed to attach material #' . $manual_id . ' to the transaction.');
+                        }
+                      }
+                      $manual_stmt->close();
+
+                      mysqli_commit($conn);
+                      $statusRes = 'success';
+                      $messageRes = 'Manual transaction recorded successfully.';
+                      log_audit_event($conn, $admin_id, 'create', 'manual_transaction', null, [
+                        'ref_id' => $transaction_ref,
+                        'user_id' => $user_id,
+                        'manual_ids' => $manual_ids,
+                        'amount' => $txn_amount,
+                        'subtotal' => $subtotal,
+                        'charge' => $charge
+                      ]);
+                    } catch (Exception $e) {
+                      if ($manual_stmt instanceof mysqli_stmt) {
+                        $manual_stmt->close();
+                      }
+                      if ($transaction_ref !== '') {
+                        // manuals_bought currently uses MyISAM, so explicitly delete any partial rows
+                        // to keep the manual transaction operation atomic.
+                        $cleanup_stmt = $conn->prepare('DELETE FROM manuals_bought WHERE ref_id = ?');
+                        if ($cleanup_stmt) {
+                          $cleanup_stmt->bind_param('s', $transaction_ref);
+                          $cleanup_stmt->execute();
+                          $cleanup_stmt->close();
+                        }
+                      }
+                      mysqli_rollback($conn);
+                      $statusRes = 'failed';
+                      $messageRes = $e->getMessage();
                     }
-                    mysqli_rollback($conn);
-                    $statusRes = 'failed';
-                    $messageRes = $e->getMessage();
                   }
                 }
               }
@@ -208,7 +241,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
       }
     }
-  }
 
   // If POST with unknown action, set message
   if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($action ?? '') !== 'create_manual_transaction' && $messageRes === '') {

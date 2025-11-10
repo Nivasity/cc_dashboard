@@ -130,6 +130,14 @@ if ($admin_role == 5) {
         <form id="manualTransactionForm" novalidate>
           <div class="modal-body">
             <div id="manualTransactionAlert" class="alert d-none" role="alert"></div>
+            <div class="mb-3">
+              <label for="manualTransactionStatus" class="form-label">Transaction Status</label>
+              <select id="manualTransactionStatus" name="status" class="form-select" required>
+                <option value="successful" selected>Successful</option>
+                <option value="refunded">Refunded</option>
+              </select>
+              <div class="form-text">Choose "Refunded" to record a refund without materials.</div>
+            </div>
             <div class="mb-4">
               <label for="manualUserEmail" class="form-label">User Email</label>
               <input type="email" class="form-control" id="manualUserEmail" name="email" placeholder="student@example.com"
@@ -137,6 +145,11 @@ if ($admin_role == 5) {
               <div class="form-text">Enter the student's email to load their profile.</div>
               <div id="manualUserFeedback" class="mt-3 d-none" aria-live="polite"></div>
               <div id="manualUserDetails" class="mt-3"></div>
+            </div>
+            <div class="mb-4 d-none" id="manualRefundAmountGroup">
+              <label for="manualRefundAmount" class="form-label">Amount (₦)</label>
+              <input type="number" class="form-control" id="manualRefundAmount" name="amount" min="0" step="1" placeholder="0" />
+              <div class="form-text">For refunds, enter the total amount to record.</div>
             </div>
             <div class="mb-4">
               <label for="manualMaterialSelect" class="form-label">Course Materials</label>
