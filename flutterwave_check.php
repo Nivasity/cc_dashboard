@@ -265,18 +265,14 @@ function h($v) { return htmlspecialchars((string)$v ?? '', ENT_QUOTES, 'UTF-8');
                       <label class="form-label">To</label>
                       <input type="date" name="to" class="form-control" value="<?php echo h($to); ?>" required />
                     </div>
-                    <div class="col-md-2">
-                      <label class="form-label">Page</label>
-                      <input type="number" name="page" class="form-control" min="1" value="<?php echo (int)$page; ?>" />
-                    </div>
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                       <label class="form-label">Status</label>
                       <select name="status" class="form-select">
                         <option value="successful" <?php echo $mode==='successful'?'selected':''; ?>>Successful (Transactions)</option>
                         <option value="refunded" <?php echo $mode==='refunded'?'selected':''; ?>>Refunded (Refunds)</option>
                       </select>
                     </div>
-                    <div class="col-md-1 d-flex align-items-end">
+                    <div class="col-md-2 d-flex align-items-end">
                       <button type="submit" class="btn btn-secondary w-100">Fetch</button>
                     </div>
                   </form>
