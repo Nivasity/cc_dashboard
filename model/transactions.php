@@ -239,8 +239,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           }
           }
         }
-      }
     }
+  }
+  }
 
   // If POST with unknown action, set message
   if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($action ?? '') !== 'create_manual_transaction' && $messageRes === '') {
@@ -255,6 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   header('Content-Type: application/json');
   echo json_encode($responseData);
   exit;
+}
 }
 
 // CSV download moved to standalone endpoint: model/transactions_download.php
@@ -411,5 +413,4 @@ $responseData = array(
 
 header('Content-Type: application/json');
 echo json_encode($responseData);
-}
 ?>
