@@ -489,6 +489,7 @@
             var badgeClass = 'secondary';
             if (trn.status === 'successful') badgeClass = 'success';
             else if (trn.status === 'pending') badgeClass = 'warning';
+            else if (trn.status === 'refunded') badgeClass = 'secondary';
             else badgeClass = 'danger';
             var row = '<tr>' +
               '<td class="fw-bold">#' + trn.ref_id + '</td>' +
