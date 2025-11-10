@@ -361,7 +361,6 @@
       method: 'POST',
       data: payload,
       dataType: 'json',
-      traditional: true,
       beforeSend: function () {
         $manualSubmit.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Saving...');
       },
