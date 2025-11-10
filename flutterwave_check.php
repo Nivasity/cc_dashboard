@@ -13,6 +13,8 @@ $from = isset($_GET['from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['from'
 $to = isset($_GET['to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['to']) ? $_GET['to'] : $default_to;
 $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $mode = isset($_GET['status']) && in_array($_GET['status'], ['successful', 'refunded']) ? $_GET['status'] : 'successful';
+$customer_email = isset($_GET['customer_email']) ? trim((string)$_GET['customer_email']) : '';
+$tx_ref_filter = isset($_GET['tx_ref']) ? trim((string)$_GET['tx_ref']) : '';
 
 function flw_api_request(string $endpoint, array $query = []): array
 {
@@ -68,7 +70,7 @@ function get_local_tx_status(mysqli $conn, string $refId): array
   return $status ? ['found' => true, 'row' => $status] : ['found' => false, 'row' => null];
 }
 
-function fetch_transactions(string $from, string $to, int $page): array
+function fetch_transactions(string $from, string $to, int $page, string $customer_email = '', string $tx_ref = ''): array
 {
   $params = [
     'from' => $from,
@@ -76,10 +78,12 @@ function fetch_transactions(string $from, string $to, int $page): array
     'status' => 'successful',
     'page' => $page,
   ];
+  if ($customer_email !== '') { $params['customer_email'] = $customer_email; }
+  if ($tx_ref !== '') { $params['tx_ref'] = $tx_ref; }
   return flw_api_request('https://api.flutterwave.com/v3/transactions', $params);
 }
 
-function fetch_refunds(string $from, string $to, int $page): array
+function fetch_refunds(string $from, string $to, int $page, string $customer_email = '', string $tx_ref = ''): array
 {
   // Flutterwave refunds listing does not strictly require status param; we fetch and handle in-app
   $params = [
@@ -87,6 +91,9 @@ function fetch_refunds(string $from, string $to, int $page): array
     'to' => $to,
     'page' => $page,
   ];
+  // Pass optional filters only when provided
+  if ($customer_email !== '') { $params['customer_email'] = $customer_email; }
+  if ($tx_ref !== '') { $params['tx_ref'] = $tx_ref; }
   return flw_api_request('https://api.flutterwave.com/v3/refunds', $params);
 }
 
@@ -106,9 +113,9 @@ function fetch_tx_ref_from_tx_id(int $txId): ?string
 // Execute query to Flutterwave based on mode
 $api_response = ['status' => null, 'message' => '', 'data' => [], 'meta' => []];
 if ($mode === 'refunded') {
-  $api_response = fetch_refunds($from, $to, $page);
+  $api_response = fetch_refunds($from, $to, $page, $customer_email, $tx_ref_filter);
 } else {
-  $api_response = fetch_transactions($from, $to, $page);
+  $api_response = fetch_transactions($from, $to, $page, $customer_email, $tx_ref_filter);
 }
 
 // Prepare rows and pagination meta
@@ -264,6 +271,14 @@ function h($v) { return htmlspecialchars((string)$v ?? '', ENT_QUOTES, 'UTF-8');
                     <div class="col-md-3">
                       <label class="form-label">To</label>
                       <input type="date" name="to" class="form-control" value="<?php echo h($to); ?>" required />
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label">Customer Email</label>
+                      <input type="email" name="customer_email" class="form-control" value="<?php echo h($customer_email); ?>" placeholder="e.g. user@example.com" />
+                    </div>
+                    <div class="col-md-3">
+                      <label class="form-label">TX Ref</label>
+                      <input type="text" name="tx_ref" class="form-control" value="<?php echo h($tx_ref_filter); ?>" placeholder="e.g. nivas_123_..." />
                     </div>
                     <div class="col-md-4">
                       <label class="form-label">Status</label>
