@@ -32,12 +32,15 @@ $tran_sql = "SELECT t.ref_id, t.amount, t.status, t.created_at, u.first_name, u.
   "GROUP_CONCAT(CONCAT(m.title, ' - ', m.course_code, ' (', b.price, ')') SEPARATOR '<br>') AS materials " .
   "FROM transactions t " .
   "JOIN users u ON t.user_id = u.id " .
-  // Require an actual manuals purchase; this excludes non-manual (e.g., events) transactions
-  "JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
-  "JOIN manuals m ON b.manual_id = m.id " .
+  // Include manuals purchases and manual refunds (which have no manuals_bought rows)
+  "LEFT JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
+  "LEFT JOIN manuals m ON b.manual_id = m.id " .
   "LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
+// Restrict to either manuals purchases (b exists) or manual refunds
+$tran_sql .= " AND (b.ref_id IS NOT NULL OR (t.status = 'refunded' AND t.medium = 'MANUAL'))";
 if ($school > 0) {
-  $tran_sql .= " AND b.school_id = $school";
+  // When there is no manuals_bought row (refunds), fall back to user's school
+  $tran_sql .= " AND (b.school_id = $school OR (b.school_id IS NULL AND u.school = $school))";
 }
 if ($faculty != 0) {
   $tran_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
