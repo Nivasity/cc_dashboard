@@ -128,7 +128,7 @@ if ($admin_role == 5) {
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <form id="manualTransactionForm" novalidate>
-          <div class="modal-body">
+          <div class="modal-body overflow-auto">
             <div id="manualTransactionAlert" class="alert d-none" role="alert"></div>
             <div class="mb-3">
               <label for="manualTransactionStatus" class="form-label">Transaction Status</label>
