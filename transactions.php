@@ -161,7 +161,7 @@ if ($admin_role == 5) {
             <div class="mb-3">
               <label for="manualTransactionRef" class="form-label">Transaction Reference</label>
               <input type="text" class="form-control" id="manualTransactionRef" name="transaction_ref"
-                placeholder="e.g. MANUAL-REF-001" required autocomplete="off" />
+                placeholder="e.g. nivas_4_001" required autocomplete="off" />
               <div class="form-text">Reference must be unique.</div>
             </div>
           </div>
