@@ -66,3 +66,14 @@
 .modal .select2-container {
   z-index: 2050 !important; /* higher than .modal (1055) and backdrop (1050) */
 }
+
+/* Ensure the manual transaction modal content is scrollable */
+#manualTransactionModal .modal-dialog {
+  max-height: calc(100vh - 2rem);
+}
+#manualTransactionModal .modal-content {
+  max-height: 100%;
+}
+#manualTransactionModal .modal-body {
+  overflow-y: auto;
+}
