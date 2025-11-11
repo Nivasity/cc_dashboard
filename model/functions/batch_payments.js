@@ -103,12 +103,18 @@ $(document).ready(function () {
   $('#batchCreateForm').on('submit', function (e) {
     e.preventDefault();
     if ($submit.prop('disabled')) return;
+    var totalAmount = num($total.val());
+    if (totalAmount <= 0) {
+      showAlert('danger', 'Total amount must be greater than 0.');
+      return;
+    }
     var payload = {
       action: 'create_batch',
       manual_id: num($manual.val()),
       school: adminRole == 5 ? adminSchool : num($school.val()),
       dept: num($dept.val()),
-      tx_ref: ($txref.val() || '').trim()
+      tx_ref: ($txref.val() || '').trim(),
+      total_amount: totalAmount
     };
     $submit.prop('disabled', true).text('Creating...');
     $.post('model/batch_payments.php', payload).done(function (res) {

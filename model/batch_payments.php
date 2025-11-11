@@ -85,11 +85,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $school_id = h_int($_POST['school'] ?? 0);
       $dept_id = h_int($_POST['dept'] ?? 0);
       $tx_ref = trim($_POST['tx_ref'] ?? '');
+      $total_amount = h_int($_POST['total_amount'] ?? 0);
 
       if ($admin_role == 5) { $school_id = $admin_school; }
 
-      if ($manual_id <= 0 || $school_id <= 0 || $dept_id <= 0) {
-        $message = 'Provide manual, school and department.';
+      if ($manual_id <= 0 || $school_id <= 0 || $dept_id <= 0 || $total_amount <= 0) {
+        $message = 'Provide manual, school, department, and total amount.';
       } else {
         $mres = mysqli_query($conn, "SELECT id, price, user_id AS seller, school_id FROM manuals WHERE id = $manual_id");
         $manual = $mres ? mysqli_fetch_assoc($mres) : null;
@@ -109,7 +110,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $message = 'No verified students found in the selected department.';
           } else {
             $total_students = count($students);
-            $total_amount = $total_students * $price_per_student;
             if ($tx_ref === '') {
             // ensure generated tx_ref is unique
             $attempts = 0;

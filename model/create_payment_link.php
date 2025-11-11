@@ -51,7 +51,7 @@ if ($batch['status'] !== 'pending') {
 // Build webhook URL for this server
 $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
 $host = $_SERVER['HTTP_HOST'] ?? ($_SERVER['SERVER_NAME'] ?? '');
-$webhook_url = 'http://localhost/cc_dashboard/model/flw_webhook_batch.php';
+$webhook_url = $scheme . '://' . $host . '/model/flw_webhook_batch.php';
 
 // Prepare payload for Flutterwave Create Payment Link
 // Try to get HOC/admin contact details to prefill customer info
@@ -199,7 +199,7 @@ if (!$link) {
 log_audit_event($conn, $admin_id, 'create', 'manual_payment_link', $batch_id, ['tx_ref' => $tx_ref, 'link' => $link, 'amount' => $final_amount, 'fee' => $fee]);
 
 $status = 'success';
-$message = $payload;
+$message = 'Payment link created.';
 $data = ['link' => $link];
 
 header('Content-Type: application/json');

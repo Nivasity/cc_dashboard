@@ -114,8 +114,8 @@ if ($admin_role == 5) {
                     <input type="text" id="bp_students" class="form-control" readonly value="0" />
                   </div>
                   <div class="col-md-3">
-                    <label class="form-label">Total Amount</label>
-                    <input type="text" id="bp_total" class="form-control" readonly value="0" />
+                    <label class="form-label">Total Amount (Editable)</label>
+                    <input type="number" id="bp_total" class="form-control" value="0" min="0" />
                   </div>
                   <div class="col-md-3">
                     <label class="form-label">Batch tx_ref</label>
