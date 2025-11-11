@@ -293,12 +293,50 @@ CREATE TABLE `transactions` (
   `id` int(11) NOT NULL,
   `ref_id` varchar(50) NOT NULL,
   `user_id` int(11) NOT NULL,
+  `batch_id` int(11) DEFAULT NULL,
   `amount` int(11) NOT NULL,
   `charge` int(11) DEFAULT NULL,
   `profit` int(11) DEFAULT NULL,
   `status` varchar(30) NOT NULL DEFAULT 'pending',
   `medium` varchar(50) NOT NULL DEFAULT 'FLUTTERWAVE',
   `created_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `manual_payment_batches`
+--
+
+CREATE TABLE `manual_payment_batches` (
+  `id` INT(11) NOT NULL,
+  `manual_id` INT(11) NOT NULL,
+  `hoc_id` INT(11) NOT NULL,
+  `dept_id` INT(11) NOT NULL,
+  `school_id` INT(11) NOT NULL,
+  `total_students` INT(11) NOT NULL,
+  `total_amount` INT(11) NOT NULL,
+  `tx_ref` VARCHAR(50) NOT NULL,
+  `flw_tx_id` VARCHAR(100) DEFAULT NULL,
+  `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `manual_payment_batch_items`
+--
+
+CREATE TABLE `manual_payment_batch_items` (
+  `id` INT(11) NOT NULL,
+  `batch_id` INT(11) NOT NULL,
+  `manual_id` INT(11) NOT NULL,
+  `student_id` INT(11) NOT NULL,
+  `price` INT(11) NOT NULL,
+  `ref_id` VARCHAR(50) NOT NULL,
+  `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -430,6 +468,32 @@ ALTER TABLE `transactions`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `manual_payment_batches`
+--
+
+ALTER TABLE `manual_payment_batches`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `tx_ref` (`tx_ref`),
+  ADD KEY `manual_id` (`manual_id`),
+  ADD KEY `dept_id` (`dept_id`),
+  ADD KEY `school_id` (`school_id`),
+  ADD KEY `status` (`status`),
+  ADD KEY `created_at` (`created_at`);
+
+--
+-- Indexes for table `manual_payment_batch_items`
+--
+
+ALTER TABLE `manual_payment_batch_items`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `unique_ref_id` (`ref_id`),
+  ADD KEY `batch_id` (`batch_id`),
+  ADD KEY `manual_id` (`manual_id`),
+  ADD KEY `student_id` (`student_id`),
+  ADD KEY `status` (`status`),
+  ADD KEY `created_at` (`created_at`);
+
+--
 -- Indexes for table `users`
 --
 ALTER TABLE `users`
@@ -527,6 +591,20 @@ ALTER TABLE `transactions`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `manual_payment_batches`
+--
+
+ALTER TABLE `manual_payment_batches`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `manual_payment_batch_items`
+--
+
+ALTER TABLE `manual_payment_batch_items`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 COMMIT;
 

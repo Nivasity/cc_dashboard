@@ -181,6 +181,12 @@ $admin_faculty = $admin_['faculty'] ?? 0;
           <div data-i18n="Financial report">Transactions</div>
         </a>
       </li>
+      <li class="menu-item <?php echo $current_page == 'batch_payments.php' ? 'active' : ''; ?>">
+        <a href="batch_payments.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-package"></i>
+          <div data-i18n="Batch Payments">Batch Payments</div>
+        </a>
+      </li>
     <?php } ?>
 
     <?php if ($resource_mgt_menu){ ?>
