@@ -60,7 +60,7 @@ $hoc_name = '';
 $hoc_phone = '';
 if (!empty($batch['hoc_id'])) {
   $hid = (int)$batch['hoc_id'];
-  $ares = mysqli_query($conn, "SELECT first_name, last_name, email, phone FROM admins WHERE id = $hid LIMIT 1");
+  $ares = mysqli_query($conn, "SELECT first_name, last_name, email, phone FROM users WHERE id = $hid LIMIT 1");
   if ($ares) {
     $arow = mysqli_fetch_assoc($ares);
     if ($arow) {
