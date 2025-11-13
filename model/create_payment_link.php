@@ -72,10 +72,9 @@ if (!empty($batch['hoc_id'])) {
 }
 
 // Prepare payload for Flutterwave standard payments endpoint (v3/payments)
-// Use batch total as authoritative amount and add 3% charge (capped at 3000)
+// Use batch total as authoritative amount and add 3% charge
 $base_amount = (int)$batch['total_amount'];
 $fee = (int)ceil($base_amount * 0.03);
-$fee = min($fee, 3000); // Cap fee at 3000
 $final_amount = $base_amount + $fee;
 
 $payload = [
