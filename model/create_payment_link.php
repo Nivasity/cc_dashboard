@@ -130,7 +130,7 @@ if (!empty($batch['school_id']) && (int)$batch['school_id'] === 1) {
     [
       'id' => $sub_id,
       'transaction_split_ratio' => 1,
-      'transaction_charge_type' => 'flat',
+      'transaction_charge_type' => 'flat_subaccount',
       'transaction_charge' => (string)$base_amount
     ]
   ];
