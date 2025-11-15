@@ -87,30 +87,29 @@ $admin_school = $admin_['school'];
               <small class="text-muted">Status</small>
               <div class="fw-bold" id="t_status"><span class="badge bg-label-secondary">-</span></div>
             </div>
-            <div class="col-md-12">
+            <div class="col-md-6">
               <small class="text-muted">Student</small>
               <div class="fw-bold text-uppercase" id="t_student">-</div>
               <div class="small" id="t_email">-</div>
             </div>
-            <div class="col-md-12">
+            <div class="col-md-6">
               <small class="text-muted">Subject</small>
               <div class="fw-bold" id="t_subject">-</div>
             </div>
             <div class="col-md-12">
-              <small class="text-muted">Message</small>
-              <div class="ticket-message" id="t_message">-</div>
+              <small class="text-muted">Conversation</small>
+              <div id="t_conversation" class="border rounded p-2 bg-muted" style="max-height: 320px; overflow-y: auto;"></div>
             </div>
 
-            <div class="col-md-12" id="responseBlock" style="display: none;">
-              <small class="text-muted">Response</small>
-              <div class="ticket-message border rounded p-2" id="t_response">-</div>
-            </div>
-
-            <form id="respondForm" class="col-md-12" style="display: none;">
+            <form id="respondForm" class="col-md-12" style="display: none;" enctype="multipart/form-data">
               <input type="hidden" name="code" id="r_code" />
               <div class="mb-3">
                 <label for="r_message" class="form-label">Write a response</label>
                 <textarea class="form-control" id="r_message" name="response" rows="4" placeholder="Type your response..."></textarea>
+              </div>
+              <div class="mb-3">
+                <label for="r_attachments" class="form-label">Attach files (optional)</label>
+                <input type="file" class="form-control" id="r_attachments" name="attachments[]" multiple>
               </div>
               <div class="form-check mb-3">
                 <input class="form-check-input" type="checkbox" value="1" id="r_close" name="mark_closed" checked>
@@ -144,4 +143,3 @@ $admin_school = $admin_['school'];
   <script src="model/functions/support.js"></script>
 </body>
 </html>
-

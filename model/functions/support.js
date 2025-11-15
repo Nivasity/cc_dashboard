@@ -14,6 +14,70 @@ $(document).ready(function () {
     return '<span class="badge bg-label-' + cls + '">' + status.charAt(0).toUpperCase() + status.slice(1) + '</span>';
   }
 
+  function renderConversation(messages) {
+    var html = '';
+    if (!Array.isArray(messages) || !messages.length) {
+      return '<div class="text-muted small">No messages yet.</div>';
+    }
+
+    messages.forEach(function (m) {
+      var senderLabel = 'System';
+      if (m.sender_type === 'user') {
+        senderLabel = m.user_name ? ('User: ' + m.user_name) : 'User';
+      } else if (m.sender_type === 'admin') {
+        senderLabel = m.admin_name ? ('Support: ' + m.admin_name) : 'Admin';
+      }
+
+      var labelClass = 'fw-bold';
+      var msgClass = 'ticket-message border rounded p-2';
+      if (m.sender_type === 'admin') {
+        labelClass += ' text-secondary';
+        msgClass += ' text-secondary';
+      }
+
+      var wrapperClass = 'mb-3';
+      if (m.sender_type === 'admin') {
+        wrapperClass += ' text-end';
+      }
+
+      var headerClass = 'd-flex justify-content-between align-items-center';
+      if (m.sender_type === 'admin') {
+        headerClass = 'd-flex justify-content-end align-items-center';
+      }
+
+      var ts = m.created_at_formatted || m.created_at || '';
+      html += '<div class="' + wrapperClass + '">';
+      html += '<div class="' + headerClass + '">';
+      html += '<small class="' + labelClass + '">' + senderLabel + '</small>';
+      html += '</div>';
+      if (m.is_internal && m.is_internal !== '0') {
+        html += '<span class="badge bg-label-info mb-1">Internal note</span><br>';
+      }
+      html += '<div class="' + msgClass + '">' + (m.body || '') + '</div>';
+      if (ts) {
+        html += '<div class="mt-1"><small class="text-muted">' + ts + '</small></div>';
+      }
+
+      if (Array.isArray(m.attachments) && m.attachments.length) {
+        html += '<div class="mt-1 small">Attachments: ';
+        m.attachments.forEach(function (a, idx) {
+          if (!a.file_path || !a.file_name) return;
+          var href = a.file_path;
+          if (!/^https?:\/\//i.test(href) && href.charAt(0) !== '/') {
+            href = '/' + href;
+          }
+          if (idx > 0) html += ', ';
+          html += '<a href="' + href + '" target="_blank" rel="noopener noreferrer">' + a.file_name + '</a>';
+        });
+        html += '</div>';
+      }
+
+      html += '</div>';
+    });
+
+    return html;
+  }
+
   function fetchTickets(status) {
     $.ajax({
       url: 'model/support.php',
@@ -65,19 +129,18 @@ $(document).ready(function () {
         $('#t_student').text(t.student);
         $('#t_email').text(t.email);
         $('#t_subject').text(t.subject);
-        $('#t_message').text(t.message);
         $('#r_code').val(t.code);
+
+        var convHtml = renderConversation(res.messages || []);
+        $('#t_conversation').html(convHtml);
 
         if (t.status === 'open') {
           $('#respondForm').show();
           $('#reopenBtn').hide();
-          $('#responseBlock').hide();
           $('#r_message').val('');
         } else {
           $('#respondForm').hide();
           $('#reopenBtn').show();
-          $('#responseBlock').show();
-          $('#t_response').text(t.response || '-');
         }
 
         var modal = new bootstrap.Modal(document.getElementById('ticketModal'));
@@ -107,15 +170,18 @@ $(document).ready(function () {
 
   $('#respondForm').on('submit', function (e) {
     e.preventDefault();
-    var data = $(this).serializeArray();
-    data.push({ name: 'respond_ticket', value: 1 });
-    var $btn = $(this).find('button[type=submit]');
+    var form = this;
+    var formData = new FormData(form);
+    formData.append('respond_ticket', 1);
+    var $btn = $(form).find('button[type=submit]');
     var original = $btn.html();
     $.ajax({
       url: 'model/support.php',
       method: 'POST',
-      data: $.param(data),
+      data: formData,
       dataType: 'json',
+      processData: false,
+      contentType: false,
       beforeSend: function(){
         $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Sending...');
       },
@@ -162,4 +228,3 @@ $(document).ready(function () {
   setActiveTab(currentStatus);
   fetchTickets(currentStatus);
 });
-

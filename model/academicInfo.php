@@ -20,11 +20,9 @@ $first_name = $user['first_name'];
 $last_name = $user['last_name'];
 $userEmail = $user['email'];
 
-// Generate a unique code
+// Generate a unique ticket code for v2
 $uniqueCode = generateVerificationCode(8);
-
-// Check if the code already exists, regenerate if needed
-while (!isCodeUnique($uniqueCode, $conn, 'support_tickets')) {
+while (!isCodeUnique($uniqueCode, $conn, 'support_tickets_v2')) {
   $uniqueCode = generateVerificationCode(8);
 }
 
@@ -32,7 +30,11 @@ $picture = $_FILES['attachment']['name'];
 $tempname = $_FILES['attachment']['tmp_name'];
 $extension = pathinfo($picture, PATHINFO_EXTENSION);
 $picture = "support_$user_id" . "_$uniqueCode." . $extension;
-$destination = "../assets/images/supports/{$picture}";
+$uploadDir = "../assets/images/supports/";
+if (!is_dir($uploadDir)) {
+  mkdir($uploadDir, 0777, true);
+}
+$destination = $uploadDir . $picture;
 
 if (move_uploaded_file($tempname, $destination)) {
   // Send email to support
@@ -56,8 +58,27 @@ if (move_uploaded_file($tempname, $destination)) {
       // Get current time in the desired format
       $currentDateTime = date("Y-m-d H:i:s");
 
-      mysqli_query($conn, "INSERT INTO support_tickets (subject, code,	user_id,	message, created_at) 
-        VALUES ('$ticketTitle', '$uniqueCode',	$user_id,	'$message', '$currentDateTime')");
+      // Create ticket in v2 table
+      mysqli_query($conn, "INSERT INTO support_tickets_v2 (code, subject, user_id, last_message_at, created_at) 
+        VALUES ('$uniqueCode', '$ticketTitle', $user_id, '$currentDateTime', '$currentDateTime')");
+      $ticketId = mysqli_insert_id($conn);
+
+      if ($ticketId) {
+        // First user message
+        mysqli_query($conn, "INSERT INTO support_ticket_messages (ticket_id, sender_type, user_id, body, is_internal, created_at) 
+          VALUES ($ticketId, 'user', $user_id, '" . mysqli_real_escape_string($conn, $message) . "', 0, '$currentDateTime')");
+        $messageId = mysqli_insert_id($conn);
+
+        // Store attachment metadata
+        if ($messageId && !empty($picture)) {
+          $relativePath = "assets/images/supports/$picture";
+          $origName = mysqli_real_escape_string($conn, $_FILES['attachment']['name']);
+          $mimeType = mysqli_real_escape_string($conn, $_FILES['attachment']['type'] ?? '');
+          $fileSize = isset($_FILES['attachment']['size']) ? (int) $_FILES['attachment']['size'] : 0;
+          mysqli_query($conn, "INSERT INTO support_ticket_attachments (message_id, file_path, file_name, mime_type, file_size) 
+            VALUES ($messageId, '" . mysqli_real_escape_string($conn, $relativePath) . "', '$origName', '$mimeType', $fileSize)");
+        }
+      }
 
       $statusRes = "success";
       $messageRes = "Request successfully sent!";

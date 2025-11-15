@@ -7,6 +7,7 @@ $statusRes = 'failed';
 $messageRes = '';
 $tickets = null;
 $ticket = null;
+$messages = array();
 
 $admin_role = $_SESSION['nivas_adminRole'] ?? null;
 $admin_id = $_SESSION['nivas_adminId'] ?? null;
@@ -21,24 +22,27 @@ if (isset($_GET['fetch'])) {
 
   if ($fetch === 'tickets') {
     $status = mysqli_real_escape_string($conn, strtolower($_GET['status'] ?? 'open'));
-    $sql = "SELECT st.id, st.code, st.subject, st.message, st.status, st.response, st.response_time, st.created_at, u.first_name, u.last_name, u.email, u.school FROM support_tickets st JOIN users u ON st.user_id = u.id WHERE 1=1";
+    $sql = "SELECT st.id, st.code, st.subject, st.status, st.created_at, st.last_message_at, u.first_name, u.last_name, u.email, u.school 
+            FROM support_tickets_v2 st 
+            JOIN users u ON st.user_id = u.id 
+            WHERE 1=1";
     if ($status === 'open' || $status === 'closed') {
       $sql .= " AND st.status = '$status'";
     }
     if ($admin_role == 5 && $admin_school > 0) {
       $sql .= " AND u.school = $admin_school";
     }
-    $sql .= " ORDER BY st.created_at DESC";
+    $sql .= " ORDER BY COALESCE(st.last_message_at, st.created_at) DESC";
     $q = mysqli_query($conn, $sql);
     $tickets = array();
     while ($row = mysqli_fetch_assoc($q)) {
+      $createdAt = $row['created_at'] ?? $row['last_message_at'];
       $tickets[] = array(
         'code' => $row['code'],
         'subject' => $row['subject'],
-        'message' => $row['message'],
         'status' => $row['status'],
-        'date' => date('M j, Y', strtotime($row['created_at'])),
-        'time' => date('h:i a', strtotime($row['created_at'])),
+        'date' => $createdAt ? date('M j, Y', strtotime($createdAt)) : '',
+        'time' => $createdAt ? date('h:i a', strtotime($createdAt)) : '',
         'student' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
         'email' => $row['email'] ?? ''
       );
@@ -49,23 +53,70 @@ if (isset($_GET['fetch'])) {
   if ($fetch === 'ticket') {
     $code = mysqli_real_escape_string($conn, $_GET['code'] ?? '');
     if ($code !== '') {
-      $sql = "SELECT st.id, st.code, st.subject, st.message, st.status, st.response, st.response_time, st.created_at, u.first_name, u.last_name, u.email, u.school FROM support_tickets st JOIN users u ON st.user_id = u.id WHERE st.code = '$code'";
+      $sql = "SELECT st.id, st.code, st.subject, st.status, st.priority, st.category, st.created_at, st.last_message_at,
+                     u.id AS user_id, u.first_name, u.last_name, u.email, u.school 
+              FROM support_tickets_v2 st 
+              JOIN users u ON st.user_id = u.id 
+              WHERE st.code = '$code'";
       if ($admin_role == 5 && $admin_school > 0) {
         $sql .= " AND u.school = $admin_school";
       }
       $q = mysqli_query($conn, $sql);
       if ($row = mysqli_fetch_assoc($q)) {
         $ticket = array(
+          'id' => (int) $row['id'],
           'code' => $row['code'],
           'subject' => $row['subject'],
-          'message' => $row['message'],
           'status' => $row['status'],
-          'response' => $row['response'] ?? '',
-          'date' => date('M j, Y', strtotime($row['created_at'])),
-          'time' => date('h:i a', strtotime($row['created_at'])),
+          'priority' => $row['priority'],
+          'category' => $row['category'],
+          'date' => $row['created_at'] ? date('M j, Y', strtotime($row['created_at'])) : '',
+          'time' => $row['created_at'] ? date('h:i a', strtotime($row['created_at'])) : '',
           'student' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
           'email' => $row['email'] ?? ''
         );
+
+        $ticketId = (int) $row['id'];
+        $messages = array();
+        $msgSql = "SELECT m.id, m.ticket_id, m.sender_type, m.user_id, m.admin_id, m.body, m.is_internal, m.created_at,
+                          u.first_name AS user_first_name, u.last_name AS user_last_name,
+                          a.first_name AS admin_first_name, a.last_name AS admin_last_name
+                   FROM support_ticket_messages m
+                   LEFT JOIN users u ON m.user_id = u.id
+                   LEFT JOIN admins a ON m.admin_id = a.id
+                   WHERE m.ticket_id = $ticketId
+                   ORDER BY m.created_at ASC, m.id ASC";
+        $msgQ = mysqli_query($conn, $msgSql);
+        while ($mrow = mysqli_fetch_assoc($msgQ)) {
+          $mid = (int) $mrow['id'];
+          $attachments = array();
+          $attSql = "SELECT id, file_path, file_name, mime_type, file_size, created_at 
+                     FROM support_ticket_attachments 
+                     WHERE message_id = $mid";
+          $attQ = mysqli_query($conn, $attSql);
+          while ($arow = mysqli_fetch_assoc($attQ)) {
+            $attachments[] = array(
+              'id' => (int) $arow['id'],
+              'file_path' => $arow['file_path'],
+              'file_name' => $arow['file_name'],
+              'mime_type' => $arow['mime_type'],
+              'file_size' => isset($arow['file_size']) ? (int) $arow['file_size'] : null
+            );
+          }
+
+          $messages[] = array(
+            'id' => $mid,
+            'sender_type' => $mrow['sender_type'],
+            'body' => $mrow['body'],
+            'is_internal' => $mrow['is_internal'],
+            'created_at' => $mrow['created_at'],
+            'created_at_formatted' => $mrow['created_at'] ? date('M j, Y h:i a', strtotime($mrow['created_at'])) : '',
+            'user_name' => trim(($mrow['user_first_name'] ?? '') . ' ' . ($mrow['user_last_name'] ?? '')),
+            'admin_name' => trim(($mrow['admin_first_name'] ?? '') . ' ' . ($mrow['admin_last_name'] ?? '')),
+            'attachments' => $attachments
+          );
+        }
+
         $statusRes = 'success';
       } else {
         $statusRes = 'error';
@@ -87,16 +138,85 @@ if (isset($_POST['respond_ticket'])) {
     $messageRes = 'Ticket code and response are required';
   } else {
     // Fetch ticket + user details for email and authorization
-    $ticketInfoSql = "SELECT st.id, st.subject, u.first_name, u.email, u.school FROM support_tickets st JOIN users u ON u.id = st.user_id WHERE st.code = '$code'";
+    $ticketInfoSql = "SELECT st.id, st.subject, u.id AS user_id, u.first_name, u.email, u.school 
+                      FROM support_tickets_v2 st 
+                      JOIN users u ON u.id = st.user_id 
+                      WHERE st.code = '$code'";
     if ($admin_role == 5 && $admin_school > 0) {
       $ticketInfoSql .= " AND u.school = $admin_school";
     }
     $ticketInfoQ = mysqli_query($conn, $ticketInfoSql);
     if ($row = mysqli_fetch_assoc($ticketInfoQ)) {
+      $ticketId = (int) $row['id'];
+      $userId = (int) $row['user_id'];
+      $now = date("Y-m-d H:i:s");
+
+      // Insert admin message into trail
+      $adminIdVal = $admin_id ? (int) $admin_id : 0;
+      mysqli_query(
+        $conn,
+        "INSERT INTO support_ticket_messages (ticket_id, sender_type, user_id, admin_id, body, is_internal, created_at) 
+         VALUES ($ticketId, 'admin', NULL, " . ($adminIdVal ?: "NULL") . ", '$response', 0, '$now')"
+      );
+      $messageId = mysqli_insert_id($conn);
+
+      // Handle file attachments for this response
+      if ($messageId && isset($_FILES['attachments']) && is_array($_FILES['attachments']['name'])) {
+        $uploadDir = "../assets/images/supports/";
+        if (!is_dir($uploadDir)) {
+          mkdir($uploadDir, 0777, true);
+        }
+        $names = $_FILES['attachments']['name'];
+        $tmpNames = $_FILES['attachments']['tmp_name'];
+        $types = $_FILES['attachments']['type'];
+        $sizes = $_FILES['attachments']['size'];
+        $errors = $_FILES['attachments']['error'];
+        foreach ($names as $idx => $origName) {
+          if (empty($origName)) {
+            continue;
+          }
+          if (isset($errors[$idx]) && $errors[$idx] !== UPLOAD_ERR_OK) {
+            continue;
+          }
+          $tmpName = $tmpNames[$idx];
+          $extension = pathinfo($origName, PATHINFO_EXTENSION);
+          $safeExt = $extension !== '' ? preg_replace('/[^a-zA-Z0-9]/', '', $extension) : '';
+          $storedName = "support_reply_{$ticketId}_{$messageId}_" . ($idx + 1);
+          if ($safeExt !== '') {
+            $storedName .= "." . $safeExt;
+          }
+          $destPath = $uploadDir . $storedName;
+          if (move_uploaded_file($tmpName, $destPath)) {
+            $relativePath = "assets/images/supports/$storedName";
+            $fileSize = isset($sizes[$idx]) ? (int) $sizes[$idx] : 0;
+            $mimeType = $types[$idx] ?? '';
+            mysqli_query(
+              $conn,
+              "INSERT INTO support_ticket_attachments (message_id, file_path, file_name, mime_type, file_size) 
+               VALUES ($messageId, '" . mysqli_real_escape_string($conn, $relativePath) . "', '" . mysqli_real_escape_string($conn, $origName) . "', '" . mysqli_real_escape_string($conn, $mimeType) . "', $fileSize)"
+            );
+          }
+        }
+      }
+
       $new_status = $markClosed ? 'closed' : 'open';
       $authJoin = ($admin_role == 5 && $admin_school > 0) ? "JOIN users u ON u.id = st.user_id" : '';
       $authWhere = ($admin_role == 5 && $admin_school > 0) ? " AND u.school = $admin_school" : '';
-      $sql = "UPDATE support_tickets st $authJoin SET st.response = '$response', st.status = '$new_status', st.response_time = NOW() WHERE st.code = '$code' $authWhere";
+
+      $updateFields = array(
+        "st.status = '$new_status'",
+        "st.last_message_at = '$now'"
+      );
+      if (!empty($admin_id)) {
+        $updateFields[] = "st.assigned_admin_id = $admin_id";
+      }
+      if ($new_status === 'closed') {
+        $updateFields[] = "st.closed_at = '$now'";
+      } else {
+        $updateFields[] = "st.closed_at = NULL";
+      }
+
+      $sql = "UPDATE support_tickets_v2 st $authJoin SET " . implode(', ', $updateFields) . " WHERE st.code = '$code' $authWhere";
       mysqli_query($conn, $sql);
       if (mysqli_affected_rows($conn) > 0) {
         // Send email notification to the user
@@ -136,7 +256,10 @@ if (isset($_POST['reopen_ticket'])) {
     $messageRes = 'Invalid ticket code';
   } else {
     // Fetch ticket + user details for email and authorization
-    $ticketInfoSql = "SELECT st.id, st.subject, u.first_name, u.email, u.school FROM support_tickets st JOIN users u ON u.id = st.user_id WHERE st.code = '$code'";
+    $ticketInfoSql = "SELECT st.id, st.subject, u.first_name, u.email, u.school 
+                      FROM support_tickets_v2 st 
+                      JOIN users u ON u.id = st.user_id 
+                      WHERE st.code = '$code'";
     if ($admin_role == 5 && $admin_school > 0) {
       $ticketInfoSql .= " AND u.school = $admin_school";
     }
@@ -144,7 +267,7 @@ if (isset($_POST['reopen_ticket'])) {
     if ($row = mysqli_fetch_assoc($ticketInfoQ)) {
       $authJoin = ($admin_role == 5 && $admin_school > 0) ? "JOIN users u ON u.id = st.user_id" : '';
       $authWhere = ($admin_role == 5 && $admin_school > 0) ? " AND u.school = $admin_school" : '';
-      $sql = "UPDATE support_tickets st $authJoin SET st.status = 'open' WHERE st.code = '$code' $authWhere";
+      $sql = "UPDATE support_tickets_v2 st $authJoin SET st.status = 'open', st.closed_at = NULL WHERE st.code = '$code' $authWhere";
       mysqli_query($conn, $sql);
       if (mysqli_affected_rows($conn) > 0) {
         // Notify user that the ticket has been reopened
@@ -189,7 +312,7 @@ if (isset($_POST['support_id'])) {
   $uniqueCode = generateVerificationCode(8);
 
   // Check if the code already exists, regenerate if needed
-  while (!isCodeUnique($uniqueCode, $conn, 'support_tickets')) {
+  while (!isCodeUnique($uniqueCode, $conn, 'support_tickets_v2')) {
     $uniqueCode = generateVerificationCode(8);
   }
 
@@ -199,7 +322,11 @@ if (isset($_POST['support_id'])) {
     $tempname = $_FILES['attachment']['tmp_name'];
     $extension = pathinfo($picture, PATHINFO_EXTENSION);
     $picture = "support_$user_id" . "_$uniqueCode." . $extension;
-    $destination = "../assets/images/supports/{$picture}";
+    $uploadDir = "../assets/images/supports/";
+    if (!is_dir($uploadDir)) {
+      mkdir($uploadDir, 0777, true);
+    }
+    $destination = $uploadDir . $picture;
 
     move_uploaded_file($tempname, $destination);
   }
@@ -209,7 +336,10 @@ if (isset($_POST['support_id'])) {
   // Standardized subject format: Re: Support Ticket (#ID) - title
   $supportSubject = "Re: Support Ticket (#$uniqueCode) - $subject";
   $e_message = str_replace('\r\n', '<br>', $message);
-  $supportMessage = "User: $first_name (User id: $user_id)<br>Email: <a href='mailto:$userEmail'>$userEmail</a><br>Message: <br>$e_message<br><br>File attached: <a href='https://nivasity.com/assets/images/supports/$picture'>https://nivasity.com/assets/images/supports/$picture</a>";
+  $supportMessage = "User: $first_name (User id: $user_id)<br>Email: <a href='mailto:$userEmail'>$userEmail</a><br>Message: <br>$e_message";
+  if ($picture !== 'NULL') {
+    $supportMessage .= "<br><br>File attached: <a href='https://nivasity.com/assets/images/supports/$picture'>https://nivasity.com/assets/images/supports/$picture</a>";
+  }
 
   // Send confirmation email to the user
   $userSubject = "Re: Support Ticket (#$uniqueCode) - $subject";
@@ -227,8 +357,27 @@ if (isset($_POST['support_id'])) {
       // Get current time in the desired format
       $currentDateTime = date("Y-m-d H:i:s");
 
-      mysqli_query($conn, "INSERT INTO support_tickets (subject, code,	user_id,	message, created_at) 
-        VALUES ('$subject', '$uniqueCode',	$user_id,	'$message', '$currentDateTime')");
+      // Create ticket in v2 table
+      mysqli_query($conn, "INSERT INTO support_tickets_v2 (code, subject, user_id, last_message_at, created_at) 
+        VALUES ('$uniqueCode', '$subject', $user_id, '$currentDateTime', '$currentDateTime')");
+      $ticketId = mysqli_insert_id($conn);
+
+      if ($ticketId) {
+        // First user message
+        mysqli_query($conn, "INSERT INTO support_ticket_messages (ticket_id, sender_type, user_id, body, is_internal, created_at) 
+          VALUES ($ticketId, 'user', $user_id, '$message', 0, '$currentDateTime')");
+        $messageId = mysqli_insert_id($conn);
+
+        // Store attachment metadata
+        if ($messageId && $picture !== 'NULL') {
+          $relativePath = "assets/images/supports/$picture";
+          $origName = mysqli_real_escape_string($conn, $_FILES['attachment']['name']);
+          $mimeType = mysqli_real_escape_string($conn, $_FILES['attachment']['type'] ?? '');
+          $fileSize = isset($_FILES['attachment']['size']) ? (int) $_FILES['attachment']['size'] : 0;
+          mysqli_query($conn, "INSERT INTO support_ticket_attachments (message_id, file_path, file_name, mime_type, file_size) 
+            VALUES ($messageId, '" . mysqli_real_escape_string($conn, $relativePath) . "', '$origName', '$mimeType', $fileSize)");
+        }
+      }
 
       $statusRes = "success";
       $messageRes = "Request successfully sent!";
@@ -272,7 +421,8 @@ $responseData = array(
   'status' => $statusRes,
   'message' => $messageRes,
   'tickets' => $tickets,
-  'ticket' => $ticket
+  'ticket' => $ticket,
+  'messages' => $messages
 );
 
 // Set the appropriate headers for JSON response

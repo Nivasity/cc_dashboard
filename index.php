@@ -56,14 +56,14 @@ $hoc_count = mysqli_fetch_assoc(
   )
 )["count"];
 
-// Support ticket statistics
-$support_open_sql = "SELECT COUNT(*) AS count FROM support_tickets st JOIN users u ON st.user_id = u.id WHERE st.status = 'open'";
+// Support ticket statistics (v2)
+$support_open_sql = "SELECT COUNT(*) AS count FROM support_tickets_v2 st JOIN users u ON st.user_id = u.id WHERE st.status = 'open'";
 if ($admin_role == 5 && $admin_school > 0) {
   $support_open_sql .= " AND u.school = $admin_school";
 }
 $open_tickets = mysqli_fetch_assoc(mysqli_query($conn, $support_open_sql))["count"];
 
-$support_total_sql = "SELECT COUNT(*) AS count FROM support_tickets st JOIN users u ON st.user_id = u.id";
+$support_total_sql = "SELECT COUNT(*) AS count FROM support_tickets_v2 st JOIN users u ON st.user_id = u.id";
 if ($admin_role == 5 && $admin_school > 0) {
   $support_total_sql .= " WHERE u.school = $admin_school";
 }
