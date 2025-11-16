@@ -63,6 +63,7 @@ if ($admin_role == 5) {
   </div>
             <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Payments /</span> Batch Payments</h4>
 
+            <?php if (!in_array((int)$admin_role, [3, 5], true)) { ?>
             <div class="card mb-4">
               <div class="card-header d-flex align-items-center justify-content-between">
                 <h5 class="mb-0">Create Batch</h5>
@@ -127,6 +128,7 @@ if ($admin_role == 5) {
                 </form>
               </div>
             </div>
+            <?php } ?>
 
             <div class="card">
               <div class="card-header">
@@ -228,4 +230,3 @@ if ($admin_role == 5) {
   <script src="model/functions/batch_payments.js"></script>
 </body>
 </html>
-

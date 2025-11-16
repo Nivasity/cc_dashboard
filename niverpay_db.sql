@@ -365,6 +365,107 @@ CREATE TABLE `support_ticket_attachments` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `admin_support_tickets`
+--
+
+CREATE TABLE `admin_support_tickets` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `code` VARCHAR(25) NOT NULL,
+  `subject` VARCHAR(150) NOT NULL,
+  `created_by_admin_id` INT(11) NOT NULL,
+
+  `status` ENUM('open','pending','resolved','closed')
+      NOT NULL DEFAULT 'open',
+  `priority` ENUM('low','medium','high','urgent')
+      NOT NULL DEFAULT 'medium',
+  `category` VARCHAR(50) DEFAULT NULL,
+
+  `assigned_admin_id` INT(11) DEFAULT NULL,
+  `assigned_role_id` INT(11) DEFAULT NULL,
+
+  `related_ticket_id` INT(11) DEFAULT NULL,
+
+  `last_message_at` DATETIME NOT NULL,
+  `closed_at` DATETIME DEFAULT NULL,
+
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ON UPDATE CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_admin_ticket_code` (`code`),
+  KEY `idx_admin_ticket_status` (`status`),
+  KEY `idx_admin_ticket_assigned_admin` (`assigned_admin_id`),
+  KEY `idx_admin_ticket_assigned_role` (`assigned_role_id`),
+  KEY `idx_admin_ticket_related` (`related_ticket_id`),
+  CONSTRAINT `fk_admin_ticket_created_by`
+    FOREIGN KEY (`created_by_admin_id`) REFERENCES `admins`(`id`),
+  CONSTRAINT `fk_admin_ticket_assigned_admin`
+    FOREIGN KEY (`assigned_admin_id`) REFERENCES `admins`(`id`),
+  CONSTRAINT `fk_admin_ticket_assigned_role`
+    FOREIGN KEY (`assigned_role_id`) REFERENCES `admin_roles`(`id`),
+  CONSTRAINT `fk_admin_ticket_related`
+    FOREIGN KEY (`related_ticket_id`) REFERENCES `support_tickets_v2`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `admin_support_ticket_messages`
+--
+
+CREATE TABLE `admin_support_ticket_messages` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `ticket_id` INT(11) NOT NULL,
+
+  `sender_type` ENUM('user','admin','system') NOT NULL,
+  `user_id` INT(11) DEFAULT NULL,
+  `admin_id` INT(11) DEFAULT NULL,
+
+  `body` TEXT NOT NULL,
+  `is_internal` TINYINT(1) NOT NULL DEFAULT 0,
+
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (`id`),
+  KEY `idx_admin_msg_ticket` (`ticket_id`),
+  KEY `idx_admin_msg_user` (`user_id`),
+  KEY `idx_admin_msg_admin` (`admin_id`),
+  CONSTRAINT `fk_admin_msg_ticket`
+    FOREIGN KEY (`ticket_id`) REFERENCES `admin_support_tickets`(`id`)
+    ON DELETE CASCADE,
+  CONSTRAINT `fk_admin_msg_user`
+    FOREIGN KEY (`user_id`) REFERENCES `users`(`id`),
+  CONSTRAINT `fk_admin_msg_admin`
+    FOREIGN KEY (`admin_id`) REFERENCES `admins`(`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `admin_support_ticket_attachments`
+--
+
+CREATE TABLE `admin_support_ticket_attachments` (
+  `id` INT(11) NOT NULL AUTO_INCREMENT,
+  `message_id` INT(11) NOT NULL,
+  `file_path` VARCHAR(255) NOT NULL,
+  `file_name` VARCHAR(255) NOT NULL,
+  `mime_type` VARCHAR(100) DEFAULT NULL,
+  `file_size` INT(11) DEFAULT NULL,
+
+  `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+  PRIMARY KEY (`id`),
+  KEY `idx_admin_attach_msg` (`message_id`),
+  CONSTRAINT `fk_admin_attach_msg`
+    FOREIGN KEY (`message_id`) REFERENCES `admin_support_ticket_messages`(`id`)
+    ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `transactions`
 --
 

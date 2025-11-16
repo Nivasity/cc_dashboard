@@ -5,7 +5,13 @@ include('model/page_config.php');
 
 $admin_role = $_SESSION['nivas_adminRole'];
 $admin_school = $admin_['school'];
-?>
+
+// Restrict roles 4 and 5 from accessing normal user tickets
+if (in_array((int)$admin_role, [4, 5], true)) {
+  header('Location: index.php');
+  exit();
+}
+?> 
 
 <!DOCTYPE html>
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/" data-template="vertical-menu-template-free">
@@ -49,6 +55,7 @@ $admin_school = $admin_['school'];
                         <th>Ticket</th>
                         <th>Student</th>
                         <th>Subject</th>
+                        <th>Category</th>
                         <th>Date &amp; Time</th>
                         <th>Status</th>
                         <th>Action</th>
@@ -98,21 +105,21 @@ $admin_school = $admin_['school'];
             </div>
             <div class="col-md-12">
               <small class="text-muted">Conversation</small>
-              <div id="t_conversation" class="border rounded p-2 bg-muted" style="max-height: 320px; overflow-y: auto;"></div>
+              <div id="t_conversation" class="border rounded p-2 bg-dark text-white" style="max-height: 320px; overflow-y: auto;"></div>
             </div>
 
             <form id="respondForm" class="col-md-12" style="display: none;" enctype="multipart/form-data">
               <input type="hidden" name="code" id="r_code" />
               <div class="mb-3">
                 <label for="r_message" class="form-label">Write a response</label>
-                <textarea class="form-control" id="r_message" name="response" rows="4" placeholder="Type your response..."></textarea>
+                <textarea class="form-control" id="r_message" name="response" rows="3" placeholder="Type your response..."></textarea>
               </div>
               <div class="mb-3">
                 <label for="r_attachments" class="form-label">Attach files (optional)</label>
                 <input type="file" class="form-control" id="r_attachments" name="attachments[]" multiple>
               </div>
               <div class="form-check mb-3">
-                <input class="form-check-input" type="checkbox" value="1" id="r_close" name="mark_closed" checked>
+                <input class="form-check-input" type="checkbox" value="1" id="r_close" name="mark_closed">
                 <label class="form-check-label" for="r_close">Mark ticket as closed</label>
               </div>
               <button type="submit" class="btn btn-primary">Send Response</button>
@@ -120,7 +127,7 @@ $admin_school = $admin_['school'];
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+          <!-- <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button> -->
           <button type="button" class="btn btn-warning" id="reopenBtn" style="display: none;">Reopen Ticket</button>
         </div>
       </div>

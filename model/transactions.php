@@ -58,6 +58,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if ($action === 'create_manual_transaction') {
     if (!$admin_id) {
       $messageRes = 'You must be signed in to record a manual transaction.';
+    } elseif ((int)$admin_role === 5) {
+      $messageRes = 'You are not allowed to record manual transactions.';
     } else {
       $email = trim($_POST['email'] ?? '');
       $transaction_ref = trim($_POST['transaction_ref'] ?? '');

@@ -80,6 +80,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   if ($action === 'create_batch') {
     if (!$admin_id) {
       $message = 'You must be signed in to create a batch.';
+    } elseif (in_array((int)$admin_role, [4, 5], true)) {
+      $message = 'You are not allowed to create batch payments.';
     } else {
       $manual_id = h_int($_POST['manual_id'] ?? 0);
       $school_id = h_int($_POST['school'] ?? 0);

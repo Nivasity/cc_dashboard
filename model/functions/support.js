@@ -23,16 +23,18 @@ $(document).ready(function () {
     messages.forEach(function (m) {
       var senderLabel = 'System';
       if (m.sender_type === 'user') {
-        senderLabel = m.user_name ? ('User: ' + m.user_name) : 'User';
+        senderLabel = m.user_name ? m.user_name : 'User';
       } else if (m.sender_type === 'admin') {
         senderLabel = m.admin_name ? ('Support: ' + m.admin_name) : 'Admin';
       }
 
-      var labelClass = 'fw-bold';
-      var msgClass = 'ticket-message border rounded p-2';
+      var labelClass = '';
+      var msgClass = 'ticket-message border rounded p-2 w-75';
       if (m.sender_type === 'admin') {
-        labelClass += ' text-secondary';
-        msgClass += ' text-secondary';
+        labelClass += ' ';
+        msgClass += ' ms-auto';
+      } else {
+        msgClass += ' me-auto';
       }
 
       var wrapperClass = 'mb-3';
@@ -55,7 +57,7 @@ $(document).ready(function () {
       }
       html += '<div class="' + msgClass + '">' + (m.body || '') + '</div>';
       if (ts) {
-        html += '<div class="mt-1"><small class="text-muted">' + ts + '</small></div>';
+        html += '<div class="mt-1"><small class="text-muted text-xs">' + ts + '</small></div>';
       }
 
       if (Array.isArray(m.attachments) && m.attachments.length) {
@@ -97,6 +99,7 @@ $(document).ready(function () {
               '<td class="fw-bold">#' + t.code + '</td>' +
               '<td><span class="text-uppercase text-primary">' + t.student + '</span><br><small>' + t.email + '</small></td>' +
               '<td>' + t.subject + '</td>' +
+              '<td>' + (t.category || '-') + '</td>' +
               '<td>' + t.date + '<br>' + t.time + '</td>' +
               '<td>' + badgeForStatus(t.status) + '</td>' +
               '<td><button class="btn btn-sm btn-outline-primary viewTicket" data-code="' + t.code + '">View</button></td>' +
@@ -165,6 +168,7 @@ $(document).ready(function () {
 
   $(document).on('click', '.viewTicket', function () {
     var code = $(this).data('code');
+    $('#respondForm')[0].reset();
     loadTicket(code);
   });
 

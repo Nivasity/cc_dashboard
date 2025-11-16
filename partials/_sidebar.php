@@ -151,20 +151,27 @@ $admin_faculty = $admin_['faculty'] ?? 0;
         </li>
       <?php } ?>
       <?php if ($support_mgt_menu) { ?>
-        <li class="menu-item <?php echo $current_page == 'tickets.php' ? 'active open' : ''; ?>">
+        <li class="menu-item <?php echo in_array($current_page, ['tickets.php', 'admin_tickets.php']) ? 'active open' : ''; ?>">
           <a href="javascript:void(0);" class="menu-link menu-toggle">
             <i class="menu-icon tf-icons bx bx-support"></i>
             <div data-i18n="Customer Management">Support Tickets</div>
           </a>
           <ul class="menu-sub">
-            <li class="menu-item <?php echo $current_page == 'tickets.php' && (($_GET['status'] ?? 'open') == 'open') ? 'active' : ''; ?>">
-              <a href="tickets.php?status=open" class="menu-link">
-                <div data-i18n="Support Tickets">Opened Tickets</div>
-              </a>
-            </li>
-            <li class="menu-item <?php echo $current_page == 'tickets.php' && (($_GET['status'] ?? '') == 'closed') ? 'active' : ''; ?>">
-              <a href="tickets.php?status=closed" class="menu-link">
-                <div data-i18n="Support Tickets">Closed Tickets</div>
+            <?php if (!in_array((int)$_SESSION['nivas_adminRole'], [4, 5], true)) { ?>
+              <li class="menu-item <?php echo $current_page == 'tickets.php' && (($_GET['status'] ?? 'open') == 'open') ? 'active' : ''; ?>">
+                <a href="tickets.php?status=open" class="menu-link">
+                  <div data-i18n="Support Tickets">Opened Tickets</div>
+                </a>
+              </li>
+              <li class="menu-item <?php echo $current_page == 'tickets.php' && (($_GET['status'] ?? '') == 'closed') ? 'active' : ''; ?>">
+                <a href="tickets.php?status=closed" class="menu-link">
+                  <div data-i18n="Support Tickets">Closed Tickets</div>
+                </a>
+              </li>
+            <?php } ?>
+            <li class="menu-item <?php echo $current_page == 'admin_tickets.php' ? 'active' : ''; ?>">
+              <a href="admin_tickets.php" class="menu-link">
+                <div data-i18n="Support Tickets">Internal Tickets</div>
               </a>
             </li>
           </ul>

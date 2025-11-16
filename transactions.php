@@ -94,10 +94,12 @@ if ($admin_role == 5) {
               </div>
             </div>
           </div>
+          <?php if ((int)$admin_role !== 5) { ?>
           <button type="button" class="btn btn-primary new_formBtn" data-bs-toggle="modal"
             data-bs-target="#manualTransactionModal" aria-label="Add manual transaction">
             <i class='bx bx-plus fs-3'></i>
           </button>
+          <?php } ?>
           <?php include('partials/_footer.php') ?>
           <div class="content-backdrop fade"></div>
         </div>

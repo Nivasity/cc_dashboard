@@ -48,6 +48,7 @@ if ($_SESSION['nivas_adminRole'] == 1) {
   $sch_mgt_menu = True;
   $public_mgt_menu = True;
   $finance_mgt_menu = True;
+  $support_mgt_menu = True;
   $resource_mgt_menu = True;
 } else if ($_SESSION['nivas_adminRole'] == 3) {
   $student_mgt_menu = True;
@@ -59,10 +60,12 @@ if ($_SESSION['nivas_adminRole'] == 1) {
   $finance_mgt_menu = True;
 } else if ($_SESSION['nivas_adminRole'] == 4) {
   $finance_mgt_menu = True;
+  $support_mgt_menu = True;
 } else if ($_SESSION['nivas_adminRole'] == 5) {
   $customer_mgt_menu = True;
   $student_mgt_menu = True;
   $finance_mgt_menu = True;
+  $support_mgt_menu = True;
   $resource_mgt_menu = True;
 } else {
   $customer_mgt_menu = True;

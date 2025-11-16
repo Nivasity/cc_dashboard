@@ -21,38 +21,48 @@ if (isset($_GET['fetch'])) {
   $fetch = $_GET['fetch'];
 
   if ($fetch === 'tickets') {
-    $status = mysqli_real_escape_string($conn, strtolower($_GET['status'] ?? 'open'));
-    $sql = "SELECT st.id, st.code, st.subject, st.status, st.created_at, st.last_message_at, u.first_name, u.last_name, u.email, u.school 
-            FROM support_tickets_v2 st 
-            JOIN users u ON st.user_id = u.id 
-            WHERE 1=1";
-    if ($status === 'open' || $status === 'closed') {
-      $sql .= " AND st.status = '$status'";
+    if (in_array((int)$admin_role, [4, 5], true)) {
+      $statusRes = 'error';
+      $messageRes = 'Unauthorized to view user support tickets.';
+    } else {
+      $status = mysqli_real_escape_string($conn, strtolower($_GET['status'] ?? 'open'));
+      $sql = "SELECT st.id, st.code, st.subject, st.category, st.status, st.created_at, st.last_message_at, u.first_name, u.last_name, u.email, u.school 
+              FROM support_tickets_v2 st 
+              JOIN users u ON st.user_id = u.id 
+              WHERE 1=1";
+      if ($status === 'open' || $status === 'closed') {
+        $sql .= " AND st.status = '$status'";
+      }
+      if ($admin_role == 5 && $admin_school > 0) {
+        $sql .= " AND u.school = $admin_school";
+      }
+      $sql .= " ORDER BY COALESCE(st.last_message_at, st.created_at) DESC";
+      $q = mysqli_query($conn, $sql);
+      $tickets = array();
+      while ($row = mysqli_fetch_assoc($q)) {
+        $createdAt = $row['created_at'] ?? $row['last_message_at'];
+        $tickets[] = array(
+          'code' => $row['code'],
+          'subject' => $row['subject'],
+          'category' => $row['category'] ?? '',
+          'status' => $row['status'],
+          'date' => $createdAt ? date('M j, Y', strtotime($createdAt)) : '',
+          'time' => $createdAt ? date('h:i a', strtotime($createdAt)) : '',
+          'student' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
+          'email' => $row['email'] ?? ''
+        );
+      }
+      $statusRes = 'success';
     }
-    if ($admin_role == 5 && $admin_school > 0) {
-      $sql .= " AND u.school = $admin_school";
-    }
-    $sql .= " ORDER BY COALESCE(st.last_message_at, st.created_at) DESC";
-    $q = mysqli_query($conn, $sql);
-    $tickets = array();
-    while ($row = mysqli_fetch_assoc($q)) {
-      $createdAt = $row['created_at'] ?? $row['last_message_at'];
-      $tickets[] = array(
-        'code' => $row['code'],
-        'subject' => $row['subject'],
-        'status' => $row['status'],
-        'date' => $createdAt ? date('M j, Y', strtotime($createdAt)) : '',
-        'time' => $createdAt ? date('h:i a', strtotime($createdAt)) : '',
-        'student' => trim(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')),
-        'email' => $row['email'] ?? ''
-      );
-    }
-    $statusRes = 'success';
   }
 
   if ($fetch === 'ticket') {
     $code = mysqli_real_escape_string($conn, $_GET['code'] ?? '');
     if ($code !== '') {
+      if (in_array((int)$admin_role, [4, 5], true)) {
+        $statusRes = 'error';
+        $messageRes = 'Unauthorized to view user support ticket.';
+      } else {
       $sql = "SELECT st.id, st.code, st.subject, st.status, st.priority, st.category, st.created_at, st.last_message_at,
                      u.id AS user_id, u.first_name, u.last_name, u.email, u.school 
               FROM support_tickets_v2 st 
@@ -61,8 +71,8 @@ if (isset($_GET['fetch'])) {
       if ($admin_role == 5 && $admin_school > 0) {
         $sql .= " AND u.school = $admin_school";
       }
-      $q = mysqli_query($conn, $sql);
-      if ($row = mysqli_fetch_assoc($q)) {
+        $q = mysqli_query($conn, $sql);
+        if ($row = mysqli_fetch_assoc($q)) {
         $ticket = array(
           'id' => (int) $row['id'],
           'code' => $row['code'],
@@ -117,10 +127,11 @@ if (isset($_GET['fetch'])) {
           );
         }
 
-        $statusRes = 'success';
-      } else {
-        $statusRes = 'error';
-        $messageRes = 'Ticket not found or unauthorized';
+          $statusRes = 'success';
+        } else {
+          $statusRes = 'error';
+          $messageRes = 'Ticket not found or unauthorized';
+        }
       }
     } else {
       $statusRes = 'error';
@@ -302,6 +313,7 @@ if (isset($_POST['support_id'])) {
   // Collect form data
   $subject = mysqli_real_escape_string($conn, $_POST['subject']);
   $message = mysqli_real_escape_string($conn, $_POST['message']);
+  $category = mysqli_real_escape_string($conn, $_POST['category'] ?? '');
 
   $user = mysqli_fetch_array(mysqli_query($conn, "SELECT * FROM users WHERE id = $user_id"));
   $first_name = $user['first_name'];
@@ -358,8 +370,9 @@ if (isset($_POST['support_id'])) {
       $currentDateTime = date("Y-m-d H:i:s");
 
       // Create ticket in v2 table
-      mysqli_query($conn, "INSERT INTO support_tickets_v2 (code, subject, user_id, last_message_at, created_at) 
-        VALUES ('$uniqueCode', '$subject', $user_id, '$currentDateTime', '$currentDateTime')");
+      $categorySql = $category !== '' ? "'$category'" : "NULL";
+      mysqli_query($conn, "INSERT INTO support_tickets_v2 (code, subject, user_id, category, last_message_at, created_at) 
+        VALUES ('$uniqueCode', '$subject', $user_id, $categorySql, '$currentDateTime', '$currentDateTime')");
       $ticketId = mysqli_insert_id($conn);
 
       if ($ticketId) {
