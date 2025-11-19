@@ -160,9 +160,10 @@ $materials_query = mysqli_query($conn, $material_sql);
   <script src="assets/js/main.js"></script>
   <script src="model/functions/materials.js"></script>
   <script>
-    const adminRole = <?php echo (int)$admin_role; ?>;
-    const adminSchool = <?php echo (int)$admin_school; ?>;
-    const adminFaculty = <?php echo (int)$admin_faculty; ?>;
+    // Expose admin context to JS files
+    window.adminRole = <?php echo (int)$admin_role; ?>;
+    window.adminSchool = <?php echo (int)$admin_school; ?>;
+    window.adminFaculty = <?php echo (int)$admin_faculty; ?>;
   </script>
 </body>
 </html>

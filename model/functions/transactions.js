@@ -15,6 +15,9 @@
   var $manualStatus = $('#manualTransactionStatus');
   var $refundGroup = $('#manualRefundAmountGroup');
   var $refundAmount = $('#manualRefundAmount');
+  var $deleteModal = $('#deleteTransactionModal');
+  var $deleteMessage = $('#deleteTransactionMessage');
+  var $confirmDelete = $('#confirmDeleteTransaction');
   var manualSubmitText = $manualSubmit.length ? $manualSubmit.html() : '';
   var selectedUser = null;
   var emailLookupTimer = null;
@@ -22,6 +25,7 @@
   var materialsRequest = null;
   var feedbackTimer = null;
   var lastLookupEmail = '';
+  var deleteRefId = null;
 
   InitiateDatatable('.table');
   $('#school, #faculty, #dept').select2({ theme: 'bootstrap-5', width: '100%' });
@@ -484,23 +488,35 @@
         var tbody = $('.table tbody');
         tbody.empty();
         if (res.status === 'success' && res.transactions) {
+          var canDelete = (adminRole === 1 || adminRole === 2 || adminRole === 4);
+
           $.each(res.transactions, function (i, trn) {
             var badgeClass = 'secondary';
             if (trn.status === 'successful') badgeClass = 'success';
             else if (trn.status === 'pending') badgeClass = 'warning';
             else if (trn.status === 'refunded') badgeClass = 'secondary';
             else badgeClass = 'danger';
+
             var row = '<tr>' +
               '<td class="fw-bold">#' + trn.ref_id + '</td>' +
               '<td><span class="text-uppercase text-primary">' + trn.student + '</span><br>Matric no: ' + trn.matric + '</td>' +
               '<td>' + trn.materials + '</td>' +
               '<td class="fw-bold">₦ ' + Number(trn.amount).toLocaleString() + '</td>' +
               '<td>' + trn.date + '<br>' + trn.time + '</td>' +
-              '<td><span class="fw-bold badge bg-label-' + badgeClass + '">' + trn.status.charAt(0).toUpperCase() + trn.status.slice(1) + '</span></td>' +
-              '</tr>';
+              '<td><span class="fw-bold badge bg-label-' + badgeClass + '">' +
+              trn.status.charAt(0).toUpperCase() + trn.status.slice(1) + '</span></td>';
+
+            console.log(canDelete, trn, adminRole);
+            if (canDelete) {
+              row += '<td><button type="button" class="btn btn-sm btn-outline-danger delete-transaction" data-ref="' +
+                trn.ref_id + '"><i class="bx bx-trash"></i></button></td>';
+            }
+
+            row += '</tr>';
             tbody.append(row);
           });
         }
+
         InitiateDatatable('.table');
       }
     });
@@ -527,6 +543,63 @@
   $('#filterForm').on('submit', function (e) {
     e.preventDefault();
     fetchTransactions();
+  });
+
+  // Handle delete transaction (roles 1, 2, 4 only)
+  $(document).on('click', '.delete-transaction', function () {
+    if (!(adminRole === 1 || adminRole === 2 || adminRole === 4)) {
+      if (typeof showToast === 'function') {
+        showToast('bg-danger', 'You are not allowed to delete transactions.');
+      }
+      return;
+    }
+    var ref = $(this).data('ref');
+    deleteRefId = ref || null;
+    if ($deleteMessage.length && deleteRefId) {
+      $deleteMessage.text(
+        'Are you sure you want to delete transaction \"' + deleteRefId +
+        '\"? This will also remove all related course material purchase records.'
+      );
+    }
+    if ($deleteModal.length) {
+      var modalEl = $deleteModal.get(0);
+      var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+      modal.show();
+    }
+  });
+
+  $confirmDelete.on('click', function () {
+    if (!deleteRefId) {
+      if (typeof showToast === 'function') {
+        showToast('bg-danger', 'No transaction selected.');
+      }
+      return;
+    }
+    var ref = deleteRefId;
+    deleteRefId = null;
+    var modalEl = $deleteModal.get(0);
+    var modal = modalEl ? bootstrap.Modal.getInstance(modalEl) : null;
+
+    $.ajax({
+      url: 'model/transactions_delete.php',
+      method: 'POST',
+      dataType: 'json',
+      data: { ref_id: ref },
+      success: function (res) {
+        if (typeof showToast === 'function') {
+          showToast(res.status === 'success' ? 'bg-success' : 'bg-danger', res.message || 'Done');
+        }
+        if (res.status === 'success') {
+          fetchTransactions();
+          if (modal) modal.hide();
+        }
+      },
+      error: function () {
+        if (typeof showToast === 'function') {
+          showToast('bg-danger', 'Failed to delete transaction. Please try again.');
+        }
+      }
+    });
   });
 
   // Download CSV based on current filters using jQuery AJAX
