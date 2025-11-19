@@ -26,10 +26,13 @@ if ($admin_role == 5) {
   }
 }
 
+// Always compute the sum of material prices per transaction, but keep the
+// original transaction amount so we can choose which one to export based
+// on context (overall transactions list vs. single-material export).
 $tran_sql = "SELECT t.ref_id, u.first_name, u.last_name, u.matric_no, u.adm_year, " .
   "COALESCE(s.name, '') AS school_name, COALESCE(f.name, '') AS faculty_name, COALESCE(d.name, '') AS dept_name, " .
   "GROUP_CONCAT(CONCAT(m.title, ' - ', m.course_code, ' (', b.price, ')') SEPARATOR ' | ') AS materials, " .
-  "t.amount, t.status, t.created_at " .
+  "SUM(b.price) AS material_amount, t.amount AS transaction_amount, t.status, t.created_at " .
   "FROM transactions t " .
   "JOIN users u ON t.user_id = u.id " .
   "JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
@@ -63,12 +66,18 @@ if ($material_id > 0) {
 header('Content-Disposition: attachment; filename="' . $filename . '"');
 
 $out = fopen('php://output', 'w');
+// Always treat "Total Paid" as the sum of material prices from manuals_bought,
+// both for the course materials export and the main transactions table export.
 fputcsv($out, ['Ref Id', 'Student Name', 'Matric No', 'Admission Year', 'School', 'Faculty/College', 'Department', 'Materials', 'Total Paid', 'Date', 'Time', 'Status']);
 if ($tran_query) {
   while ($row = mysqli_fetch_assoc($tran_query)) {
     $dateStr = date('M j, Y', strtotime($row['created_at']));
     $timeStr = date('h:i a', strtotime($row['created_at']));
     $statusStr = $row['status'];
+    // Use the summed material prices; fall back to transaction amount only if needed.
+    $amountValue = isset($row['material_amount'])
+      ? (int)$row['material_amount']
+      : (int)($row['transaction_amount'] ?? 0);
     fputcsv($out, [
       $row['ref_id'],
       trim($row['first_name'] . ' ' . $row['last_name']),
@@ -78,7 +87,7 @@ if ($tran_query) {
       $row['faculty_name'],
       $row['dept_name'],
       $row['materials'],
-      $row['amount'],
+      $amountValue,
       $dateStr,
       $timeStr,
       $statusStr
