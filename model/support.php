@@ -421,27 +421,32 @@ if (isset($_POST['get_student_count'])) {
   if ($recipient_type === 'all_students') {
     $query = "SELECT COUNT(*) AS count FROM users WHERE role = 'student' AND status = 'verified'";
     if ($admin_role == 5 && $admin_school > 0) {
-      $query .= " AND school = $admin_school";
+      $admin_school_safe = intval($admin_school);
+      $query .= " AND school = $admin_school_safe";
     }
     $result = mysqli_query($conn, $query);
     $count = mysqli_fetch_assoc($result)['count'];
   } elseif ($recipient_type === 'all_hoc') {
     $query = "SELECT COUNT(*) AS count FROM users WHERE role = 'hoc' AND status = 'verified'";
     if ($admin_role == 5 && $admin_school > 0) {
-      $query .= " AND school = $admin_school";
+      $admin_school_safe = intval($admin_school);
+      $query .= " AND school = $admin_school_safe";
     }
     $result = mysqli_query($conn, $query);
     $count = mysqli_fetch_assoc($result)['count'];
   } elseif ($recipient_type === 'school' && $school_id > 0) {
-    $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND school = $school_id";
+    $school_id_safe = intval($school_id);
+    $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND school = $school_id_safe";
     $result = mysqli_query($conn, $query);
     $count = mysqli_fetch_assoc($result)['count'];
   } elseif ($recipient_type === 'faculty' && $faculty_id > 0) {
-    $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept IN (SELECT id FROM depts WHERE faculty_id = $faculty_id)";
+    $faculty_id_safe = intval($faculty_id);
+    $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept IN (SELECT id FROM depts WHERE faculty_id = $faculty_id_safe)";
     $result = mysqli_query($conn, $query);
     $count = mysqli_fetch_assoc($result)['count'];
   } elseif ($recipient_type === 'dept' && $dept_id > 0) {
-    $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept = $dept_id";
+    $dept_id_safe = intval($dept_id);
+    $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept = $dept_id_safe";
     $result = mysqli_query($conn, $query);
     $count = mysqli_fetch_assoc($result)['count'];
   }
@@ -473,7 +478,8 @@ if (isset($_POST['email_customer'])) {
   } elseif ($recipient_type === 'all_students') {
     $query = "SELECT email FROM users WHERE role = 'student' AND status = 'verified'";
     if ($admin_role == 5 && $admin_school > 0) {
-      $query .= " AND school = $admin_school";
+      $admin_school_safe = intval($admin_school);
+      $query .= " AND school = $admin_school_safe";
     }
     $result = mysqli_query($conn, $query);
     while ($row = mysqli_fetch_assoc($result)) {
@@ -482,7 +488,8 @@ if (isset($_POST['email_customer'])) {
   } elseif ($recipient_type === 'all_hoc') {
     $query = "SELECT email FROM users WHERE role = 'hoc' AND status = 'verified'";
     if ($admin_role == 5 && $admin_school > 0) {
-      $query .= " AND school = $admin_school";
+      $admin_school_safe = intval($admin_school);
+      $query .= " AND school = $admin_school_safe";
     }
     $result = mysqli_query($conn, $query);
     while ($row = mysqli_fetch_assoc($result)) {
@@ -490,21 +497,24 @@ if (isset($_POST['email_customer'])) {
     }
   } elseif ($recipient_type === 'school') {
     $school_id = intval($_POST['email_school']);
-    $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND school = $school_id";
+    $school_id_safe = intval($school_id);
+    $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND school = $school_id_safe";
     $result = mysqli_query($conn, $query);
     while ($row = mysqli_fetch_assoc($result)) {
       $recipients[] = $row['email'];
     }
   } elseif ($recipient_type === 'faculty') {
     $faculty_id = intval($_POST['email_faculty']);
-    $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept IN (SELECT id FROM depts WHERE faculty_id = $faculty_id)";
+    $faculty_id_safe = intval($faculty_id);
+    $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept IN (SELECT id FROM depts WHERE faculty_id = $faculty_id_safe)";
     $result = mysqli_query($conn, $query);
     while ($row = mysqli_fetch_assoc($result)) {
       $recipients[] = $row['email'];
     }
   } elseif ($recipient_type === 'dept') {
     $dept_id = intval($_POST['email_dept']);
-    $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept = $dept_id";
+    $dept_id_safe = intval($dept_id);
+    $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept = $dept_id_safe";
     $result = mysqli_query($conn, $query);
     while ($row = mysqli_fetch_assoc($result)) {
       $recipients[] = $row['email'];
