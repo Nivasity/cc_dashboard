@@ -435,20 +435,51 @@ if (isset($_POST['get_student_count'])) {
     $result = mysqli_query($conn, $query);
     $count = mysqli_fetch_assoc($result)['count'];
   } elseif ($recipient_type === 'school' && $school_id > 0) {
-    $school_id_safe = intval($school_id);
-    $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND school = $school_id_safe";
-    $result = mysqli_query($conn, $query);
-    $count = mysqli_fetch_assoc($result)['count'];
+    // Check if school admin is trying to access a different school
+    if ($admin_role == 5 && $admin_school > 0 && $school_id != $admin_school) {
+      $count = 0;
+    } else {
+      $school_id_safe = intval($school_id);
+      $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND school = $school_id_safe";
+      $result = mysqli_query($conn, $query);
+      $count = mysqli_fetch_assoc($result)['count'];
+    }
   } elseif ($recipient_type === 'faculty' && $faculty_id > 0) {
-    $faculty_id_safe = intval($faculty_id);
-    $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept IN (SELECT id FROM depts WHERE faculty_id = $faculty_id_safe)";
-    $result = mysqli_query($conn, $query);
-    $count = mysqli_fetch_assoc($result)['count'];
+    // Check if faculty belongs to admin's school
+    if ($admin_role == 5 && $admin_school > 0) {
+      $faculty_check = mysqli_query($conn, "SELECT id FROM faculties WHERE id = $faculty_id AND school_id = " . intval($admin_school));
+      if (mysqli_num_rows($faculty_check) == 0) {
+        $count = 0;
+      } else {
+        $faculty_id_safe = intval($faculty_id);
+        $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept IN (SELECT id FROM depts WHERE faculty_id = $faculty_id_safe)";
+        $result = mysqli_query($conn, $query);
+        $count = mysqli_fetch_assoc($result)['count'];
+      }
+    } else {
+      $faculty_id_safe = intval($faculty_id);
+      $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept IN (SELECT id FROM depts WHERE faculty_id = $faculty_id_safe)";
+      $result = mysqli_query($conn, $query);
+      $count = mysqli_fetch_assoc($result)['count'];
+    }
   } elseif ($recipient_type === 'dept' && $dept_id > 0) {
-    $dept_id_safe = intval($dept_id);
-    $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept = $dept_id_safe";
-    $result = mysqli_query($conn, $query);
-    $count = mysqli_fetch_assoc($result)['count'];
+    // Check if dept belongs to admin's school
+    if ($admin_role == 5 && $admin_school > 0) {
+      $dept_check = mysqli_query($conn, "SELECT id FROM depts WHERE id = $dept_id AND school_id = " . intval($admin_school));
+      if (mysqli_num_rows($dept_check) == 0) {
+        $count = 0;
+      } else {
+        $dept_id_safe = intval($dept_id);
+        $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept = $dept_id_safe";
+        $result = mysqli_query($conn, $query);
+        $count = mysqli_fetch_assoc($result)['count'];
+      }
+    } else {
+      $dept_id_safe = intval($dept_id);
+      $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept = $dept_id_safe";
+      $result = mysqli_query($conn, $query);
+      $count = mysqli_fetch_assoc($result)['count'];
+    }
   }
   
   $responseData = array(
@@ -497,27 +528,53 @@ if (isset($_POST['email_customer'])) {
     }
   } elseif ($recipient_type === 'school') {
     $school_id = intval($_POST['email_school']);
-    $school_id_safe = intval($school_id);
-    $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND school = $school_id_safe";
-    $result = mysqli_query($conn, $query);
-    while ($row = mysqli_fetch_assoc($result)) {
-      $recipients[] = $row['email'];
+    // Check if school admin is trying to access a different school
+    if ($admin_role == 5 && $admin_school > 0 && $school_id != $admin_school) {
+      $statusRes = "error";
+      $messageRes = "You can only send emails to students in your own school!";
+    } else {
+      $school_id_safe = intval($school_id);
+      $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND school = $school_id_safe";
+      $result = mysqli_query($conn, $query);
+      while ($row = mysqli_fetch_assoc($result)) {
+        $recipients[] = $row['email'];
+      }
     }
   } elseif ($recipient_type === 'faculty') {
     $faculty_id = intval($_POST['email_faculty']);
-    $faculty_id_safe = intval($faculty_id);
-    $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept IN (SELECT id FROM depts WHERE faculty_id = $faculty_id_safe)";
-    $result = mysqli_query($conn, $query);
-    while ($row = mysqli_fetch_assoc($result)) {
-      $recipients[] = $row['email'];
+    // Check if faculty belongs to admin's school
+    if ($admin_role == 5 && $admin_school > 0) {
+      $faculty_check = mysqli_query($conn, "SELECT id FROM faculties WHERE id = $faculty_id AND school_id = " . intval($admin_school));
+      if (mysqli_num_rows($faculty_check) == 0) {
+        $statusRes = "error";
+        $messageRes = "You can only send emails to students in your own school!";
+      }
+    }
+    if ($statusRes != 'error') {
+      $faculty_id_safe = intval($faculty_id);
+      $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept IN (SELECT id FROM depts WHERE faculty_id = $faculty_id_safe)";
+      $result = mysqli_query($conn, $query);
+      while ($row = mysqli_fetch_assoc($result)) {
+        $recipients[] = $row['email'];
+      }
     }
   } elseif ($recipient_type === 'dept') {
     $dept_id = intval($_POST['email_dept']);
-    $dept_id_safe = intval($dept_id);
-    $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept = $dept_id_safe";
-    $result = mysqli_query($conn, $query);
-    while ($row = mysqli_fetch_assoc($result)) {
-      $recipients[] = $row['email'];
+    // Check if dept belongs to admin's school
+    if ($admin_role == 5 && $admin_school > 0) {
+      $dept_check = mysqli_query($conn, "SELECT id FROM depts WHERE id = $dept_id AND school_id = " . intval($admin_school));
+      if (mysqli_num_rows($dept_check) == 0) {
+        $statusRes = "error";
+        $messageRes = "You can only send emails to students in your own school!";
+      }
+    }
+    if ($statusRes != 'error') {
+      $dept_id_safe = intval($dept_id);
+      $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept = $dept_id_safe";
+      $result = mysqli_query($conn, $query);
+      while ($row = mysqli_fetch_assoc($result)) {
+        $recipients[] = $row['email'];
+      }
     }
   }
   
