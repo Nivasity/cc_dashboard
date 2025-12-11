@@ -100,9 +100,9 @@ if (isset($_GET['get_data'])) {
 
   if ($get_data == 'schools') {
     if ($admin_role == 5) {
-      $school_query = mysqli_query($conn, "SELECT * FROM schools WHERE id = $admin_school");
+      $school_query = mysqli_query($conn, "SELECT * FROM schools WHERE id = $admin_school AND status = 'active'");
     } else {
-      $school_query = mysqli_query($conn, "SELECT * FROM schools");
+      $school_query = mysqli_query($conn, "SELECT * FROM schools WHERE status = 'active'");
     }
 
     if (mysqli_num_rows($school_query) >= 1) {
@@ -158,11 +158,11 @@ if (isset($_POST['get_data'])) {
     $school = ($_SESSION['nivas_adminRole'] == 5) ? $admin_school : $_POST['school'];
     $faculty = intval($_POST['faculty'] ?? 0);
     if ($admin_role == 5 && $admin_faculty) {
-      $dept_query = mysqli_query($conn, "SELECT * FROM `depts` WHERE school_id = $school AND faculty_id = $admin_faculty");
+      $dept_query = mysqli_query($conn, "SELECT * FROM `depts` WHERE school_id = $school AND faculty_id = $admin_faculty AND status = 'active'");
     } elseif ($faculty) {
-      $dept_query = mysqli_query($conn, "SELECT * FROM `depts` WHERE school_id = $school AND faculty_id = $faculty");
+      $dept_query = mysqli_query($conn, "SELECT * FROM `depts` WHERE school_id = $school AND faculty_id = $faculty AND status = 'active'");
     } else {
-      $dept_query = mysqli_query($conn, "SELECT * FROM `depts` WHERE school_id = $school");
+      $dept_query = mysqli_query($conn, "SELECT * FROM `depts` WHERE school_id = $school AND status = 'active'");
     }
 
     if (mysqli_num_rows($dept_query) >= 1) {
@@ -198,7 +198,7 @@ if (isset($_POST['get_data'])) {
   if ($get_data == 'faculties') {
     $school = ($_SESSION['nivas_adminRole'] == 5) ? $admin_school : $_POST['school'];
     $fac_condition = ($admin_role == 5 && $admin_faculty) ? " AND id = $admin_faculty" : "";
-    $fac_query = mysqli_query($conn, "SELECT * FROM `faculties` WHERE school_id = $school" . $fac_condition);
+    $fac_query = mysqli_query($conn, "SELECT * FROM `faculties` WHERE school_id = $school AND status = 'active'" . $fac_condition);
 
     if (mysqli_num_rows($fac_query) >= 1) {
       $faculties = array();

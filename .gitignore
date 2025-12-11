@@ -1,3 +1,5 @@
-/config
+/config/*
+!config/README.md
+!config/*.example.php
 # .gitignore
 /assets/images/supports/

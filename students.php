@@ -256,13 +256,60 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                       <form id="email-form">
                         <input type="hidden" name="email_customer" value="1" />
                         <div class="row mb-3">
+                          <label class="col-sm-2 col-form-label" for="recipient_type">Send To</label>
+                          <div class="col-sm-10">
+                            <select id="recipient_type" name="recipient_type" class="form-select" required>
+                              <option value="">Select Recipients</option>
+                              <option value="single">Single Student</option>
+                              <option value="all_students">All Students</option>
+                              <option value="all_hoc">All HOCs</option>
+                              <option value="all_students_hoc">All Students + HOCs</option>
+                              <option value="school">Students of a School</option>
+                              <option value="faculty">Students of a Faculty</option>
+                              <option value="dept">Students of a Department</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div class="row mb-3" id="single_email_row" style="display: none;">
                           <label class="col-sm-2 col-form-label" for="cus_email">Student Email</label>
                           <div class="col-sm-10">
                             <div class="input-group input-group-merge">
                               <span class="input-group-text"><i class="bx bx-user"></i></span>
                               <input type="text" id="cus_email" name="cus_email" class="form-control"
                                 placeholder="customer@example.com" aria-label="customer@example.com"
-                                aria-describedby="student_data" required>
+                                aria-describedby="student_data">
+                            </div>
+                          </div>
+                        </div>
+                        <div class="row mb-3" id="school_select_row" style="display: none;">
+                          <label class="col-sm-2 col-form-label" for="email_school">School</label>
+                          <div class="col-sm-10">
+                            <select id="email_school" name="email_school" class="form-select select_special">
+                              <option value="">Select School</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div class="row mb-3" id="faculty_select_row" style="display: none;">
+                          <label class="col-sm-2 col-form-label" for="email_faculty">Faculty</label>
+                          <div class="col-sm-10">
+                            <select id="email_faculty" name="email_faculty" class="form-select select_special">
+                              <option value="">Select Faculty</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div class="row mb-3" id="dept_select_row" style="display: none;">
+                          <label class="col-sm-2 col-form-label" for="email_dept">Department</label>
+                          <div class="col-sm-10">
+                            <select id="email_dept" name="email_dept" class="form-select select_special">
+                              <option value="">Select Department</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div class="row mb-3" id="student_count_row" style="display: none;">
+                          <label class="col-sm-2 col-form-label">Total Recipients</label>
+                          <div class="col-sm-10">
+                            <div class="alert alert-info mb-0" role="alert">
+                              <strong><span id="student_count">0</span> student(s)</strong> will receive this email
                             </div>
                           </div>
                         </div>
@@ -289,15 +336,6 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                         <div class="row justify-content-end">
                           <div class="col-sm-10">
                             <button type="submit" class="btn btn-primary email-form-btn">Send</button>
-                            <!-- <select class="form-select student_status w-auto d-inline ms-md-3 mt-md-0 mt-2" name="student_status">
-                              <option value="verified">Verified HOC/Lecturer account</option>
-                              <option value="verified">Verified Event Admin</option>
-                              <option value="verified">Verified Student Account</option>
-                              <option value="unverified">Unverified Student Account</option>
-                              <option value="unverified">Unverified HOC/Lecturer Account</option>
-                              <option value="unverified">Unverified Visitor Account</option>
-                              <option value="unverified">Unverified Event Admin Account</option>
-                            </select> -->
                           </div>
                         </div>
                       </form>
@@ -596,11 +634,195 @@ $admin_faculty = $admin_['faculty'] ?? 0;
         });
       });
 
+      // Handle recipient type change
+      $('#recipient_type').change(function () {
+        var type = $(this).val();
+        
+        // Hide all conditional rows
+        $('#single_email_row').hide();
+        $('#school_select_row').hide();
+        $('#faculty_select_row').hide();
+        $('#dept_select_row').hide();
+        $('#student_count_row').hide();
+        
+        // Reset form elements
+        $('#cus_email').val('').removeAttr('required');
+        $('#email_school').val('').trigger('change');
+        $('#email_faculty').val('').trigger('change');
+        $('#email_dept').val('').trigger('change');
+        $('#student_count').text('0');
+        
+        // Show appropriate fields based on selection
+        if (type === 'single') {
+          $('#single_email_row').show();
+          $('#cus_email').attr('required', 'required');
+          $('#student_count').text('1');
+          $('#student_count_row').show();
+        } else if (type === 'all_students' || type === 'all_hoc' || type === 'all_students_hoc') {
+          calculateStudentCount();
+          $('#student_count_row').show();
+        } else if (type === 'school') {
+          $('#school_select_row').show();
+          loadSchoolsForEmail();
+        } else if (type === 'faculty') {
+          $('#school_select_row').show();
+          $('#faculty_select_row').show();
+          loadSchoolsForEmail();
+        } else if (type === 'dept') {
+          $('#school_select_row').show();
+          $('#dept_select_row').show();
+          loadSchoolsForEmail();
+        }
+      });
+
+      // Load schools for email form
+      function loadSchoolsForEmail() {
+        $.ajax({
+          type: 'GET',
+          url: 'model/getInfo.php',
+          data: { get_data: 'schools' },
+          success: function (data) {
+            var school_select = $('#email_school');
+            school_select.empty().append($('<option>', { value: '', text: 'Select School' }));
+            
+            $.each(data.schools, function (index, school) {
+              // Only show active schools
+              if (school.status === 'active') {
+                school_select.append($('<option>', {
+                  value: school.id,
+                  text: school.name
+                }));
+              }
+            });
+          }
+        });
+      }
+
+      // Handle school selection for email
+      $('#email_school').change(function () {
+        var schoolId = $(this).val();
+        var recipientType = $('#recipient_type').val();
+        
+        $('#email_faculty').empty().append($('<option>', { value: '', text: 'Select Faculty' }));
+        $('#email_dept').empty().append($('<option>', { value: '', text: 'Select Department' }));
+        
+        if (schoolId && recipientType === 'school') {
+          calculateStudentCount();
+        } else if (schoolId && recipientType === 'faculty') {
+          // Load faculties
+          $.ajax({
+            type: 'POST',
+            url: 'model/getInfo.php',
+            data: { get_data: 'faculties', school: schoolId },
+            success: function (data) {
+              if (data.status === 'success' && data.faculties) {
+                $.each(data.faculties, function (index, faculty) {
+                  // Only show active faculties
+                  if (faculty.status === 'active') {
+                    $('#email_faculty').append($('<option>', {
+                      value: faculty.id,
+                      text: faculty.name
+                    }));
+                  }
+                });
+              }
+            }
+          });
+        } else if (schoolId && recipientType === 'dept') {
+          // Load departments
+          $.ajax({
+            type: 'POST',
+            url: 'model/getInfo.php',
+            data: { get_data: 'depts', school: schoolId },
+            success: function (data) {
+              if (data.status === 'success' && data.departments) {
+                $.each(data.departments, function (index, dept) {
+                  // Only show active departments
+                  if (dept.status === 'active') {
+                    $('#email_dept').append($('<option>', {
+                      value: dept.id,
+                      text: dept.name
+                    }));
+                  }
+                });
+              }
+            }
+          });
+        }
+      });
+
+      // Handle faculty selection
+      $('#email_faculty').change(function () {
+        if ($(this).val()) {
+          calculateStudentCount();
+        }
+      });
+
+      // Handle department selection
+      $('#email_dept').change(function () {
+        if ($(this).val()) {
+          calculateStudentCount();
+        }
+      });
+
+      // Calculate student count based on selection
+      function calculateStudentCount() {
+        var recipientType = $('#recipient_type').val();
+        var schoolId = $('#email_school').val();
+        var facultyId = $('#email_faculty').val();
+        var deptId = $('#email_dept').val();
+        
+        $.ajax({
+          type: 'POST',
+          url: 'model/support.php',
+          data: {
+            get_student_count: 1,
+            recipient_type: recipientType,
+            school_id: schoolId,
+            faculty_id: facultyId,
+            dept_id: deptId
+          },
+          success: function (data) {
+            if (data.status === 'success') {
+              $('#student_count').text(data.count);
+              $('#student_count_row').show();
+            }
+          }
+        });
+      }
+
       $('#email-form').submit(function (event) {
         event.preventDefault();
 
         var button = $('.email-form-btn');
         var originalText = button.html();
+        var recipientType = $('#recipient_type').val();
+        
+        // Validate recipient type selection
+        if (!recipientType) {
+          showToast('bg-danger', 'Please select recipient type');
+          return;
+        }
+
+        // Validate single email if selected
+        if (recipientType === 'single' && !$('#cus_email').val()) {
+          showToast('bg-danger', 'Please enter student email');
+          return;
+        }
+
+        // Validate selections for filtered recipients
+        if (recipientType === 'school' && !$('#email_school').val()) {
+          showToast('bg-danger', 'Please select a school');
+          return;
+        }
+        if (recipientType === 'faculty' && (!$('#email_school').val() || !$('#email_faculty').val())) {
+          showToast('bg-danger', 'Please select school and faculty');
+          return;
+        }
+        if (recipientType === 'dept' && (!$('#email_school').val() || !$('#email_dept').val())) {
+          showToast('bg-danger', 'Please select school and department');
+          return;
+        }
 
         button.html('<div class="spinner-border spinner-border-sm text-white mx-auto" role="status"><span class="visually-hidden">Loading...</span>');
         button.prop('disabled', true);
@@ -614,6 +836,7 @@ $admin_faculty = $admin_['faculty'] ?? 0;
               showToast('bg-success', data.message);
 
               $('#email-form')[0].reset();
+              $('#recipient_type').trigger('change');
             } else {
               showToast('bg-danger', data.message);
             }

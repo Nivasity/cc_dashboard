@@ -3,6 +3,12 @@ session_start();
 include('config.php');
 include('mail.php');
 include('functions.php');
+
+// Include Brevo API configuration if it exists
+if (file_exists('../config/brevo.php')) {
+  include('../config/brevo.php');
+}
+
 $statusRes = 'failed';
 $messageRes = '';
 $tickets = null;
@@ -404,29 +410,267 @@ if (isset($_POST['support_id'])) {
   }
 }
 
+if (isset($_POST['get_student_count'])) {
+  $recipient_type = mysqli_real_escape_string($conn, $_POST['recipient_type']);
+  $school_id = isset($_POST['school_id']) ? intval($_POST['school_id']) : 0;
+  $faculty_id = isset($_POST['faculty_id']) ? intval($_POST['faculty_id']) : 0;
+  $dept_id = isset($_POST['dept_id']) ? intval($_POST['dept_id']) : 0;
+  
+  $count = 0;
+  
+  if ($recipient_type === 'all_students') {
+    $query = "SELECT COUNT(*) AS count FROM users WHERE role = 'student' AND status = 'verified'";
+    if ($admin_role == 5 && $admin_school > 0) {
+      $admin_school_safe = intval($admin_school);
+      $query .= " AND school = $admin_school_safe";
+    }
+    $result = mysqli_query($conn, $query);
+    $count = mysqli_fetch_assoc($result)['count'];
+  } elseif ($recipient_type === 'all_hoc') {
+    $query = "SELECT COUNT(*) AS count FROM users WHERE role = 'hoc' AND status = 'verified'";
+    if ($admin_role == 5 && $admin_school > 0) {
+      $admin_school_safe = intval($admin_school);
+      $query .= " AND school = $admin_school_safe";
+    }
+    $result = mysqli_query($conn, $query);
+    $count = mysqli_fetch_assoc($result)['count'];
+  } elseif ($recipient_type === 'all_students_hoc') {
+    $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified'";
+    if ($admin_role == 5 && $admin_school > 0) {
+      $admin_school_safe = intval($admin_school);
+      $query .= " AND school = $admin_school_safe";
+    }
+    $result = mysqli_query($conn, $query);
+    $count = mysqli_fetch_assoc($result)['count'];
+  } elseif ($recipient_type === 'school' && $school_id > 0) {
+    // Check if school admin is trying to access a different school
+    if ($admin_role == 5 && $admin_school > 0 && $school_id != $admin_school) {
+      $count = 0;
+    } else {
+      $school_id_safe = intval($school_id);
+      $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND school = $school_id_safe";
+      $result = mysqli_query($conn, $query);
+      $count = mysqli_fetch_assoc($result)['count'];
+    }
+  } elseif ($recipient_type === 'faculty' && $faculty_id > 0) {
+    // Check if faculty belongs to admin's school
+    if ($admin_role == 5 && $admin_school > 0) {
+      $faculty_check = mysqli_query($conn, "SELECT id FROM faculties WHERE id = $faculty_id AND school_id = " . intval($admin_school) . " AND status = 'active'");
+      if (mysqli_num_rows($faculty_check) == 0) {
+        $count = 0;
+      } else {
+        $faculty_id_safe = intval($faculty_id);
+        $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept IN (SELECT id FROM depts WHERE faculty_id = $faculty_id_safe)";
+        $result = mysqli_query($conn, $query);
+        $count = mysqli_fetch_assoc($result)['count'];
+      }
+    } else {
+      $faculty_id_safe = intval($faculty_id);
+      $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept IN (SELECT id FROM depts WHERE faculty_id = $faculty_id_safe)";
+      $result = mysqli_query($conn, $query);
+      $count = mysqli_fetch_assoc($result)['count'];
+    }
+  } elseif ($recipient_type === 'dept' && $dept_id > 0) {
+    // Check if dept belongs to admin's school
+    if ($admin_role == 5 && $admin_school > 0) {
+      $dept_check = mysqli_query($conn, "SELECT id FROM depts WHERE id = $dept_id AND school_id = " . intval($admin_school) . " AND status = 'active'");
+      if (mysqli_num_rows($dept_check) == 0) {
+        $count = 0;
+      } else {
+        $dept_id_safe = intval($dept_id);
+        $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept = $dept_id_safe";
+        $result = mysqli_query($conn, $query);
+        $count = mysqli_fetch_assoc($result)['count'];
+      }
+    } else {
+      $dept_id_safe = intval($dept_id);
+      $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept = $dept_id_safe";
+      $result = mysqli_query($conn, $query);
+      $count = mysqli_fetch_assoc($result)['count'];
+    }
+  }
+  
+  $responseData = array(
+    'status' => 'success',
+    'count' => $count
+  );
+  
+  header('Content-Type: application/json');
+  echo json_encode($responseData);
+  exit;
+}
+
 if (isset($_POST['email_customer'])) {
   // Collect form data
-  $email = mysqli_real_escape_string($conn, $_POST['cus_email']);
+  $recipient_type = mysqli_real_escape_string($conn, $_POST['recipient_type'] ?? 'single');
   $subject = mysqli_real_escape_string($conn, $_POST['subject']);
   $message = mysqli_real_escape_string($conn, $_POST['message']);
-
+  
   $e_message = str_replace('\r\n', '<br>', $message);
   
-  $mailStatus = sendMail($subject, $e_message, $email);
-
-  // Check the status
-  if ($mailStatus === "success") {
-    $statusRes = "success";
-    $messageRes = "Request successfully sent!";
-    if (!empty($admin_id)) {
-      log_audit_event($conn, $admin_id, 'email_customer', 'support_ticket', null, [
-        'email' => $email,
-        'subject' => $subject
-      ]);
+  // Get list of recipients based on type
+  $recipients = array();
+  
+  if ($recipient_type === 'single') {
+    $email = mysqli_real_escape_string($conn, $_POST['cus_email']);
+    $recipients[] = $email;
+  } elseif ($recipient_type === 'all_students') {
+    $query = "SELECT email FROM users WHERE role = 'student' AND status = 'verified'";
+    if ($admin_role == 5 && $admin_school > 0) {
+      $admin_school_safe = intval($admin_school);
+      $query .= " AND school = $admin_school_safe";
     }
-  } else {
+    $result = mysqli_query($conn, $query);
+    while ($row = mysqli_fetch_assoc($result)) {
+      $recipients[] = $row['email'];
+    }
+  } elseif ($recipient_type === 'all_hoc') {
+    $query = "SELECT email FROM users WHERE role = 'hoc' AND status = 'verified'";
+    if ($admin_role == 5 && $admin_school > 0) {
+      $admin_school_safe = intval($admin_school);
+      $query .= " AND school = $admin_school_safe";
+    }
+    $result = mysqli_query($conn, $query);
+    while ($row = mysqli_fetch_assoc($result)) {
+      $recipients[] = $row['email'];
+    }
+  } elseif ($recipient_type === 'all_students_hoc') {
+    $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified'";
+    if ($admin_role == 5 && $admin_school > 0) {
+      $admin_school_safe = intval($admin_school);
+      $query .= " AND school = $admin_school_safe";
+    }
+    $result = mysqli_query($conn, $query);
+    while ($row = mysqli_fetch_assoc($result)) {
+      $recipients[] = $row['email'];
+    }
+  } elseif ($recipient_type === 'school') {
+    $school_id = intval($_POST['email_school']);
+    // Check if school admin is trying to access a different school
+    if ($admin_role == 5 && $admin_school > 0 && $school_id != $admin_school) {
+      $statusRes = "error";
+      $messageRes = "You can only send emails to students in your own school!";
+    } else {
+      $school_id_safe = intval($school_id);
+      $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND school = $school_id_safe";
+      $result = mysqli_query($conn, $query);
+      while ($row = mysqli_fetch_assoc($result)) {
+        $recipients[] = $row['email'];
+      }
+    }
+  } elseif ($recipient_type === 'faculty') {
+    $faculty_id = intval($_POST['email_faculty']);
+    // Check if faculty belongs to admin's school
+    if ($admin_role == 5 && $admin_school > 0) {
+      $faculty_check = mysqli_query($conn, "SELECT id FROM faculties WHERE id = $faculty_id AND school_id = " . intval($admin_school) . " AND status = 'active'");
+      if (mysqli_num_rows($faculty_check) == 0) {
+        $statusRes = "error";
+        $messageRes = "You can only send emails to students in your own school!";
+      }
+    }
+    if ($statusRes != 'error') {
+      $faculty_id_safe = intval($faculty_id);
+      $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept IN (SELECT id FROM depts WHERE faculty_id = $faculty_id_safe)";
+      $result = mysqli_query($conn, $query);
+      while ($row = mysqli_fetch_assoc($result)) {
+        $recipients[] = $row['email'];
+      }
+    }
+  } elseif ($recipient_type === 'dept') {
+    $dept_id = intval($_POST['email_dept']);
+    // Check if dept belongs to admin's school
+    if ($admin_role == 5 && $admin_school > 0) {
+      $dept_check = mysqli_query($conn, "SELECT id FROM depts WHERE id = $dept_id AND school_id = " . intval($admin_school) . " AND status = 'active'");
+      if (mysqli_num_rows($dept_check) == 0) {
+        $statusRes = "error";
+        $messageRes = "You can only send emails to students in your own school!";
+      }
+    }
+    if ($statusRes != 'error') {
+      $dept_id_safe = intval($dept_id);
+      $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified' AND dept = $dept_id_safe";
+      $result = mysqli_query($conn, $query);
+      while ($row = mysqli_fetch_assoc($result)) {
+        $recipients[] = $row['email'];
+      }
+    }
+  }
+  
+  // Check if we have recipients
+  if (empty($recipients)) {
     $statusRes = "error";
-    $messageRes = "Couldn't send email. Please try again later!";
+    $messageRes = "No recipients found for the selected criteria!";
+  } else {
+    $recipientCount = count($recipients);
+    
+    // Check Brevo credits before sending (only for bulk emails)
+    if ($recipientCount > 1) {
+      // Get Brevo API key from config
+      $brevoApiKey = defined('BREVO_API_KEY') ? BREVO_API_KEY : '';
+      
+      if (empty($brevoApiKey)) {
+        $statusRes = "error";
+        $messageRes = "Brevo API key not configured. Please contact administrator.";
+      } else {
+        // Check credits
+        $creditCheck = checkBrevoCredits($brevoApiKey, $recipientCount);
+        
+        if (!$creditCheck['success']) {
+          $statusRes = "error";
+          $messageRes = $creditCheck['message'];
+        } else {
+          // Proceed with sending emails
+          $successCount = 0;
+          $failCount = 0;
+          
+          foreach ($recipients as $email) {
+            $mailStatus = sendMail($subject, $e_message, $email);
+            if ($mailStatus === "success") {
+              $successCount++;
+            } else {
+              $failCount++;
+            }
+          }
+          
+          if ($successCount > 0) {
+            $statusRes = "success";
+            $messageRes = "Email sent successfully to $successCount recipient(s)";
+            if ($failCount > 0) {
+              $messageRes .= ". Failed to send to $failCount recipient(s).";
+            }
+            if (!empty($admin_id)) {
+              log_audit_event($conn, $admin_id, 'bulk_email_customer', 'support_ticket', null, [
+                'recipient_type' => $recipient_type,
+                'subject' => $subject,
+                'recipient_count' => $recipientCount,
+                'success_count' => $successCount,
+                'fail_count' => $failCount
+              ]);
+            }
+          } else {
+            $statusRes = "error";
+            $messageRes = "Failed to send emails. Please try again later!";
+          }
+        }
+      }
+    } else {
+      // Single email - no credit check needed
+      $mailStatus = sendMail($subject, $e_message, $recipients[0]);
+      
+      if ($mailStatus === "success") {
+        $statusRes = "success";
+        $messageRes = "Email sent successfully!";
+        if (!empty($admin_id)) {
+          log_audit_event($conn, $admin_id, 'email_customer', 'support_ticket', null, [
+            'email' => $recipients[0],
+            'subject' => $subject
+          ]);
+        }
+      } else {
+        $statusRes = "error";
+        $messageRes = "Couldn't send email. Please try again later!";
+      }
+    }
   }
 }
 
