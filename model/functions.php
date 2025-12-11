@@ -74,4 +74,58 @@ function log_audit_event($conn, $admin_id, $action, $entity_type, $entity_id = n
     return true;
 }
 
+function checkBrevoCredits($apiKey, $requiredCredits = 0) {
+    $url = 'https://api.brevo.com/v3/account';
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+        'accept: application/json',
+        'api-key: ' . $apiKey
+    ));
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    
+    if ($httpCode !== 200) {
+        return array('success' => false, 'message' => 'Failed to connect to Brevo API');
+    }
+    
+    $data = json_decode($response, true);
+    
+    if (!$data || !isset($data['plan'])) {
+        return array('success' => false, 'message' => 'Invalid API response');
+    }
+    
+    // Find subscription plan and get credits
+    $availableCredits = 0;
+    foreach ($data['plan'] as $plan) {
+        if ($plan['type'] === 'subscription' && isset($plan['credits'])) {
+            $availableCredits = intval($plan['credits']);
+            break;
+        }
+    }
+    
+    // Check if we have enough credits plus 1500 buffer
+    $minRequired = $requiredCredits + 1500;
+    
+    if ($availableCredits < $minRequired) {
+        return array(
+            'success' => false, 
+            'message' => "Insufficient Brevo credits. Available: $availableCredits, Required: $minRequired (including 1500 buffer)",
+            'available_credits' => $availableCredits,
+            'required_credits' => $minRequired
+        );
+    }
+    
+    return array(
+        'success' => true, 
+        'message' => 'Sufficient credits available',
+        'available_credits' => $availableCredits,
+        'required_credits' => $minRequired
+    );
+}
+
 ?>
