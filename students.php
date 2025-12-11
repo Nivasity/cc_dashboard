@@ -263,6 +263,7 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                               <option value="single">Single Student</option>
                               <option value="all_students">All Students</option>
                               <option value="all_hoc">All HOCs</option>
+                              <option value="all_students_hoc">All Students + HOCs</option>
                               <option value="school">Students of a School</option>
                               <option value="faculty">Students of a Faculty</option>
                               <option value="dept">Students of a Department</option>
@@ -657,7 +658,7 @@ $admin_faculty = $admin_['faculty'] ?? 0;
           $('#cus_email').attr('required', 'required');
           $('#student_count').text('1');
           $('#student_count_row').show();
-        } else if (type === 'all_students' || type === 'all_hoc') {
+        } else if (type === 'all_students' || type === 'all_hoc' || type === 'all_students_hoc') {
           calculateStudentCount();
           $('#student_count_row').show();
         } else if (type === 'school') {
@@ -685,10 +686,13 @@ $admin_faculty = $admin_['faculty'] ?? 0;
             school_select.empty().append($('<option>', { value: '', text: 'Select School' }));
             
             $.each(data.schools, function (index, school) {
-              school_select.append($('<option>', {
-                value: school.id,
-                text: school.name
-              }));
+              // Only show active schools
+              if (school.status === 'active') {
+                school_select.append($('<option>', {
+                  value: school.id,
+                  text: school.name
+                }));
+              }
             });
           }
         });
@@ -713,10 +717,13 @@ $admin_faculty = $admin_['faculty'] ?? 0;
             success: function (data) {
               if (data.status === 'success' && data.faculties) {
                 $.each(data.faculties, function (index, faculty) {
-                  $('#email_faculty').append($('<option>', {
-                    value: faculty.id,
-                    text: faculty.name
-                  }));
+                  // Only show active faculties
+                  if (faculty.status === 'active') {
+                    $('#email_faculty').append($('<option>', {
+                      value: faculty.id,
+                      text: faculty.name
+                    }));
+                  }
                 });
               }
             }
@@ -730,10 +737,13 @@ $admin_faculty = $admin_['faculty'] ?? 0;
             success: function (data) {
               if (data.status === 'success' && data.departments) {
                 $.each(data.departments, function (index, dept) {
-                  $('#email_dept').append($('<option>', {
-                    value: dept.id,
-                    text: dept.name
-                  }));
+                  // Only show active departments
+                  if (dept.status === 'active') {
+                    $('#email_dept').append($('<option>', {
+                      value: dept.id,
+                      text: dept.name
+                    }));
+                  }
                 });
               }
             }

@@ -434,6 +434,14 @@ if (isset($_POST['get_student_count'])) {
     }
     $result = mysqli_query($conn, $query);
     $count = mysqli_fetch_assoc($result)['count'];
+  } elseif ($recipient_type === 'all_students_hoc') {
+    $query = "SELECT COUNT(*) AS count FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified'";
+    if ($admin_role == 5 && $admin_school > 0) {
+      $admin_school_safe = intval($admin_school);
+      $query .= " AND school = $admin_school_safe";
+    }
+    $result = mysqli_query($conn, $query);
+    $count = mysqli_fetch_assoc($result)['count'];
   } elseif ($recipient_type === 'school' && $school_id > 0) {
     // Check if school admin is trying to access a different school
     if ($admin_role == 5 && $admin_school > 0 && $school_id != $admin_school) {
@@ -447,7 +455,7 @@ if (isset($_POST['get_student_count'])) {
   } elseif ($recipient_type === 'faculty' && $faculty_id > 0) {
     // Check if faculty belongs to admin's school
     if ($admin_role == 5 && $admin_school > 0) {
-      $faculty_check = mysqli_query($conn, "SELECT id FROM faculties WHERE id = $faculty_id AND school_id = " . intval($admin_school));
+      $faculty_check = mysqli_query($conn, "SELECT id FROM faculties WHERE id = $faculty_id AND school_id = " . intval($admin_school) . " AND status = 'active'");
       if (mysqli_num_rows($faculty_check) == 0) {
         $count = 0;
       } else {
@@ -465,7 +473,7 @@ if (isset($_POST['get_student_count'])) {
   } elseif ($recipient_type === 'dept' && $dept_id > 0) {
     // Check if dept belongs to admin's school
     if ($admin_role == 5 && $admin_school > 0) {
-      $dept_check = mysqli_query($conn, "SELECT id FROM depts WHERE id = $dept_id AND school_id = " . intval($admin_school));
+      $dept_check = mysqli_query($conn, "SELECT id FROM depts WHERE id = $dept_id AND school_id = " . intval($admin_school) . " AND status = 'active'");
       if (mysqli_num_rows($dept_check) == 0) {
         $count = 0;
       } else {
@@ -526,6 +534,16 @@ if (isset($_POST['email_customer'])) {
     while ($row = mysqli_fetch_assoc($result)) {
       $recipients[] = $row['email'];
     }
+  } elseif ($recipient_type === 'all_students_hoc') {
+    $query = "SELECT email FROM users WHERE (role = 'student' OR role = 'hoc') AND status = 'verified'";
+    if ($admin_role == 5 && $admin_school > 0) {
+      $admin_school_safe = intval($admin_school);
+      $query .= " AND school = $admin_school_safe";
+    }
+    $result = mysqli_query($conn, $query);
+    while ($row = mysqli_fetch_assoc($result)) {
+      $recipients[] = $row['email'];
+    }
   } elseif ($recipient_type === 'school') {
     $school_id = intval($_POST['email_school']);
     // Check if school admin is trying to access a different school
@@ -544,7 +562,7 @@ if (isset($_POST['email_customer'])) {
     $faculty_id = intval($_POST['email_faculty']);
     // Check if faculty belongs to admin's school
     if ($admin_role == 5 && $admin_school > 0) {
-      $faculty_check = mysqli_query($conn, "SELECT id FROM faculties WHERE id = $faculty_id AND school_id = " . intval($admin_school));
+      $faculty_check = mysqli_query($conn, "SELECT id FROM faculties WHERE id = $faculty_id AND school_id = " . intval($admin_school) . " AND status = 'active'");
       if (mysqli_num_rows($faculty_check) == 0) {
         $statusRes = "error";
         $messageRes = "You can only send emails to students in your own school!";
@@ -562,7 +580,7 @@ if (isset($_POST['email_customer'])) {
     $dept_id = intval($_POST['email_dept']);
     // Check if dept belongs to admin's school
     if ($admin_role == 5 && $admin_school > 0) {
-      $dept_check = mysqli_query($conn, "SELECT id FROM depts WHERE id = $dept_id AND school_id = " . intval($admin_school));
+      $dept_check = mysqli_query($conn, "SELECT id FROM depts WHERE id = $dept_id AND school_id = " . intval($admin_school) . " AND status = 'active'");
       if (mysqli_num_rows($dept_check) == 0) {
         $statusRes = "error";
         $messageRes = "You can only send emails to students in your own school!";
