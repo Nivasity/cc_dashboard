@@ -91,8 +91,8 @@ function sendMailBatch($subject, $body, $recipients) {
     $successCount = 0;
     $failCount = 0;
     
-    // Split recipients into batches of 1000 (BREVO API limit)
-    $batches = array_chunk($recipients, 1000);
+    // Split recipients into batches of 99 (BREVO BCC limit)
+    $batches = array_chunk($recipients, 99);
     
     foreach ($batches as $batch) {
         // Prepare BCC array
