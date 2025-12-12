@@ -74,7 +74,24 @@ function log_audit_event($conn, $admin_id, $action, $entity_type, $entity_id = n
     return true;
 }
 
+/**
+ * Check BREVO API Credits Before Sending Bulk Emails
+ * 
+ * This function validates that the BREVO account has sufficient email credits
+ * before attempting to send bulk emails. It connects to BREVO's API v3 to 
+ * retrieve the current credit balance and ensures adequate credits are available.
+ * 
+ * BREVO (formerly Sendinblue) uses a credit-based system for email sending.
+ * Each email sent consumes credits from your account balance.
+ * 
+ * @param string $apiKey The BREVO API key (from config/brevo.php)
+ * @param int $requiredCredits Number of credits needed for the operation
+ * @return array Returns array with 'success' boolean and 'message' string
+ *               On success: includes 'available_credits' and 'required_credits'
+ *               On failure: includes error message explaining the issue
+ */
 function checkBrevoCredits($apiKey, $requiredCredits = 0) {
+    // BREVO API v3 endpoint for account information
     $url = 'https://api.brevo.com/v3/account';
     
     $ch = curl_init();
@@ -82,7 +99,7 @@ function checkBrevoCredits($apiKey, $requiredCredits = 0) {
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, array(
         'accept: application/json',
-        'api-key: ' . $apiKey
+        'api-key: ' . $apiKey  // BREVO API authentication
     ));
     
     $response = curl_exec($ch);
@@ -96,10 +113,10 @@ function checkBrevoCredits($apiKey, $requiredCredits = 0) {
     $data = json_decode($response, true);
     
     if (!$data || !isset($data['plan'])) {
-        return array('success' => false, 'message' => 'Invalid API response');
+        return array('success' => false, 'message' => 'Invalid API response from BREVO');
     }
     
-    // Find subscription plan and get credits
+    // Find subscription plan and extract available email credits from BREVO account
     $availableCredits = 0;
     foreach ($data['plan'] as $plan) {
         if ($plan['type'] === 'subscription' && isset($plan['credits'])) {
@@ -108,7 +125,8 @@ function checkBrevoCredits($apiKey, $requiredCredits = 0) {
         }
     }
     
-    // Check if we have enough credits plus 1500 buffer
+    // Check if we have enough BREVO credits plus 1500 buffer
+    // Buffer ensures account doesn't run completely out of credits
     $minRequired = $requiredCredits + 1500;
     
     if ($availableCredits < $minRequired) {

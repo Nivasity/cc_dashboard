@@ -1,10 +1,25 @@
 <?php
+// BREVO Email System Configuration
+// This file contains the sendMail() function that uses BREVO (formerly Sendinblue) SMTP service
+// BREVO is the email service provider for all transactional and bulk emails
+// Configuration: SMTP credentials are loaded from ../config/mail.php
 require('../config/mail.php');
 
 //Import PHPMailer classes into the global namespace
 //These must be at the top of your script, not inside a function
 use PHPMailer\PHPMailer\PHPMailer;
 
+/**
+ * Send email using BREVO SMTP service
+ * 
+ * This function sends emails via BREVO's SMTP relay service using PHPMailer.
+ * SMTP credentials (host, username, password, port) are configured in config/mail.php
+ * 
+ * @param string $subject The email subject line
+ * @param string $body The email body content (HTML supported)
+ * @param string $to The recipient email address
+ * @return string Returns "success" if email sent successfully, "error" otherwise
+ */
 function sendMail($subject, $body, $to) {
   
     
@@ -111,18 +126,27 @@ function sendMail($subject, $body, $to) {
   </html>';
   // Ensure dynamic copyright year in footer
   $body_ = str_replace('Copyright © Nivasity. 2024', 'Copyright © Nivasity. ' . $currentYear, $body_);
+  
   // Create a new PHPMailer instance
   $mail = new PHPMailer;
+  
+  // BREVO SMTP Server Configuration
+  // These settings connect to BREVO's SMTP relay service
+  // SMTP credentials are defined in config/mail.php:
+  //   - SMTP_HOST: typically 'smtp-relay.brevo.com' or 'smtp-relay.sendinblue.com'
+  //   - SMTP_USERNAME: Your BREVO account email or SMTP login
+  //   - SMTP_PASSWORD: BREVO SMTP password (not your account password)
+  //   - SMTP_PORT: typically 465 (SSL) or 587 (TLS)
   
   //Server settings
   // $mail->SMTPDebug = SMTP::DEBUG_SERVER; //Enable verbose debug output
   $mail->isSMTP(); //Send using SMTP
-  $mail->Host = SMTP_HOST; //Set the SMTP server to send through
+  $mail->Host = SMTP_HOST; //BREVO SMTP server address
   $mail->SMTPAuth = true; //Enable SMTP authentication
-  $mail->Username = SMTP_USERNAME; //SMTP username
-  $mail->Password = SMTP_PASSWORD; //SMTP password
+  $mail->Username = SMTP_USERNAME; //BREVO SMTP username
+  $mail->Password = SMTP_PASSWORD; //BREVO SMTP password
   $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; //Enable implicit TLS encryption
-  $mail->Port = SMTP_PORT; //TCP port to connect to; use 587 if you have set `SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS`
+  $mail->Port = SMTP_PORT; //BREVO SMTP port (465 for SSL, 587 for TLS)
   
   //Recipients
   $mail->setFrom("contact@nivasity.com", "Nivasity");
