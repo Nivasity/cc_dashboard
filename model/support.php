@@ -1,11 +1,11 @@
 <?php
 session_start();
 include('config.php');
-include('mail.php');  // Includes sendMail() function that uses BREVO SMTP
+include('mail.php');  // Includes sendMail() and sendMailBatch() functions that use BREVO REST API
 include('functions.php');  // Includes checkBrevoCredits() for BREVO API credit validation
 
 // Include Brevo API configuration if it exists
-// This provides BREVO_API_KEY constant for API credit checking
+// This provides BREVO_API_KEY constant for API authentication
 // BREVO (formerly Sendinblue) is the email service provider used for all email sending
 if (file_exists('../config/brevo.php')) {
   include('../config/brevo.php');
@@ -624,19 +624,11 @@ if (isset($_POST['email_customer'])) {
           $statusRes = "error";
           $messageRes = $creditCheck['message'];
         } else {
-          // Proceed with sending emails via BREVO SMTP
-          $successCount = 0;
-          $failCount = 0;
-          
-          foreach ($recipients as $email) {
-            // sendMail() uses PHPMailer with BREVO SMTP credentials
-            $mailStatus = sendMail($subject, $e_message, $email);
-            if ($mailStatus === "success") {
-              $successCount++;
-            } else {
-              $failCount++;
-            }
-          }
+          // Proceed with sending emails via BREVO REST API
+          // Use batch sending for efficiency (max 1000 emails per API call)
+          $result = sendMailBatch($subject, $e_message, $recipients);
+          $successCount = $result['success_count'];
+          $failCount = $result['fail_count'];
           
           if ($successCount > 0) {
             $statusRes = "success";
@@ -661,7 +653,7 @@ if (isset($_POST['email_customer'])) {
       }
     } else {
       // Single email - no BREVO credit check needed (minimal impact on credits)
-      // Still uses BREVO SMTP for sending via sendMail() function
+      // Uses BREVO REST API for sending via sendMail() function
       $mailStatus = sendMail($subject, $e_message, $recipients[0]);
       
       if ($mailStatus === "success") {
