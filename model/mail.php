@@ -10,6 +10,22 @@ if (file_exists('../config/brevo.php')) {
 }
 
 /**
+ * Get BREVO API key with validation
+ * 
+ * @return string|null Returns API key if configured, null otherwise
+ */
+function getBrevoAPIKey() {
+    $apiKey = defined('BREVO_API_KEY') ? BREVO_API_KEY : '';
+    
+    if (empty($apiKey)) {
+        error_log('BREVO API key not configured. Please create config/brevo.php with BREVO_API_KEY constant.');
+        return null;
+    }
+    
+    return $apiKey;
+}
+
+/**
  * Send email using BREVO REST API
  * 
  * This function sends emails via BREVO's REST API endpoint: POST /v3/smtp/email
@@ -22,10 +38,9 @@ if (file_exists('../config/brevo.php')) {
  */
 function sendMail($subject, $body, $to) {
     // Get BREVO API key
-    $apiKey = defined('BREVO_API_KEY') ? BREVO_API_KEY : '';
+    $apiKey = getBrevoAPIKey();
     
-    if (empty($apiKey)) {
-        error_log('BREVO API key not configured');
+    if (!$apiKey) {
         return "error";
     }
     
@@ -64,10 +79,9 @@ function sendMail($subject, $body, $to) {
  */
 function sendMailBatch($subject, $body, $recipients) {
     // Get BREVO API key
-    $apiKey = defined('BREVO_API_KEY') ? BREVO_API_KEY : '';
+    $apiKey = getBrevoAPIKey();
     
-    if (empty($apiKey)) {
-        error_log('BREVO API key not configured');
+    if (!$apiKey) {
         return array('success_count' => 0, 'fail_count' => count($recipients));
     }
     
@@ -252,8 +266,8 @@ function sendBrevoAPIRequest($apiKey, $payload) {
     if ($httpCode === 201) {
         return true;
     } else {
-        // Log error for debugging
-        error_log("BREVO API error (HTTP $httpCode): " . $response);
+        // Log error for debugging (without sensitive response data)
+        error_log("BREVO API error: HTTP status code $httpCode");
         return false;
     }
 }
