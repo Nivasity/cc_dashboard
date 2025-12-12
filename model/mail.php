@@ -95,26 +95,29 @@ function sendMailBatch($subject, $body, $recipients) {
     $batches = array_chunk($recipients, 1000);
     
     foreach ($batches as $batch) {
-        // Prepare recipients array
-        $toArray = array();
+        // Prepare BCC array
+        $bccArray = array();
         foreach ($batch as $email) {
-            $toArray[] = array('email' => $email);
+            $bccArray[] = array('email' => $email);
         }
-        
+
         // Prepare API request payload
         $payload = array(
             'sender' => array(
                 'name' => 'Nivasity',
                 'email' => 'contact@nivasity.com'
             ),
-            'to' => $toArray,
+            'to' => array(
+                array('email' => 'support@nivasity.com')
+            ),
+            'bcc' => $bccArray,
             'subject' => $subject,
             'htmlContent' => $htmlContent
         );
-        
+
         // Send via BREVO API
         $result = sendBrevoAPIRequest($apiKey, $payload);
-        
+
         if ($result) {
             $successCount += count($batch);
         } else {
