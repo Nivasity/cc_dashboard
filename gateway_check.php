@@ -7,7 +7,7 @@ require_once __DIR__ . '/config/fw.php';
 // Defaults
 $today = new DateTime('now', new DateTimeZone('Africa/Lagos'));
 $default_to = $today->format('Y-m-d');
-$default_from = $today->modify('-7 days')->format('Y-m-d');
+$default_from = (clone $today)->modify('-7 days')->format('Y-m-d');
 
 $from = isset($_GET['from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['from']) ? $_GET['from'] : $default_from;
 $to = isset($_GET['to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['to']) ? $_GET['to'] : $default_to;
@@ -29,6 +29,8 @@ function flw_api_request(string $endpoint, array $query = []): array
     CURLOPT_URL => $url,
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_TIMEOUT => 30,
+    CURLOPT_SSL_VERIFYPEER => true,
+    CURLOPT_SSL_VERIFYHOST => 2,
     CURLOPT_HTTPHEADER => [
       'Accept: application/json',
       'Authorization: Bearer ' . FLW_SECRET_KEY,
@@ -123,6 +125,8 @@ function paystack_api_request(string $endpoint, array $query = []): array
     CURLOPT_URL => $url,
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_TIMEOUT => 30,
+    CURLOPT_SSL_VERIFYPEER => true,
+    CURLOPT_SSL_VERIFYHOST => 2,
     CURLOPT_HTTPHEADER => [
       'Accept: application/json',
       'Authorization: Bearer ' . PAYSTACK_SECRET_KEY,
@@ -226,6 +230,10 @@ if ($response_status) {
       $amount = isset($item['amount']) ? $item['amount'] / 100 : null; // Paystack returns in kobo
       $currency = $item['currency'] ?? 'NGN';
       $status_remote = $item['status'] ?? '';
+      // Normalize Paystack status: "success" -> "successful" to match Flutterwave
+      if ($status_remote === 'success') {
+        $status_remote = 'successful';
+      }
       $created = $item['created_at'] ?? '';
 
       $local = $tx_ref ? get_local_tx_status($conn, $tx_ref) : ['found' => false, 'row' => null];
@@ -310,6 +318,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     $tx_ref = trim($_GET['tx_ref'] ?? '');
     $user = null;
     $user_id = null;
+    // Transaction reference pattern: nivas_{user_id}_{timestamp}_{random}
     if (preg_match('/^nivas_(\d+)_/i', $tx_ref, $m)) {
       $user_id = (int)$m[1];
       $stmt = $conn->prepare('SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.gender, u.status, u.matric_no, u.school, u.dept, s.name AS school_name, d.name AS dept_name, f.name AS faculty_name FROM users u LEFT JOIN schools s ON s.id = u.school LEFT JOIN depts d ON d.id = u.dept LEFT JOIN faculties f ON f.id = d.faculty_id WHERE u.id = ? LIMIT 1');
@@ -343,7 +352,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
   exit;
 }
 
-function h($v) { return htmlspecialchars((string)$v ?? '', ENT_QUOTES, 'UTF-8'); }
+function h($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 ?>
 <!DOCTYPE html>
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/" data-template="vertical-menu-template-free">
@@ -415,7 +424,7 @@ function h($v) { return htmlspecialchars((string)$v ?? '', ENT_QUOTES, 'UTF-8');
                         <tr>
                           <th>Type</th>
                           <th>TX Ref</th>
-                          <th>FLW Ref/ID</th>
+                          <th>Gateway Ref/ID</th>
                           <th>Amount</th>
                           <th>Currency</th>
                           <th>Remote Status</th>
@@ -457,7 +466,7 @@ function h($v) { return htmlspecialchars((string)$v ?? '', ENT_QUOTES, 'UTF-8');
                         <h6 class="mb-2">Remote Info</h6>
                         <div><strong>Type:</strong> <span id="mType"></span></div>
                         <div><strong>TX Ref:</strong> <span id="mTxRef"></span></div>
-                        <div><strong>FLW Ref/ID:</strong> <span id="mFlwRef"></span></div>
+                        <div><strong>Gateway Ref/ID:</strong> <span id="mFlwRef"></span></div>
                         <div><strong>Amount:</strong> <span id="mAmount"></span> <span id="mCurrency"></span></div>
                         <div><strong>Status:</strong> <span id="mStatus" class="badge bg-label-secondary"></span></div>
                         <div><strong>Created:</strong> <span id="mCreated"></span></div>
