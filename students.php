@@ -249,10 +249,14 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                     </div>
                   </div>
 
+                  <!-- Email Students Tab - Uses BREVO Email Service -->
+                  <!-- BREVO (formerly Sendinblue) is the email service provider -->
+                  <!-- Emails are sent via BREVO SMTP and credits are validated via BREVO API -->
                   <div class="card mb-4 tab-pane fade" id="navs-top-email" role="tabpanel">
                     <h5 class="card-header">Email Student(s)</h5>
                     <hr class="my-0" />
                     <div class="card-body">
+                      <!-- Form submits to model/support.php which handles BREVO email sending -->
                       <form id="email-form">
                         <input type="hidden" name="email_customer" value="1" />
                         <div class="row mb-3">

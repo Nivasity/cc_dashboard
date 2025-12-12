@@ -1,10 +1,12 @@
 <?php
 session_start();
 include('config.php');
-include('mail.php');
-include('functions.php');
+include('mail.php');  // Includes sendMail() and sendMailBatch() functions that use BREVO REST API
+include('functions.php');  // Includes checkBrevoCredits() for BREVO API credit validation
 
 // Include Brevo API configuration if it exists
+// This provides BREVO_API_KEY constant for API authentication
+// BREVO (formerly Sendinblue) is the email service provider used for all email sending
 if (file_exists('../config/brevo.php')) {
   include('../config/brevo.php');
 }
@@ -603,34 +605,30 @@ if (isset($_POST['email_customer'])) {
   } else {
     $recipientCount = count($recipients);
     
-    // Check Brevo credits before sending (only for bulk emails)
+    // BREVO Email System: Check Brevo API credits before sending bulk emails
+    // This prevents sending emails when the BREVO account has insufficient credits
+    // BREVO (formerly Sendinblue) is our email service provider
     if ($recipientCount > 1) {
-      // Get Brevo API key from config
+      // Get Brevo API key from config/brevo.php
       $brevoApiKey = defined('BREVO_API_KEY') ? BREVO_API_KEY : '';
       
       if (empty($brevoApiKey)) {
         $statusRes = "error";
         $messageRes = "Brevo API key not configured. Please contact administrator.";
       } else {
-        // Check credits
+        // Check credits using BREVO API v3 (/v3/account endpoint)
+        // Ensures we have enough credits (required + 1500 buffer) before sending
         $creditCheck = checkBrevoCredits($brevoApiKey, $recipientCount);
         
         if (!$creditCheck['success']) {
           $statusRes = "error";
           $messageRes = $creditCheck['message'];
         } else {
-          // Proceed with sending emails
-          $successCount = 0;
-          $failCount = 0;
-          
-          foreach ($recipients as $email) {
-            $mailStatus = sendMail($subject, $e_message, $email);
-            if ($mailStatus === "success") {
-              $successCount++;
-            } else {
-              $failCount++;
-            }
-          }
+          // Proceed with sending emails via BREVO REST API
+          // Use batch sending for efficiency (max 1000 emails per API call)
+          $result = sendMailBatch($subject, $e_message, $recipients);
+          $successCount = $result['success_count'];
+          $failCount = $result['fail_count'];
           
           if ($successCount > 0) {
             $statusRes = "success";
@@ -654,7 +652,8 @@ if (isset($_POST['email_customer'])) {
         }
       }
     } else {
-      // Single email - no credit check needed
+      // Single email - no BREVO credit check needed (minimal impact on credits)
+      // Uses BREVO REST API for sending via sendMail() function
       $mailStatus = sendMail($subject, $e_message, $recipients[0]);
       
       if ($mailStatus === "success") {
