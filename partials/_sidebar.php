@@ -194,6 +194,12 @@ $admin_faculty = $admin_['faculty'] ?? 0;
           <div data-i18n="Batch Payments">Batch Payments</div>
         </a>
       </li>
+      <li class="menu-item <?php echo $current_page == 'gateway_check.php' ? 'active' : ''; ?>">
+        <a href="gateway_check.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-check-circle"></i>
+          <div data-i18n="Gateway Checker">Gateway Checker</div>
+        </a>
+      </li>
     <?php } ?>
 
     <?php if ($resource_mgt_menu){ ?>
