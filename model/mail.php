@@ -263,14 +263,22 @@ function sendBrevoAPIRequest($apiKey, $payload) {
     
     $response = curl_exec($ch);
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
     curl_close($ch);
-    
+
     // BREVO API returns 201 on success
     if ($httpCode === 201) {
         return true;
     } else {
-        // Log error for debugging (without sensitive response data)
-        error_log("BREVO API error: HTTP status code $httpCode");
+        // Log error code and response message for debugging
+        $logMsg = "BREVO API error: HTTP status code $httpCode";
+        if (!empty($response)) {
+            $logMsg .= ", response: $response";
+        }
+        if (!empty($curlError)) {
+            $logMsg .= ", curl_error: $curlError";
+        }
+        error_log($logMsg);
         return false;
     }
 }
