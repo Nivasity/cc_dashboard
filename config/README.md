@@ -2,11 +2,40 @@
 
 This directory contains configuration files that are not tracked by Git for security reasons.
 
-## BREVO Email Service Configuration
+## Required Configuration Files
+
+### 1. Payment Gateway Configuration (`fw.php`)
+
+This file contains API keys for Flutterwave and Paystack payment gateways used throughout the application.
+
+To enable payment gateway functionality:
+
+1. Copy `fw.example.php` to `fw.php`
+2. Edit `fw.php` and replace placeholder values with your actual API keys
+3. Get Flutterwave API keys from: https://dashboard.flutterwave.com/settings/apis
+4. Get Paystack API keys from: https://dashboard.paystack.com/#/settings/developers
+
+**Example:**
+
+```php
+<?php
+// Flutterwave API Keys
+define('FLW_PUBLIC_KEY', 'FLWPUBK_TEST-your-actual-key-here');
+define('FLW_SECRET_KEY', 'FLWSECK_TEST-your-actual-key-here');
+
+// Paystack API Keys
+define('PAYSTACK_PUBLIC_KEY', 'pk_test_your-actual-key-here');
+define('PAYSTACK_SECRET_KEY', 'sk_test_your-actual-key-here');
+?>
+```
+
+**Note:** The `fw.php` file is ignored by Git to keep your API keys secure.
+
+### 2. BREVO Email Service Configuration (`brevo.php`)
 
 **IMPORTANT**: This application uses **BREVO** (formerly Sendinblue) REST API as the email service provider for all email functionality, including the students.php email system.
 
-### What is BREVO?
+#### What is BREVO?
 BREVO is a comprehensive email marketing and transactional email platform that provides:
 - REST API for sending transactional emails
 - Batch email sending (up to 1000 emails per API call)
@@ -14,11 +43,7 @@ BREVO is a comprehensive email marketing and transactional email platform that p
 - Credit-based email sending system
 - Reliable email delivery infrastructure
 
-### Required Configuration Files
-
 #### BREVO API Configuration (`brevo.php`)
-
-This is the **only** configuration file needed for email functionality.
 
 To enable the email functionality with BREVO API:
 

@@ -7,7 +7,7 @@ require_once __DIR__ . '/config/fw.php';
 // Defaults
 $today = new DateTime('now', new DateTimeZone('Africa/Lagos'));
 $default_to = $today->format('Y-m-d');
-$default_from = $today->modify('-7 days')->format('Y-m-d');
+$default_from = (clone $today)->modify('-7 days')->format('Y-m-d');
 
 $from = isset($_GET['from']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['from']) ? $_GET['from'] : $default_from;
 $to = isset($_GET['to']) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $_GET['to']) ? $_GET['to'] : $default_to;
@@ -15,6 +15,7 @@ $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
 $mode = isset($_GET['status']) && in_array($_GET['status'], ['successful', 'refunded']) ? $_GET['status'] : 'successful';
 $customer_email = isset($_GET['customer_email']) ? trim((string)$_GET['customer_email']) : '';
 $tx_ref_filter = isset($_GET['tx_ref']) ? trim((string)$_GET['tx_ref']) : '';
+$gateway = isset($_GET['gateway']) && in_array(strtolower($_GET['gateway']), ['flutterwave', 'paystack']) ? strtolower($_GET['gateway']) : 'flutterwave';
 
 function flw_api_request(string $endpoint, array $query = []): array
 {
@@ -28,6 +29,8 @@ function flw_api_request(string $endpoint, array $query = []): array
     CURLOPT_URL => $url,
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_TIMEOUT => 30,
+    CURLOPT_SSL_VERIFYPEER => true,
+    CURLOPT_SSL_VERIFYHOST => 2,
     CURLOPT_HTTPHEADER => [
       'Accept: application/json',
       'Authorization: Bearer ' . FLW_SECRET_KEY,
@@ -110,12 +113,76 @@ function fetch_tx_ref_from_tx_id(int $txId): ?string
   return null;
 }
 
-// Execute query to Flutterwave based on mode
+function paystack_api_request(string $endpoint, array $query = []): array
+{
+  $url = $endpoint;
+  if (!empty($query)) {
+    $url .= '?' . http_build_query($query);
+  }
+
+  $ch = curl_init();
+  curl_setopt_array($ch, [
+    CURLOPT_URL => $url,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 30,
+    CURLOPT_SSL_VERIFYPEER => true,
+    CURLOPT_SSL_VERIFYHOST => 2,
+    CURLOPT_HTTPHEADER => [
+      'Accept: application/json',
+      'Authorization: Bearer ' . PAYSTACK_SECRET_KEY,
+    ],
+  ]);
+  $resp = curl_exec($ch);
+  $err = curl_error($ch);
+  $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  curl_close($ch);
+
+  if ($err) {
+    return ['status' => false, 'message' => 'cURL error: ' . $err, 'code' => $code, 'data' => []];
+  }
+
+  $json = json_decode($resp, true);
+  if (!is_array($json)) {
+    return ['status' => false, 'message' => 'Invalid JSON from Paystack', 'code' => $code, 'data' => []];
+  }
+  // Normalize
+  $json['code'] = $code;
+  if (!isset($json['data'])) {
+    $json['data'] = [];
+  }
+  return $json;
+}
+
+function fetch_paystack_transactions(string $from, string $to, int $page, string $customer_email = '', string $tx_ref = ''): array
+{
+  $params = [
+    'from' => $from . 'T00:00:00.000Z',
+    'to' => $to . 'T23:59:59.999Z',
+    'status' => 'success',
+    'page' => $page,
+    'perPage' => 50,
+  ];
+  if ($customer_email !== '') { $params['customer'] = $customer_email; }
+  // Paystack doesn't have tx_ref filter in list endpoint, we'll filter locally
+  return paystack_api_request('https://api.paystack.co/transaction', $params);
+}
+
+// Execute query to gateway based on mode and gateway selection
 $api_response = ['status' => null, 'message' => '', 'data' => [], 'meta' => []];
-if ($mode === 'refunded') {
-  $api_response = fetch_refunds($from, $to, $page, $customer_email, $tx_ref_filter);
+if ($gateway === 'paystack') {
+  // Paystack doesn't have refunds endpoint in the same way, we'll use transactions only
+  if ($mode === 'refunded') {
+    $api_response = ['status' => false, 'message' => 'Paystack refund listing not supported via API. Please check transactions with refund status.', 'data' => []];
+  } else {
+    $api_response = fetch_paystack_transactions($from, $to, $page, $customer_email, $tx_ref_filter);
+  }
 } else {
-  $api_response = fetch_transactions($from, $to, $page, $customer_email, $tx_ref_filter);
+  // Flutterwave
+  if ($mode === 'refunded') {
+    $api_response = fetch_refunds($from, $to, $page, $customer_email, $tx_ref_filter);
+  } else {
+    $api_response = fetch_transactions($from, $to, $page, $customer_email, $tx_ref_filter);
+  }
 }
 
 // Prepare rows and pagination meta
@@ -123,21 +190,66 @@ $rows = [];
 $page_size = 10; // as specified
 $total = 0;
 $total_pages = 1;
-if (($api_response['status'] ?? '') === 'success') {
+$response_status = $gateway === 'paystack' ? ($api_response['status'] ?? false) : (($api_response['status'] ?? '') === 'success');
+
+if ($response_status) {
   $items = $api_response['data'];
-  // Extract total if available in meta
-  if (isset($api_response['meta']['page_info']['total'])) {
-    $total = (int)$api_response['meta']['page_info']['total'];
-  } elseif (isset($api_response['meta']['total'])) {
-    $total = (int)$api_response['meta']['total'];
+  
+  // Extract total based on gateway
+  if ($gateway === 'paystack') {
+    if (isset($api_response['meta']['total'])) {
+      $total = (int)$api_response['meta']['total'];
+    } elseif (isset($api_response['meta']['pageCount'])) {
+      $total = (int)$api_response['meta']['pageCount'] * $page_size;
+    } else {
+      $total = count($items);
+    }
   } else {
-    // Fallback when meta not provided
-    $total = count($items);
+    // Flutterwave
+    if (isset($api_response['meta']['page_info']['total'])) {
+      $total = (int)$api_response['meta']['page_info']['total'];
+    } elseif (isset($api_response['meta']['total'])) {
+      $total = (int)$api_response['meta']['total'];
+    } else {
+      // Fallback when meta not provided
+      $total = count($items);
+    }
   }
   $total_pages = max(1, (int)ceil($total / $page_size));
 
   foreach ($items as $item) {
-    if ($mode === 'refunded') {
+    if ($gateway === 'paystack') {
+      // Paystack transaction structure
+      $tx_ref = (string)($item['reference'] ?? '');
+      // Filter by tx_ref if provided (Paystack doesn't support this in API)
+      if ($tx_ref_filter !== '' && strpos($tx_ref, $tx_ref_filter) === false) {
+        continue;
+      }
+      
+      $paystack_id = $item['id'] ?? '';
+      $amount = isset($item['amount']) ? $item['amount'] / 100 : null; // Paystack returns in kobo
+      $currency = $item['currency'] ?? 'NGN';
+      $status_remote = $item['status'] ?? '';
+      // Normalize Paystack status: "success" -> "successful" to match Flutterwave
+      if ($status_remote === 'success') {
+        $status_remote = 'successful';
+      }
+      $created = $item['created_at'] ?? '';
+
+      $local = $tx_ref ? get_local_tx_status($conn, $tx_ref) : ['found' => false, 'row' => null];
+
+      $rows[] = [
+        'source' => 'transaction',
+        'tx_ref' => $tx_ref,
+        'flw_ref' => $paystack_id,
+        'amount' => $amount,
+        'currency' => $currency,
+        'status_remote' => $status_remote,
+        'created_at' => $created,
+        'local_found' => $local['found'],
+        'local_status' => $local['row']['status'] ?? '',
+      ];
+    } elseif ($mode === 'refunded') {
       // Refunds payload may vary; attempt to resolve tx_ref from common locations
       $tx_ref = null;
       if (isset($item['tx_ref']) && $item['tx_ref'] !== '') {
@@ -206,6 +318,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
     $tx_ref = trim($_GET['tx_ref'] ?? '');
     $user = null;
     $user_id = null;
+    // Transaction reference pattern: nivas_{user_id}_{timestamp}_{random}
     if (preg_match('/^nivas_(\d+)_/i', $tx_ref, $m)) {
       $user_id = (int)$m[1];
       $stmt = $conn->prepare('SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.gender, u.status, u.matric_no, u.school, u.dept, s.name AS school_name, d.name AS dept_name, f.name AS faculty_name FROM users u LEFT JOIN schools s ON s.id = u.school LEFT JOIN depts d ON d.id = u.dept LEFT JOIN faculties f ON f.id = d.faculty_id WHERE u.id = ? LIMIT 1');
@@ -227,7 +340,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
   }
 
   echo json_encode([
-    'status' => ($api_response['status'] ?? 'error'),
+    'status' => $response_status ? 'success' : 'error',
     'message' => ($api_response['message'] ?? ''),
     'mode' => $mode,
     'page' => $page,
@@ -239,15 +352,15 @@ if (isset($_GET['ajax']) && $_GET['ajax'] == '1') {
   exit;
 }
 
-function h($v) { return htmlspecialchars((string)$v ?? '', ENT_QUOTES, 'UTF-8'); }
+function h($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
 ?>
 <!DOCTYPE html>
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/" data-template="vertical-menu-template-free">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0" />
-    <title>Flutterwave Checker | Nivasity Command Center</title>
-    <meta name="description" content="Check Flutterwave transactions/refunds against local records" />
+    <title>Gateway Checker | Nivasity Command Center</title>
+    <meta name="description" content="Check Flutterwave & Paystack transactions/refunds against local records" />
     <?php include('partials/_head.php') ?>
     <script src="assets/vendor/js/bootstrap.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
@@ -260,10 +373,17 @@ function h($v) { return htmlspecialchars((string)$v ?? '', ENT_QUOTES, 'UTF-8');
           <?php include('partials/_navbar.php') ?>
           <div class="content-wrapper">
             <div class="container-xxl flex-grow-1 container-p-y">
-              <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Payments /</span> Flutterwave Checker</h4>
+              <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Payments /</span> Gateway Checker</h4>
               <div class="card mb-4">
                 <div class="card-body">
                   <form method="get" id="fetchForm" class="row g-3 mb-4">
+                    <div class="col-md-3">
+                      <label class="form-label">Gateway</label>
+                      <select name="gateway" class="form-select">
+                        <option value="flutterwave" <?php echo $gateway==='flutterwave'?'selected':''; ?>>Flutterwave</option>
+                        <option value="paystack" <?php echo $gateway==='paystack'?'selected':''; ?>>Paystack</option>
+                      </select>
+                    </div>
                     <div class="col-md-3">
                       <label class="form-label">From</label>
                       <input type="date" name="from" class="form-control" value="<?php echo h($from); ?>" required />
@@ -280,7 +400,7 @@ function h($v) { return htmlspecialchars((string)$v ?? '', ENT_QUOTES, 'UTF-8');
                       <label class="form-label">TX Ref</label>
                       <input type="text" name="tx_ref" class="form-control" value="<?php echo h($tx_ref_filter); ?>" placeholder="e.g. nivas_123_..." />
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                       <label class="form-label">Status</label>
                       <select name="status" class="form-select">
                         <option value="successful" <?php echo $mode==='successful'?'selected':''; ?>>Successful (Transactions)</option>
@@ -292,9 +412,9 @@ function h($v) { return htmlspecialchars((string)$v ?? '', ENT_QUOTES, 'UTF-8');
                     </div>
                   </form>
 
-                  <?php if (($api_response['status'] ?? '') !== 'success') { ?>
+                  <?php if (!$response_status) { ?>
                     <div class="alert alert-warning">
-                      <strong>Notice:</strong> Unable to fetch from Flutterwave. <?php echo h($api_response['message'] ?? ''); ?>
+                      <strong>Notice:</strong> Unable to fetch from <?php echo ucfirst($gateway); ?>. <?php echo h($api_response['message'] ?? ''); ?>
                     </div>
                   <?php } ?>
 
@@ -304,7 +424,7 @@ function h($v) { return htmlspecialchars((string)$v ?? '', ENT_QUOTES, 'UTF-8');
                         <tr>
                           <th>Type</th>
                           <th>TX Ref</th>
-                          <th>FLW Ref/ID</th>
+                          <th>Gateway Ref/ID</th>
                           <th>Amount</th>
                           <th>Currency</th>
                           <th>Remote Status</th>
@@ -327,7 +447,7 @@ function h($v) { return htmlspecialchars((string)$v ?? '', ENT_QUOTES, 'UTF-8');
                   </div>
 
                   <p class="text-muted mt-2 mb-0">
-                    Tip: When Status is "Refunded", results come from Flutterwave refunds endpoint and are matched against local transactions by <code>tx_ref</code>.
+                    Tip: When Status is "Refunded", results come from the gateway's refunds endpoint and are matched against local transactions by <code>tx_ref</code>. Paystack does not support refund listing via API.
                   </p>
                 </div>
               </div>
@@ -346,7 +466,7 @@ function h($v) { return htmlspecialchars((string)$v ?? '', ENT_QUOTES, 'UTF-8');
                         <h6 class="mb-2">Remote Info</h6>
                         <div><strong>Type:</strong> <span id="mType"></span></div>
                         <div><strong>TX Ref:</strong> <span id="mTxRef"></span></div>
-                        <div><strong>FLW Ref/ID:</strong> <span id="mFlwRef"></span></div>
+                        <div><strong>Gateway Ref/ID:</strong> <span id="mFlwRef"></span></div>
                         <div><strong>Amount:</strong> <span id="mAmount"></span> <span id="mCurrency"></span></div>
                         <div><strong>Status:</strong> <span id="mStatus" class="badge bg-label-secondary"></span></div>
                         <div><strong>Created:</strong> <span id="mCreated"></span></div>
@@ -452,13 +572,13 @@ function h($v) { return htmlspecialchars((string)$v ?? '', ENT_QUOTES, 'UTF-8');
           const params = Object.fromEntries(new FormData($form[0]).entries());
           params.ajax = '1';
           if (pageOverride) { params.page = pageOverride; }
-          $.get('flutterwave_check.php', params).done(function(res){
+          $.get('gateway_check.php', params).done(function(res){
             if (res && res.status === 'success') {
               currentRows = res.rows || [];
               renderRows(currentRows);
               renderPagination(res.total_pages || 1, res.page || 1);
             } else {
-              $tbody.html('<tr><td colspan="9" class="text-center">Failed to fetch from Flutterwave</td></tr>');
+              $tbody.html('<tr><td colspan="9" class="text-center">Failed to fetch from payment gateway</td></tr>');
               renderPagination(1, 1);
             }
           }).fail(function(){
@@ -501,7 +621,7 @@ function h($v) { return htmlspecialchars((string)$v ?? '', ENT_QUOTES, 'UTF-8');
           $('#mUserName,#mUserEmail,#mUserPhone,#mUserSchool,#mUserFaculty,#mUserDept,#mUserStatus,#mUserMatric').text('-');
 
           // Fetch user via tx_ref (nivas_{user_id}_...)
-          $.get('flutterwave_check.php', { ajax: '1', detail: '1', tx_ref: tx.tx_ref }).done(function(res){
+          $.get('gateway_check.php', { ajax: '1', detail: '1', tx_ref: tx.tx_ref }).done(function(res){
             if (res && res.status === 'success' && res.user) {
               const u = res.user;
               $('#mUserName').text((u.first_name||'') + ' ' + (u.last_name||''));
