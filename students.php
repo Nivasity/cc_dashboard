@@ -508,6 +508,10 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                     
                     // Reset flag after department is set
                     loadingStudentProfile = false;
+                  },
+                  error: function() {
+                    // Reset flag on error to prevent it from staying true indefinitely
+                    loadingStudentProfile = false;
                   }
                 });
 
