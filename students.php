@@ -459,7 +459,6 @@ $admin_faculty = $admin_['faculty'] ?? 0;
             data: $('#search_profile-form').serialize(),
               success: function (data) {
                 if (data.status == 'success') {
-                
                 // Set flag to prevent school change handler from loading departments
                 loadingStudentProfile = true;
 
@@ -501,11 +500,9 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                         text: departments.name
                       }));
                     });
-                    
                     // Set the department value immediately after options are loaded
                     // This ensures Select2 has the options available when setting the value
                     dept.val(data.student_dept).trigger('change');
-                    
                     // Reset flag after department is set
                     loadingStudentProfile = false;
                   },
@@ -869,7 +866,6 @@ $admin_faculty = $admin_['faculty'] ?? 0;
         if (loadingStudentProfile) {
           return;
         }
-        
         student_sch = $('#school').val();
   
         $.ajax({
