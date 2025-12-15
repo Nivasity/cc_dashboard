@@ -457,74 +457,81 @@ $admin_faculty = $admin_['faculty'] ?? 0;
             type: 'POST',
             url: 'model/student.php',
             data: $('#search_profile-form').serialize(),
-              success: function (data) {
-                if (data.status == 'success') {
-                  // Set flag to prevent school change handler from loading departments
-                  loadingStudentProfile = true;
+            success: function (data) {
+              if (data.status == 'success') {
+                // Set flag to prevent school change handler from loading departments
+                loadingStudentProfile = true;
 
-                  $('#first_name').val(data.student_fn);
-                  $('#last_name').val(data.student_ln);
-                  $('#email').val(data.student_email);
-                  $('#phone').val(data.student_phone);
-                  $('#school').val(data.student_sch).trigger('change');
-                  $('#matric_no').val(data.student_matric);
-                  // Ensure admission years are populated
-                  if ($('#admissionYear option').length <= 1) {
-                    getAdmissionYears();
+                $('#first_name').val(data.student_fn);
+                $('#last_name').val(data.student_ln);
+                $('#email').val(data.student_email);
+                $('#phone').val(data.student_phone);
+                $('#school').val(data.student_sch).trigger('change');
+                $('#matric_no').val(data.student_matric);
+                // Ensure admission years are populated
+                if ($('#admissionYear option').length <= 1) {
+                  getAdmissionYears();
+                }
+                // Set selected admission year; append if not in list
+                (function() {
+                  var admVal = data.student_adm_year;
+                  var $sel = $('#admissionYear');
+                  if (admVal && $sel.find('option').filter(function(){ return $(this).val() === admVal; }).length === 0) {
+                    $sel.append($('<option>', { value: admVal, text: admVal }));
                   }
-                  // Set selected admission year; append if not in list
-                  (function() {
-                    var admVal = data.student_adm_year;
-                    var $sel = $('#admissionYear');
-                    if (admVal && $sel.find('option').filter(function(){ return $(this).val() === admVal; }).length === 0) {
-                      $sel.append($('<option>', { value: admVal, text: admVal }));
-                    }
-                    $sel.val(admVal).trigger('change');
-                  })();
-                  $('#role').val(data.student_role).trigger('change');
+                  $sel.val(admVal).trigger('change');
+                })();
+                $('#role').val(data.student_role).trigger('change');
 
-                  $.ajax({
-                    type: 'POST',
-                    url: 'model/getInfo.php',
-                    data: { get_data: 'depts', school: data.student_sch },
-                    success: function (data_) {
-                      // Get the select element
-                      var dept = $('#depts');
-                      dept.empty();
+                $.ajax({
+                  type: 'POST',
+                  url: 'model/getInfo.php',
+                  data: { get_data: 'depts', school: data.student_sch },
+                  success: function (data_) {
+                    // Get the select element
+                    var dept = $('#depts');
+                    dept.empty();
 
-                      // Iterate through the departments and add options
-                      $.each(data_.departments, function (index, departments) {
-                        // Append each department as an option to the select element
-                        dept.append($('<option>', {
-                          value: departments.id,
-                          text: departments.name
-                        }));
-                      });
-                      // Set the department value immediately after options are loaded
-                      // This ensures Select2 has the options available when setting the value
-                      dept.val(data.student_dept).trigger('change');
-                      // Reset flag after department is set
-                      loadingStudentProfile = false;
-                    },
-                    error: function() {
-                      // Reset flag on error to prevent it from staying true indefinitely
-                      loadingStudentProfile = false;
-                    }
-                  });
+                    // Iterate through the departments and add options
+                    $.each(data_.departments, function (index, departments) {
+                      // Append each department as an option to the select element
+                      dept.append($('<option>', {
+                        value: departments.id,
+                        text: departments.name
+                      }));
+                    });
+                    // Set the department value immediately after options are loaded
+                    // This ensures Select2 has the options available when setting the value
+                    dept.val(data.student_dept).trigger('change');
+                    // Reset flag after department is set
+                    loadingStudentProfile = false;
+                  },
+                  error: function() {
+                    // Reset flag on error to prevent it from staying true indefinitely
+                    loadingStudentProfile = false;
+                  }
+                });
 
-                  showToast('bg-success', data.message); 
+                showToast('bg-success', data.message); 
 
-                  $('#profile-form').show(500);
+                $('#profile-form').show(500);
               } else {
                 showToast('bg-danger', data.message);
+                // Reset flag on error to prevent it from staying true indefinitely
+                loadingStudentProfile = false;
               }
 
               button.html(originalText);
               button.prop("disabled", false);
+            },
+            error: function() {
+              showToast('bg-danger', 'An error occurred while searching for the student.');
+              button.html(originalText);
+              button.prop("disabled", false);
             }
           });
-        }, 1000);
-      });
+          }, 1000);
+        });
 
       $('#search_verify-form').submit(function (event) {
         event.preventDefault();
