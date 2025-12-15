@@ -526,6 +526,8 @@ $admin_faculty = $admin_['faculty'] ?? 0;
             },
             error: function() {
               showToast('bg-danger', 'An error occurred while searching for the student.');
+              // Reset flag in case of network error
+              loadingStudentProfile = false;
               button.html(originalText);
               button.prop("disabled", false);
             }
