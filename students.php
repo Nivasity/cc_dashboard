@@ -417,6 +417,9 @@ $admin_faculty = $admin_['faculty'] ?? 0;
     }
 
     $(document).ready(function () {
+      // Flag to track when loading student profile to avoid race conditions
+      var loadingStudentProfile = false;
+      
       // Initialize admission year options
       getAdmissionYears();
       $.ajax({
@@ -454,8 +457,10 @@ $admin_faculty = $admin_['faculty'] ?? 0;
             type: 'POST',
             url: 'model/student.php',
             data: $('#search_profile-form').serialize(),
-              success: function (data) {
-                if (data.status == 'success') {
+            success: function (data) {
+              if (data.status == 'success') {
+                // Set flag to prevent school change handler from loading departments
+                loadingStudentProfile = true;
 
                 $('#first_name').val(data.student_fn);
                 $('#last_name').val(data.student_ln);
@@ -495,26 +500,40 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                         text: departments.name
                       }));
                     });
+                    // Set the department value immediately after options are loaded
+                    // This ensures Select2 has the options available when setting the value
+                    dept.val(data.student_dept).trigger('change');
+                    // Reset flag after department is set
+                    loadingStudentProfile = false;
+                  },
+                  error: function() {
+                    // Reset flag on error to prevent it from staying true indefinitely
+                    loadingStudentProfile = false;
                   }
                 });
-                
-                setTimeout(function () {
-                  $('#depts').val(data.student_dept).trigger('change');
-                }, 1000);
 
                 showToast('bg-success', data.message); 
 
                 $('#profile-form').show(500);
               } else {
                 showToast('bg-danger', data.message);
+                // Reset flag on error to prevent it from staying true indefinitely
+                loadingStudentProfile = false;
               }
 
               button.html(originalText);
               button.prop("disabled", false);
+            },
+            error: function() {
+              showToast('bg-danger', 'An error occurred while searching for the student.');
+              // Reset flag in case of network error
+              loadingStudentProfile = false;
+              button.html(originalText);
+              button.prop("disabled", false);
             }
           });
-        }, 1000);
-      });
+          }, 1000);
+        });
 
       $('#search_verify-form').submit(function (event) {
         event.preventDefault();
@@ -852,6 +871,10 @@ $admin_faculty = $admin_['faculty'] ?? 0;
       });
 
       $('#school').change(function (event) {
+        // Skip loading departments if we're in the middle of loading a student profile
+        if (loadingStudentProfile) {
+          return;
+        }
         student_sch = $('#school').val();
   
         $.ajax({
