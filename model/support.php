@@ -509,11 +509,17 @@ if (isset($_POST['email_customer'])) {
   $subject = mysqli_real_escape_string($conn, $_POST['subject']);
   $message = $_POST['message']; // Don't escape - will be converted to HTML via markdown
   
-  // Convert markdown to HTML
-  // Using Parsedown with safe mode to prevent XSS attacks
-  $parsedown = Parsedown::instance();
-  $parsedown->setSafeMode(true);
-  $e_message = $parsedown->text($message);
+  // Basic validation: limit message length (100KB max)
+  if (strlen($message) > 100000) {
+    $statusRes = "error";
+    $messageRes = "Message is too long. Please reduce the message size.";
+  } else {
+    // Convert markdown to HTML
+    // Using Parsedown with safe mode to prevent XSS attacks
+    // Safe mode escapes HTML tags and sanitizes URLs
+    $parsedown = Parsedown::instance();
+    $parsedown->setSafeMode(true);
+    $e_message = $parsedown->text($message);
   
   // Get list of recipients based on type
   $recipients = array();
@@ -676,6 +682,7 @@ if (isset($_POST['email_customer'])) {
       }
     }
   }
+  } // End of message length validation
 }
 
 $responseData = array(
