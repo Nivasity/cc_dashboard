@@ -330,9 +330,70 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                         <div class="row mb-3">
                           <label class="col-sm-2 form-label" for="message">Message</label>
                           <div class="col-sm-10">
+                            <!-- Markdown Helper Card -->
+                            <div class="card mb-2">
+                              <div class="card-header p-2">
+                                <a class="d-flex align-items-center text-decoration-none" data-bs-toggle="collapse" href="#markdownHelper" role="button" aria-expanded="false" aria-controls="markdownHelper">
+                                  <i class="bx bx-info-circle me-2"></i>
+                                  <span class="fw-semibold">Markdown Formatting Guide</span>
+                                  <i class="bx bx-chevron-down ms-auto"></i>
+                                </a>
+                              </div>
+                              <div class="collapse" id="markdownHelper">
+                                <div class="card-body p-3">
+                                  <div class="row">
+                                    <div class="col-md-6">
+                                      <h6 class="text-primary mb-2"><i class="bx bx-bold me-1"></i>Text Formatting</h6>
+                                      <ul class="list-unstyled mb-3">
+                                        <li class="mb-2">
+                                          <code>**bold text**</code> → <strong>bold text</strong>
+                                        </li>
+                                        <li class="mb-2">
+                                          <code>*italic text*</code> → <em>italic text</em>
+                                        </li>
+                                        <li class="mb-2">
+                                          <code>~~strikethrough~~</code> → <del>strikethrough</del>
+                                        </li>
+                                      </ul>
+                                      
+                                      <h6 class="text-primary mb-2"><i class="bx bx-link me-1"></i>Links</h6>
+                                      <ul class="list-unstyled mb-3">
+                                        <li class="mb-2">
+                                          <code>[Link Text](https://example.com)</code>
+                                        </li>
+                                      </ul>
+                                    </div>
+                                    <div class="col-md-6">
+                                      <h6 class="text-primary mb-2"><i class="bx bx-list-ul me-1"></i>Lists</h6>
+                                      <ul class="list-unstyled mb-3">
+                                        <li class="mb-2">
+                                          <strong>Numbered:</strong><br>
+                                          <code>1. First item<br>2. Second item</code>
+                                        </li>
+                                        <li class="mb-2">
+                                          <strong>Bullets:</strong><br>
+                                          <code>- First item<br>- Second item</code>
+                                        </li>
+                                      </ul>
+                                      
+                                      <h6 class="text-primary mb-2"><i class="bx bx-heading me-1"></i>Headings</h6>
+                                      <ul class="list-unstyled mb-3">
+                                        <li class="mb-2">
+                                          <code># Heading 1</code><br>
+                                          <code>## Heading 2</code>
+                                        </li>
+                                      </ul>
+                                    </div>
+                                  </div>
+                                  <div class="alert alert-info mb-0 p-2" role="alert">
+                                    <small><i class="bx bx-info-circle me-1"></i>Your message will be automatically converted to HTML format when sent. Line breaks and empty lines are preserved.</small>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
                             <div class="input-group">
                               <textarea id="message" name="message" class="form-control" rows="7"
-                                placeholder="Message" aria-label="Message"
+                                placeholder="Message (Supports Markdown formatting)" aria-label="Message with Markdown formatting support"
                                 aria-describedby="message" required></textarea>
                             </div>
                           </div>

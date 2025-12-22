@@ -3,6 +3,10 @@ session_start();
 include('config.php');
 include('mail.php');  // Includes sendMail() and sendMailBatch() functions that use BREVO REST API
 include('functions.php');  // Includes checkBrevoCredits() for BREVO API credit validation
+include('Parsedown.php');  // Includes Parsedown for markdown to HTML conversion
+
+// Configuration constants
+define('MAX_EMAIL_MESSAGE_LENGTH', 100000); // 100KB maximum message length
 
 // Include Brevo API configuration if it exists
 // This provides BREVO_API_KEY constant for API authentication
@@ -506,9 +510,21 @@ if (isset($_POST['email_customer'])) {
   // Collect form data
   $recipient_type = mysqli_real_escape_string($conn, $_POST['recipient_type'] ?? 'single');
   $subject = mysqli_real_escape_string($conn, $_POST['subject']);
-  $message = mysqli_real_escape_string($conn, $_POST['message']);
+  $message = $_POST['message']; // Don't escape - will be converted to HTML via markdown
   
-  $e_message = str_replace('\r\n', '<br>', $message);
+  // Basic validation: limit message length to prevent abuse
+  if (strlen($message) > MAX_EMAIL_MESSAGE_LENGTH) {
+    $statusRes = "error";
+    $messageRes = "Message is too long. Please reduce the message size.";
+  } else {
+    // Convert markdown to HTML
+    // Using Parsedown with safe mode to prevent XSS attacks
+    // Safe mode escapes HTML tags and sanitizes URLs
+    // Enable line breaks so single newlines are preserved (user-friendly for emails)
+    $parsedown = Parsedown::instance();
+    $parsedown->setSafeMode(true);
+    $parsedown->setBreaksEnabled(true); // Preserve line breaks without requiring 2 spaces
+    $e_message = $parsedown->text($message);
   
   // Get list of recipients based on type
   $recipients = array();
@@ -671,6 +687,7 @@ if (isset($_POST['email_customer'])) {
       }
     }
   }
+  } // End of message validation and email processing
 }
 
 $responseData = array(
