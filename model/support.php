@@ -507,11 +507,12 @@ if (isset($_POST['email_customer'])) {
   // Collect form data
   $recipient_type = mysqli_real_escape_string($conn, $_POST['recipient_type'] ?? 'single');
   $subject = mysqli_real_escape_string($conn, $_POST['subject']);
-  $message = mysqli_real_escape_string($conn, $_POST['message']);
+  $message = $_POST['message']; // Don't escape - will be converted to HTML via markdown
   
   // Convert markdown to HTML
-  $parsedown = new Parsedown();
-  $parsedown->setSafeMode(true); // Enable safe mode to prevent XSS attacks
+  // Using Parsedown with safe mode to prevent XSS attacks
+  $parsedown = Parsedown::instance();
+  $parsedown->setSafeMode(true);
   $e_message = $parsedown->text($message);
   
   // Get list of recipients based on type

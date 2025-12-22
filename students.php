@@ -393,7 +393,7 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                             </div>
                             <div class="input-group">
                               <textarea id="message" name="message" class="form-control" rows="7"
-                                placeholder="Message (Supports Markdown formatting)" aria-label="Message"
+                                placeholder="Message (Supports Markdown formatting)" aria-label="Message with Markdown formatting support"
                                 aria-describedby="message" required></textarea>
                             </div>
                           </div>
