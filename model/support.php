@@ -5,6 +5,9 @@ include('mail.php');  // Includes sendMail() and sendMailBatch() functions that 
 include('functions.php');  // Includes checkBrevoCredits() for BREVO API credit validation
 include('Parsedown.php');  // Includes Parsedown for markdown to HTML conversion
 
+// Configuration constants
+define('MAX_EMAIL_MESSAGE_LENGTH', 100000); // 100KB maximum message length
+
 // Include Brevo API configuration if it exists
 // This provides BREVO_API_KEY constant for API authentication
 // BREVO (formerly Sendinblue) is the email service provider used for all email sending
@@ -509,8 +512,8 @@ if (isset($_POST['email_customer'])) {
   $subject = mysqli_real_escape_string($conn, $_POST['subject']);
   $message = $_POST['message']; // Don't escape - will be converted to HTML via markdown
   
-  // Basic validation: limit message length (100KB max)
-  if (strlen($message) > 100000) {
+  // Basic validation: limit message length to prevent abuse
+  if (strlen($message) > MAX_EMAIL_MESSAGE_LENGTH) {
     $statusRes = "error";
     $messageRes = "Message is too long. Please reduce the message size.";
   } else {
@@ -682,7 +685,7 @@ if (isset($_POST['email_customer'])) {
       }
     }
   }
-  } // End of message length validation
+  } // End of message validation and email processing
 }
 
 $responseData = array(
