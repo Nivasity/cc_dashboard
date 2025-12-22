@@ -3,6 +3,7 @@ session_start();
 include('config.php');
 include('mail.php');  // Includes sendMail() and sendMailBatch() functions that use BREVO REST API
 include('functions.php');  // Includes checkBrevoCredits() for BREVO API credit validation
+include('Parsedown.php');  // Includes Parsedown for markdown to HTML conversion
 
 // Include Brevo API configuration if it exists
 // This provides BREVO_API_KEY constant for API authentication
@@ -508,7 +509,10 @@ if (isset($_POST['email_customer'])) {
   $subject = mysqli_real_escape_string($conn, $_POST['subject']);
   $message = mysqli_real_escape_string($conn, $_POST['message']);
   
-  $e_message = str_replace('\r\n', '<br>', $message);
+  // Convert markdown to HTML
+  $parsedown = new Parsedown();
+  $parsedown->setSafeMode(true); // Enable safe mode to prevent XSS attacks
+  $e_message = $parsedown->text($message);
   
   // Get list of recipients based on type
   $recipients = array();
