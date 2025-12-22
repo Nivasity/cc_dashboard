@@ -386,7 +386,7 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                                     </div>
                                   </div>
                                   <div class="alert alert-info mb-0 p-2" role="alert">
-                                    <small><i class="bx bx-info-circle me-1"></i>Your message will be automatically converted to HTML format when sent.</small>
+                                    <small><i class="bx bx-info-circle me-1"></i>Your message will be automatically converted to HTML format when sent. Line breaks and empty lines are preserved.</small>
                                   </div>
                                 </div>
                               </div>

@@ -520,8 +520,10 @@ if (isset($_POST['email_customer'])) {
     // Convert markdown to HTML
     // Using Parsedown with safe mode to prevent XSS attacks
     // Safe mode escapes HTML tags and sanitizes URLs
+    // Enable line breaks so single newlines are preserved (user-friendly for emails)
     $parsedown = Parsedown::instance();
     $parsedown->setSafeMode(true);
+    $parsedown->setBreaksEnabled(true); // Preserve line breaks without requiring 2 spaces
     $e_message = $parsedown->text($message);
   
   // Get list of recipients based on type
