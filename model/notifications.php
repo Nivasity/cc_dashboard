@@ -105,7 +105,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($targetType === 'school') {
           if ($schoolId <= 0) {
             $messageRes = 'Please select a school.';
-            $admin_stmt = null;
           } else {
             $targetData['school_id'] = $schoolId;
           }
