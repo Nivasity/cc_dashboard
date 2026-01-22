@@ -43,10 +43,13 @@ function sendNotification($conn, $admin_id, $user_ids, $title, $body, $type = 'g
     'type' => $type
   );
   
-  // Add user targeting
-  // API expects 'user_id' as either a single integer or an array of integers
+  // Add user targeting based on API specification:
+  // - user_id (singular): Single user
+  // - user_ids (plural): Multiple specific users
+  // - school_id: All users in a school
+  // - broadcast: All active users
   if (is_array($user_ids)) {
-    $payload['user_id'] = $user_ids;
+    $payload['user_ids'] = $user_ids;
   } else {
     $payload['user_id'] = (int)$user_ids;
   }
