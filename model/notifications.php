@@ -54,16 +54,36 @@ function sendNotificationViaAPI($adminEmail, $adminPassword, $title, $body, $typ
   $curlError = curl_error($ch);
   curl_close($ch);
   
+  // Prepare request body for debugging (mask password)
+  $requestBodyDebug = $payload;
+  $requestBodyDebug['password'] = '***masked***';
+  
   if ($curlError) {
-    return array('success' => false, 'message' => 'Connection error: ' . $curlError);
+    return array(
+      'success' => false, 
+      'message' => 'Connection error: ' . $curlError,
+      'request_body' => $requestBodyDebug,
+      'response_body' => null
+    );
   }
   
   $responseData = json_decode($response, true);
   
   if ($httpCode === 200 && isset($responseData['status']) && $responseData['status'] === 'success') {
-    return array('success' => true, 'message' => $responseData['message'] ?? 'Notification sent successfully', 'data' => $responseData['data'] ?? null);
+    return array(
+      'success' => true, 
+      'message' => $responseData['message'] ?? 'Notification sent successfully', 
+      'data' => $responseData['data'] ?? null,
+      'request_body' => $requestBodyDebug,
+      'response_body' => $responseData
+    );
   } else {
-    return array('success' => false, 'message' => $responseData['message'] ?? 'Failed to send notification');
+    return array(
+      'success' => false, 
+      'message' => $responseData['message'] ?? 'Failed to send notification',
+      'request_body' => $requestBodyDebug,
+      'response_body' => $responseData
+    );
   }
 }
 
@@ -137,7 +157,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           if ($result['success']) {
             $statusRes = 'success';
             $messageRes = $result['message'];
-            $data = $result['data'];
+            $data = array(
+              'notification_data' => $result['data'],
+              'request_body' => $result['request_body'],
+              'response_body' => $result['response_body']
+            );
             
             // Log the action
             log_audit_event($conn, $admin_id, 'create', 'notification', null, [
@@ -148,6 +172,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ]);
           } else {
             $messageRes = $result['message'];
+            $data = array(
+              'request_body' => $result['request_body'],
+              'response_body' => $result['response_body']
+            );
           }
         }
       }
