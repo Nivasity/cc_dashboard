@@ -44,8 +44,9 @@ function sendNotification($conn, $admin_id, $user_ids, $title, $body, $type = 'g
   );
   
   // Add user targeting
+  // API expects 'user_id' as either a single integer or an array of integers
   if (is_array($user_ids)) {
-    $payload['user_ids'] = $user_ids;
+    $payload['user_id'] = $user_ids;
   } else {
     $payload['user_id'] = (int)$user_ids;
   }
