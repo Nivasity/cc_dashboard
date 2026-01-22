@@ -139,6 +139,12 @@ if (isset($_POST['edit_profile'])) {
         'adm_year' => $adm_year,
         'role' => $role
       ]);
+      
+      // Send notification to student about profile update
+      if ($target_student_id > 0) {
+        require_once __DIR__ . '/notification_helpers.php';
+        notifyStudentProfileUpdate($conn, $user_id, $target_student_id, 'info');
+      }
     }
   } else {
     $statusRes = "error";
@@ -242,6 +248,13 @@ if (isset($_POST['student_email_'])) {
         'role' => $student_role,
         'mail_status' => $mailStatus
       ]);
+      
+      // Send notification to student about status change
+      if ($target_student_id > 0) {
+        require_once __DIR__ . '/notification_helpers.php';
+        $update_type = ($student_status === 'verified') ? 'verification' : 'status';
+        notifyStudentProfileUpdate($conn, $user_id, $target_student_id, $update_type);
+      }
     }
   } else {
     $statusRes = "error";

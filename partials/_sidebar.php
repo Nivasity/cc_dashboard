@@ -211,6 +211,14 @@ $admin_faculty = $admin_['faculty'] ?? 0;
           <div data-i18n="Course Materials">Course Materials</div>
         </a>
       </li>
+      <?php if (in_array($_SESSION['nivas_adminRole'], [1, 2, 3])) { ?>
+      <li class="menu-item <?php echo $current_page == 'notifications.php' ? 'active' : ''; ?>">
+        <a href="notifications.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-bell"></i>
+          <div data-i18n="Notifications">Notifications</div>
+        </a>
+      </li>
+      <?php } ?>
     <?php } ?>
 
     <?php if ($admin_mgt_menu){ ?>

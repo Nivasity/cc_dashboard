@@ -250,6 +250,14 @@ if (isset($_POST['respond_ticket'])) {
         $userBody = "Hi $firstName,<br><br>" . nl2br($response) . "<br><br>Best regards,<br>Support Team<br>Nivasity";
         $mailStatus = sendMail($userSubject, $userBody, $userEmail);
 
+        // Send push notification to the user
+        require_once __DIR__ . '/notification_helpers.php';
+        if ($new_status === 'closed' || $new_status === 'resolved') {
+          notifySupportTicketClosed($conn, $admin_id, $userId, $code, $ticketTitle);
+        } else {
+          notifySupportTicketResponse($conn, $admin_id, $userId, $code, $ticketTitle);
+        }
+
         $statusRes = 'success';
         $messageRes = ($mailStatus === 'success') ? 'Response sent and user notified by email' : 'Response saved, but email notification failed';
         if (!empty($admin_id)) {
