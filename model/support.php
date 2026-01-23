@@ -253,9 +253,9 @@ if (isset($_POST['respond_ticket'])) {
         // Send push notification to the user
         require_once __DIR__ . '/notification_helpers.php';
         if ($new_status === 'closed' || $new_status === 'resolved') {
-          notifySupportTicketClosed($conn, $admin_id, $userId, $code, $ticketTitle);
+          notifySupportTicketClosed($conn, $admin_id, $userId, $ticketId, $code, $ticketTitle);
         } else {
-          notifySupportTicketResponse($conn, $admin_id, $userId, $code, $ticketTitle);
+          notifySupportTicketResponse($conn, $admin_id, $userId, $ticketId, $code, $ticketTitle);
         }
 
         $statusRes = 'success';

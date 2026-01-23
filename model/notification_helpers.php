@@ -110,8 +110,10 @@ function notifyManualTransactionConfirmation($conn, $admin_id, $user_id, $transa
   $body = "Your payment of ₦" . number_format($amount) . " has been manually confirmed by the admin" . $materialsText . ". Transaction reference: " . $transaction_ref;
   
   return sendNotification($conn, $admin_id, $user_id, $title, $body, 'payment', array(
+    'action' => 'order_receipt',
     'tx_ref' => $transaction_ref,
-    'amount' => $amount
+    'amount' => $amount,
+    'status' => 'success'
   ));
 }
 
@@ -121,15 +123,20 @@ function notifyManualTransactionConfirmation($conn, $admin_id, $user_id, $transa
  * @param mysqli $conn Database connection
  * @param int $admin_id Admin who responded
  * @param int $user_id User who owns the ticket
+ * @param int $ticket_id Ticket ID
  * @param string $ticket_code Ticket code
  * @param string $subject Ticket subject
  */
-function notifySupportTicketResponse($conn, $admin_id, $user_id, $ticket_code, $subject) {
+function notifySupportTicketResponse($conn, $admin_id, $user_id, $ticket_id, $ticket_code, $subject) {
   $title = 'Support Ticket Update';
   $body = "You have a new response on your support ticket #" . $ticket_code . ": " . $subject;
   
   return sendNotification($conn, $admin_id, $user_id, $title, $body, 'support', array(
-    'ticket_code' => $ticket_code
+    'action' => 'support_ticket',
+    'ticket_id' => $ticket_id,
+    'ticket_code' => $ticket_code,
+    'subject' => $subject,
+    'replier' => 'Support Team'
   ));
 }
 
@@ -139,15 +146,19 @@ function notifySupportTicketResponse($conn, $admin_id, $user_id, $ticket_code, $
  * @param mysqli $conn Database connection
  * @param int $admin_id Admin who closed the ticket
  * @param int $user_id User who owns the ticket
+ * @param int $ticket_id Ticket ID
  * @param string $ticket_code Ticket code
  * @param string $subject Ticket subject
  */
-function notifySupportTicketClosed($conn, $admin_id, $user_id, $ticket_code, $subject) {
+function notifySupportTicketClosed($conn, $admin_id, $user_id, $ticket_id, $ticket_code, $subject) {
   $title = 'Support Ticket Closed';
   $body = "Your support ticket #" . $ticket_code . " (" . $subject . ") has been resolved and closed.";
   
   return sendNotification($conn, $admin_id, $user_id, $title, $body, 'support', array(
+    'action' => 'support_ticket',
+    'ticket_id' => $ticket_id,
     'ticket_code' => $ticket_code,
+    'subject' => $subject,
     'status' => 'closed'
   ));
 }
@@ -208,7 +219,10 @@ function notifyCourseMaterialClosed($conn, $admin_id, $manual_id, $title, $cours
   $notif_body = "The course material \"" . $title . "\" (" . $course_code . ") is no longer available for purchase.";
   
   return sendNotification($conn, $admin_id, $student_ids, $notif_title, $notif_body, 'material', array(
+    'action' => 'material_details',
     'manual_id' => $manual_id,
+    'title' => $title,
+    'course_code' => $course_code,
     'status' => 'closed'
   ));
 }
