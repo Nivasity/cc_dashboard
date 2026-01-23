@@ -1,6 +1,9 @@
 <?php
 if (!isset($_SESSION['nivas_adminId'])) {
-  header('Location: signin.html');
+  // Capture current page for redirect after login
+  $current_page = $_SERVER['REQUEST_URI'];
+  $redirect_param = '?redirect=' . urlencode($current_page);
+  header('Location: signin.html' . $redirect_param);
   exit();
 }
 
