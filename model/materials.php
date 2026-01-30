@@ -163,7 +163,7 @@ if(isset($_GET['fetch'])){
 
 if(isset($_POST['toggle_id'])){
   $id = intval($_POST['toggle_id']);
-  $manual_res = mysqli_fetch_assoc(mysqli_query($conn, "SELECT m.status, m.school_id, m.faculty FROM manuals m WHERE m.id = $id"));
+  $manual_res = mysqli_fetch_assoc(mysqli_query($conn, "SELECT m.status, m.school_id, m.faculty, m.dept, m.title, m.course_code FROM manuals m WHERE m.id = $id"));
   if($manual_res){
     if($admin_role == 5 && ($manual_res['school_id'] != $admin_school || ($admin_faculty != 0 && $manual_res['faculty'] != $admin_faculty))){
       $statusRes = 'error';
@@ -174,6 +174,26 @@ if(isset($_POST['toggle_id'])){
       if(mysqli_affected_rows($conn) > 0){
         $statusRes = 'success';
         $messageRes = 'Material status updated';
+        
+        // Send notification when material is closed
+        if ($new_status === 'closed' && $admin_id) {
+          require_once __DIR__ . '/notification_helpers.php';
+          notifyCourseMaterialClosed(
+            $conn, 
+            $admin_id, 
+            $id, 
+            $manual_res['title'], 
+            $manual_res['course_code'], 
+            $manual_res['dept'], 
+            $manual_res['school_id']
+          );
+          
+          // Log the action
+          log_audit_event($conn, $admin_id, 'close', 'course_material', $id, [
+            'title' => $manual_res['title'],
+            'course_code' => $manual_res['course_code']
+          ]);
+        }
       } else {
         $statusRes = 'error';
         $messageRes = 'Update failed';

@@ -821,6 +821,88 @@ ALTER TABLE `manual_payment_batch_items`
 
 ALTER TABLE `quick_login_codes`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `notification_devices`
+-- Stores Expo push tokens for user devices
+--
+
+CREATE TABLE IF NOT EXISTS `notification_devices` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `expo_push_token` varchar(255) NOT NULL,
+  `platform` enum('android','ios','web') DEFAULT NULL,
+  `app_version` varchar(50) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `disabled_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `expo_push_token` (`expo_push_token`),
+  KEY `user_id` (`user_id`),
+  KEY `disabled_at` (`disabled_at`),
+  KEY `idx_user_active` (`user_id`, `disabled_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `notifications`
+-- Stores in-app notifications for users
+--
+
+CREATE TABLE IF NOT EXISTS `notifications` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `body` text NOT NULL,
+  `type` varchar(50) NOT NULL DEFAULT 'general',
+  `data` text DEFAULT NULL COMMENT 'JSON encoded data',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `read_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `user_id` (`user_id`),
+  KEY `type` (`type`),
+  KEY `read_at` (`read_at`),
+  KEY `created_at` (`created_at`),
+  KEY `idx_user_unread` (`user_id`, `read_at`, `created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Foreign key constraints for notifications
+--
+
+ALTER TABLE `notification_devices`
+  ADD CONSTRAINT `notification_devices_ibfk_1` 
+  FOREIGN KEY (`user_id`) 
+  REFERENCES `users` (`id`) 
+  ON DELETE CASCADE ON UPDATE CASCADE;
+
+ALTER TABLE `notifications`
+  ADD CONSTRAINT `notifications_ibfk_1` 
+  FOREIGN KEY (`user_id`) 
+  REFERENCES `users` (`id`) 
+  ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- --------------------------------------------------------
+
+--
+-- AUTO_INCREMENT for table `notification_devices`
+--
+
+ALTER TABLE `notification_devices`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `notifications`
+--
+
+ALTER TABLE `notifications`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
