@@ -1,6 +1,7 @@
 <?php
 session_start();
 include('config.php');
+include('functions.php');
 
 header('Content-Type: application/json');
 
@@ -255,12 +256,11 @@ function deleteQuickLoginCode($conn, $admin_id) {
     mysqli_stmt_close($stmt);
     
     // Log the action with detailed information
-    include('audit.php');
     $details = "Deleted quick login code ID: $code_id";
     if (isset($code_details)) {
       $details .= ", Student ID: " . $code_details['student_id'] . ", Code: " . substr($code_details['code'], 0, 10) . "..., Expiry: " . $code_details['expiry_datetime'];
     }
-    logAudit($conn, $admin_id, 'delete', 'quick_login_code', $code_id, $details);
+    log_audit_event($conn, $admin_id, 'delete', 'quick_login_code', $code_id, $details);
     
     echo json_encode(['success' => true, 'message' => 'Login code deleted successfully']);
   } else {
