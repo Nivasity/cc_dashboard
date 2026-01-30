@@ -43,39 +43,61 @@ try {
 
 // Search for student by email
 function searchStudent($conn) {
-  $email = mysqli_real_escape_string($conn, $_POST['email'] ?? '');
+  $email = $_POST['email'] ?? '';
   
   if (empty($email)) {
     echo json_encode(['success' => false, 'message' => 'Email is required']);
     return;
   }
   
-  $query = "SELECT id, first_name, last_name, email, phone, matric_no, school, dept 
+  // Use prepared statement to prevent SQL injection
+  $stmt = mysqli_prepare($conn, "SELECT id, first_name, last_name, email, phone, matric_no, school, dept 
             FROM users 
-            WHERE email = '$email' AND role = 'student' 
-            LIMIT 1";
+            WHERE email = ? AND role = 'student' 
+            LIMIT 1");
   
-  $result = mysqli_query($conn, $query);
+  if (!$stmt) {
+    echo json_encode(['success' => false, 'message' => 'Database error']);
+    return;
+  }
+  
+  mysqli_stmt_bind_param($stmt, "s", $email);
+  mysqli_stmt_execute($stmt);
+  $result = mysqli_stmt_get_result($stmt);
   
   if (!$result) {
+    mysqli_stmt_close($stmt);
     echo json_encode(['success' => false, 'message' => 'Database error']);
     return;
   }
   
   $student = mysqli_fetch_assoc($result);
+  mysqli_stmt_close($stmt);
   
   if ($student) {
     // Get school name
-    $school_id = $student['school'];
-    $school_query = mysqli_query($conn, "SELECT name FROM schools WHERE id = $school_id");
-    $school = mysqli_fetch_assoc($school_query);
-    $student['school_name'] = $school['name'] ?? 'N/A';
+    $school_id = (int)$student['school'];
+    $stmt = mysqli_prepare($conn, "SELECT name FROM schools WHERE id = ?");
+    if ($stmt) {
+      mysqli_stmt_bind_param($stmt, "i", $school_id);
+      mysqli_stmt_execute($stmt);
+      $school_result = mysqli_stmt_get_result($stmt);
+      $school = mysqli_fetch_assoc($school_result);
+      $student['school_name'] = $school['name'] ?? 'N/A';
+      mysqli_stmt_close($stmt);
+    }
     
     // Get department name
-    $dept_id = $student['dept'];
-    $dept_query = mysqli_query($conn, "SELECT name FROM depts WHERE id = $dept_id");
-    $dept = mysqli_fetch_assoc($dept_query);
-    $student['dept_name'] = $dept['name'] ?? 'N/A';
+    $dept_id = (int)$student['dept'];
+    $stmt = mysqli_prepare($conn, "SELECT name FROM depts WHERE id = ?");
+    if ($stmt) {
+      mysqli_stmt_bind_param($stmt, "i", $dept_id);
+      mysqli_stmt_execute($stmt);
+      $dept_result = mysqli_stmt_get_result($stmt);
+      $dept = mysqli_fetch_assoc($dept_result);
+      $student['dept_name'] = $dept['name'] ?? 'N/A';
+      mysqli_stmt_close($stmt);
+    }
     
     echo json_encode(['success' => true, 'student' => $student]);
   } else {
@@ -86,18 +108,35 @@ function searchStudent($conn) {
 // Create a new quick login link
 function createQuickLoginLink($conn, $admin_id) {
   $student_id = (int)($_POST['student_id'] ?? 0);
+  $admin_id = (int)$admin_id;
   
   if ($student_id <= 0) {
     echo json_encode(['success' => false, 'message' => 'Invalid student ID']);
     return;
   }
   
-  // Verify student exists
-  $student_query = mysqli_query($conn, "SELECT id FROM users WHERE id = $student_id AND role = 'student'");
-  if (mysqli_num_rows($student_query) == 0) {
+  if ($admin_id <= 0) {
+    echo json_encode(['success' => false, 'message' => 'Invalid admin ID']);
+    return;
+  }
+  
+  // Verify student exists using prepared statement
+  $stmt = mysqli_prepare($conn, "SELECT id FROM users WHERE id = ? AND role = 'student'");
+  if (!$stmt) {
+    echo json_encode(['success' => false, 'message' => 'Database error']);
+    return;
+  }
+  
+  mysqli_stmt_bind_param($stmt, "i", $student_id);
+  mysqli_stmt_execute($stmt);
+  $result = mysqli_stmt_get_result($stmt);
+  
+  if (mysqli_num_rows($result) == 0) {
+    mysqli_stmt_close($stmt);
     echo json_encode(['success' => false, 'message' => 'Student not found']);
     return;
   }
+  mysqli_stmt_close($stmt);
   
   // Generate unique code
   $code = bin2hex(random_bytes(32));
@@ -106,11 +145,19 @@ function createQuickLoginLink($conn, $admin_id) {
   date_default_timezone_set('Africa/Lagos');
   $expiry = date('Y-m-d H:i:s', strtotime('+24 hours'));
   
-  // Insert into database
-  $query = "INSERT INTO quick_login_codes (student_id, code, expiry_datetime, created_by) 
-            VALUES ($student_id, '$code', '$expiry', $admin_id)";
+  // Insert into database using prepared statement
+  $stmt = mysqli_prepare($conn, "INSERT INTO quick_login_codes (student_id, code, expiry_datetime, created_by) 
+            VALUES (?, ?, ?, ?)");
   
-  if (mysqli_query($conn, $query)) {
+  if (!$stmt) {
+    echo json_encode(['success' => false, 'message' => 'Failed to create login link']);
+    return;
+  }
+  
+  mysqli_stmt_bind_param($stmt, "issi", $student_id, $code, $expiry, $admin_id);
+  
+  if (mysqli_stmt_execute($stmt)) {
+    mysqli_stmt_close($stmt);
     $link = "https://nivasity.com/demo.php?code=$code";
     
     echo json_encode([
@@ -121,16 +168,23 @@ function createQuickLoginLink($conn, $admin_id) {
       'expiry' => $expiry
     ]);
   } else {
+    mysqli_stmt_close($stmt);
     echo json_encode(['success' => false, 'message' => 'Failed to create login link']);
   }
 }
 
 // List all quick login codes with student details
 function listQuickLoginCodes($conn) {
-  // Update expired codes
+  // Update expired codes using prepared statement
   date_default_timezone_set('Africa/Lagos');
   $now = date('Y-m-d H:i:s');
-  mysqli_query($conn, "UPDATE quick_login_codes SET status = 'expired' WHERE expiry_datetime < '$now' AND status = 'active'");
+  
+  $stmt = mysqli_prepare($conn, "UPDATE quick_login_codes SET status = 'expired' WHERE expiry_datetime < ? AND status = 'active'");
+  if ($stmt) {
+    mysqli_stmt_bind_param($stmt, "s", $now);
+    mysqli_stmt_execute($stmt);
+    mysqli_stmt_close($stmt);
+  }
   
   $query = "SELECT 
               qlc.id,
@@ -177,16 +231,40 @@ function deleteQuickLoginCode($conn, $admin_id) {
     return;
   }
   
-  // Mark as deleted instead of actually deleting
-  $query = "UPDATE quick_login_codes SET status = 'deleted' WHERE id = $code_id";
+  // Get code details for audit log before deletion
+  $stmt = mysqli_prepare($conn, "SELECT student_id, code, expiry_datetime FROM quick_login_codes WHERE id = ?");
+  if ($stmt) {
+    mysqli_stmt_bind_param($stmt, "i", $code_id);
+    mysqli_stmt_execute($stmt);
+    $result = mysqli_stmt_get_result($stmt);
+    $code_details = mysqli_fetch_assoc($result);
+    mysqli_stmt_close($stmt);
+  }
   
-  if (mysqli_query($conn, $query)) {
-    // Log the action
+  // Mark as deleted instead of actually deleting using prepared statement
+  $stmt = mysqli_prepare($conn, "UPDATE quick_login_codes SET status = 'deleted' WHERE id = ?");
+  
+  if (!$stmt) {
+    echo json_encode(['success' => false, 'message' => 'Database error']);
+    return;
+  }
+  
+  mysqli_stmt_bind_param($stmt, "i", $code_id);
+  
+  if (mysqli_stmt_execute($stmt)) {
+    mysqli_stmt_close($stmt);
+    
+    // Log the action with detailed information
     include('audit.php');
-    logAudit($conn, $admin_id, 'delete', 'quick_login_code', $code_id, 'Deleted quick login code');
+    $details = "Deleted quick login code ID: $code_id";
+    if (isset($code_details)) {
+      $details .= ", Student ID: " . $code_details['student_id'] . ", Code: " . substr($code_details['code'], 0, 10) . "..., Expiry: " . $code_details['expiry_datetime'];
+    }
+    logAudit($conn, $admin_id, 'delete', 'quick_login_code', $code_id, $details);
     
     echo json_encode(['success' => true, 'message' => 'Login code deleted successfully']);
   } else {
+    mysqli_stmt_close($stmt);
     echo json_encode(['success' => false, 'message' => 'Failed to delete login code']);
   }
 }

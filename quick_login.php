@@ -196,8 +196,6 @@ if (!in_array((int)$admin_role, [1, 2, 3], true)) {
   </div>
   <!-- / Layout wrapper -->
 
-  <?php include('partials/_footer.php') ?>
-
   <script>
     $(document).ready(function() {
       // Load login codes on page load
@@ -225,17 +223,40 @@ if (!in_array((int)$admin_role, [1, 2, 3], true)) {
         createLoginLink();
       });
 
-      // Copy link button
+      // Copy link button with modern Clipboard API
       $('#copyLinkBtn').on('click', function() {
         const linkInput = document.getElementById('createdLink');
-        linkInput.select();
-        document.execCommand('copy');
+        const link = linkInput.value;
         
-        $(this).html('<i class="bx bx-check me-1"></i>Copied!');
-        setTimeout(() => {
-          $(this).html('<i class="bx bx-copy me-1"></i>Copy');
-        }, 2000);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          // Modern Clipboard API
+          navigator.clipboard.writeText(link).then(() => {
+            $(this).html('<i class="bx bx-check me-1"></i>Copied!');
+            setTimeout(() => {
+              $(this).html('<i class="bx bx-copy me-1"></i>Copy');
+            }, 2000);
+          }).catch(() => {
+            // Fallback for older browsers
+            fallbackCopy(linkInput);
+          });
+        } else {
+          // Fallback for older browsers
+          fallbackCopy(linkInput);
+        }
       });
+      
+      function fallbackCopy(input) {
+        input.select();
+        try {
+          document.execCommand('copy');
+          $('#copyLinkBtn').html('<i class="bx bx-check me-1"></i>Copied!');
+          setTimeout(() => {
+            $('#copyLinkBtn').html('<i class="bx bx-copy me-1"></i>Copy');
+          }, 2000);
+        } catch (err) {
+          console.error('Copy failed', err);
+        }
+      }
     });
 
     function validateEmail(email) {
@@ -373,21 +394,43 @@ if (!in_array((int)$admin_role, [1, 2, 3], true)) {
         tbody.append(row);
       });
       
-      // Attach copy button handlers
+      // Attach copy button handlers with modern Clipboard API
       $('.copy-btn').on('click', function() {
         const link = $(this).data('link');
+        const btn = $(this);
+        
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          // Modern Clipboard API
+          navigator.clipboard.writeText(link).then(() => {
+            btn.html('<i class="bx bx-check"></i>');
+            setTimeout(() => {
+              btn.html('<i class="bx bx-copy"></i>');
+            }, 1500);
+          }).catch(() => {
+            // Fallback for older browsers
+            fallbackCopyFromData(link, btn);
+          });
+        } else {
+          // Fallback for older browsers
+          fallbackCopyFromData(link, btn);
+        }
+      });
+      
+      function fallbackCopyFromData(text, btn) {
         const temp = $('<input>');
         $('body').append(temp);
-        temp.val(link).select();
-        document.execCommand('copy');
+        temp.val(text).select();
+        try {
+          document.execCommand('copy');
+          btn.html('<i class="bx bx-check"></i>');
+          setTimeout(() => {
+            btn.html('<i class="bx bx-copy"></i>');
+          }, 1500);
+        } catch (err) {
+          console.error('Copy failed', err);
+        }
         temp.remove();
-        
-        const btn = $(this);
-        btn.html('<i class="bx bx-check"></i>');
-        setTimeout(() => {
-          btn.html('<i class="bx bx-copy"></i>');
-        }, 1500);
-      });
+      }
       
       // Attach delete button handlers
       $('.delete-btn').on('click', function() {
