@@ -196,6 +196,22 @@ if (!in_array((int)$admin_role, [1, 2, 3], true)) {
   </div>
   <!-- / Layout wrapper -->
 
+  <!-- Core JS -->
+  <!-- build:js assets/vendor/js/core.js -->
+  <script src="assets/vendor/libs/jquery/jquery.js"></script>
+  <script src="assets/vendor/libs/popper/popper.js"></script>
+  <script src="assets/vendor/js/bootstrap.js"></script>
+  <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
+
+  <script src="assets/vendor/js/menu.js"></script>
+  <!-- endbuild -->
+
+  <!-- Vendors JS -->
+  <script src="assets/js/ui-toasts.js"></script>
+
+  <!-- Main JS -->
+  <script src="assets/js/main.js"></script>
+
   <script>
     $(document).ready(function() {
       // Load login codes on page load
@@ -284,7 +300,7 @@ if (!in_array((int)$admin_role, [1, 2, 3], true)) {
             $('#studentDetails').hide();
             $('#createLinkBtn').prop('disabled', true);
             if (email.length > 5) {
-              toastr.error(response.message || 'Student not found');
+              showToast('bg-danger', response.message || 'Student not found');
             }
           }
         },
@@ -321,14 +337,14 @@ if (!in_array((int)$admin_role, [1, 2, 3], true)) {
             // Reload table
             loadLoginCodes();
             
-            toastr.success('Login link created successfully!');
+            showToast('bg-success', 'Login link created successfully!');
           } else {
-            toastr.error(response.message || 'Failed to create login link');
+            showToast('bg-danger', response.message || 'Failed to create login link');
           }
         },
         error: function() {
           $('#createLinkBtn').prop('disabled', false).html('Create Link');
-          toastr.error('An error occurred. Please try again.');
+          showToast('bg-danger', 'An error occurred. Please try again.');
         }
       });
     }
@@ -461,14 +477,14 @@ if (!in_array((int)$admin_role, [1, 2, 3], true)) {
         dataType: 'json',
         success: function(response) {
           if (response.success) {
-            toastr.success('Login link deleted successfully');
+            showToast('bg-success', 'Login link deleted successfully');
             loadLoginCodes();
           } else {
-            toastr.error(response.message || 'Failed to delete login link');
+            showToast('bg-danger', response.message || 'Failed to delete login link');
           }
         },
         error: function() {
-          toastr.error('An error occurred. Please try again.');
+          showToast('bg-danger', 'An error occurred. Please try again.');
         }
       });
     }
