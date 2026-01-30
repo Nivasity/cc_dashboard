@@ -53,7 +53,7 @@ function searchStudent($conn) {
   // Use prepared statement to prevent SQL injection
   $stmt = mysqli_prepare($conn, "SELECT id, first_name, last_name, email, phone, matric_no, school, dept 
             FROM users 
-            WHERE email = ? AND role = 'student' 
+            WHERE email = ?
             LIMIT 1");
   
   if (!$stmt) {
@@ -121,7 +121,7 @@ function createQuickLoginLink($conn, $admin_id) {
   }
   
   // Verify student exists using prepared statement
-  $stmt = mysqli_prepare($conn, "SELECT id FROM users WHERE id = ? AND role = 'student'");
+  $stmt = mysqli_prepare($conn, "SELECT id FROM users WHERE id = ?");
   if (!$stmt) {
     echo json_encode(['success' => false, 'message' => 'Database error']);
     return;
