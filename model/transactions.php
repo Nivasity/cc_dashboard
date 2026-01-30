@@ -216,6 +216,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'subtotal' => $subtotal,
                         'charge' => $charge
                       ]);
+                      
+                      // Send notification to user about manual transaction confirmation
+                      require_once __DIR__ . '/notification_helpers.php';
+                      $material_titles = array();
+                      foreach ($manual_records as $record) {
+                        $material_titles[] = $record['title'] . ' (' . $record['course_code'] . ')';
+                      }
+                      notifyManualTransactionConfirmation($conn, $admin_id, $user_id, $transaction_ref, $txn_amount, $material_titles);
                     } catch (Exception $e) {
                       if ($manual_stmt instanceof mysqli_stmt) {
                         $manual_stmt->close();

@@ -228,7 +228,16 @@
                   showToast('bg-success', data.message); 
 
                   setTimeout(function () {
-                    window.location.href = "/?loggedin";
+                    // Check if there's a redirect parameter in the URL
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const redirectUrl = urlParams.get('redirect');
+                    
+                    // Redirect to the original page or default to home
+                    if (redirectUrl) {
+                      window.location.href = redirectUrl + (redirectUrl.includes('?') ? '&' : '?') + 'loggedin';
+                    } else {
+                      window.location.href = "/?loggedin";
+                    }
                   }, 1000);
                 } else {
                   showToast('bg-danger', data.message); 
