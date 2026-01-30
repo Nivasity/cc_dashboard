@@ -555,6 +555,22 @@ CREATE TABLE `verification_code` (
   `exp_date` datetime DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `quick_login_codes`
+--
+
+CREATE TABLE `quick_login_codes` (
+  `id` int(11) NOT NULL,
+  `student_id` int(11) NOT NULL,
+  `code` varchar(64) NOT NULL,
+  `expiry_datetime` datetime NOT NULL,
+  `status` enum('active','expired','used','deleted') NOT NULL DEFAULT 'active',
+  `created_by` int(11) NOT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 --
 -- Indexes for dumped tables
 --
@@ -674,6 +690,18 @@ ALTER TABLE `manual_payment_batch_items`
   ADD KEY `created_at` (`created_at`);
 
 --
+-- Indexes for table `quick_login_codes`
+--
+ALTER TABLE `quick_login_codes`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `code` (`code`),
+  ADD KEY `student_id` (`student_id`),
+  ADD KEY `status` (`status`),
+  ADD KEY `expiry_datetime` (`expiry_datetime`),
+  ADD KEY `idx_code_status` (`code`, `status`),
+  ADD KEY `idx_expiry_status` (`expiry_datetime`, `status`);
+
+--
 -- Indexes for table `users`
 --
 ALTER TABLE `users`
@@ -785,6 +813,13 @@ ALTER TABLE `manual_payment_batches`
 --
 
 ALTER TABLE `manual_payment_batch_items`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `quick_login_codes`
+--
+
+ALTER TABLE `quick_login_codes`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 COMMIT;
 
