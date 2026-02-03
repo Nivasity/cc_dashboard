@@ -121,8 +121,8 @@ function createQuickLoginLink($conn, $admin_id) {
     return;
   }
   
-  // Verify student exists using prepared statement
-  $stmt = mysqli_prepare($conn, "SELECT id FROM users WHERE id = ?");
+  // Verify student exists and get school ID using prepared statement
+  $stmt = mysqli_prepare($conn, "SELECT id, school FROM users WHERE id = ? AND role = 'student'");
   if (!$stmt) {
     echo json_encode(['success' => false, 'message' => 'Database error']);
     return;
@@ -137,6 +137,9 @@ function createQuickLoginLink($conn, $admin_id) {
     echo json_encode(['success' => false, 'message' => 'Student not found']);
     return;
   }
+  
+  $student = mysqli_fetch_assoc($result);
+  $school_id = (int)$student['school'];
   mysqli_stmt_close($stmt);
   
   // Generate unique code
@@ -159,7 +162,10 @@ function createQuickLoginLink($conn, $admin_id) {
   
   if (mysqli_stmt_execute($stmt)) {
     mysqli_stmt_close($stmt);
-    $link = "https://nivasity.com/demo.php?code=$code";
+    
+    // Use different domain based on school ID
+    $domain = ($school_id === 1) ? "https://funaab.nivasity.com/" : "https://nivasity.com/";
+    $link = $domain . "demo.php?code=$code";
     
     echo json_encode([
       'success' => true,
@@ -199,6 +205,7 @@ function listQuickLoginCodes($conn) {
               u.email,
               u.phone,
               u.matric_no,
+              u.school as school_id,
               s.name as school_name,
               d.name as dept_name
             FROM quick_login_codes qlc
@@ -216,7 +223,10 @@ function listQuickLoginCodes($conn) {
   
   $codes = [];
   while ($row = mysqli_fetch_assoc($result)) {
-    $row['link'] = "https://nivasity.com/demo.php?code=" . $row['code'];
+    // Use different domain based on school ID
+    $school_id = (int)$row['school_id'];
+    $domain = ($school_id === 1) ? "https://funaab.nivasity.com/" : "https://nivasity.com/";
+    $row['link'] = $domain . "demo.php?code=" . $row['code'];
     $codes[] = $row;
   }
   
