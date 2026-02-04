@@ -85,7 +85,7 @@ $admin_faculty = $admin_['faculty'] ?? 0;
         </li>
       <?php } ?>
       <?php if ($student_mgt_menu) { ?>
-        <li class="menu-item <?php echo in_array($current_page, ['students.php', 'students_hoc.php']) ? 'active open' : ''; ?>">
+        <li class="menu-item <?php echo in_array($current_page, ['students.php', 'students_hoc.php', 'quick_login.php']) ? 'active open' : ''; ?>">
           <a href="javascript:void(0);" class="menu-link menu-toggle">
             <i class="menu-icon tf-icons bx bx-user-pin"></i>
             <div data-i18n="Customer Management">Students</div>
@@ -112,6 +112,11 @@ $admin_faculty = $admin_['faculty'] ?? 0;
             <li class="menu-item <?php echo $current_page == 'students_hoc.php' ? 'active' : ''; ?>">
               <a href="students_hoc.php" class="menu-link">
                 <div>HOC Directory</div>
+              </a>
+            </li>
+            <li class="menu-item <?php echo $current_page == 'quick_login.php' ? 'active' : ''; ?>">
+              <a href="quick_login.php" class="menu-link">
+                <div>Quick Login</div>
               </a>
             </li>
             <?php } ?>
