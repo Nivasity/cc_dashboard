@@ -122,7 +122,7 @@ function createQuickLoginLink($conn, $admin_id) {
   }
   
   // Verify student exists and get school ID using prepared statement
-  $stmt = mysqli_prepare($conn, "SELECT id, school FROM users WHERE id = ? AND role = 'student'");
+  $stmt = mysqli_prepare($conn, "SELECT id, school FROM users WHERE id = ?");
   if (!$stmt) {
     echo json_encode(['success' => false, 'message' => 'Database error']);
     return;
