@@ -181,9 +181,19 @@ Email sent successfully via SMTP socket to user@example.com
 ```
 
 **SMTP Errors**:
+
+1. SMTP server error:
 ```
 SMTP Error: Expected 250, got 550 - Mailbox unavailable
+```
+
+2. SMTP configuration not found (getSMTPConfig() returns null):
+```
 Failed to get SMTP configuration from db.php
+```
+
+3. SMTP constants not defined in config/db.php:
+```
 SMTP credentials not configured in config/db.php
 ```
 
