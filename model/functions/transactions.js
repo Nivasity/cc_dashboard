@@ -26,6 +26,7 @@
   var feedbackTimer = null;
   var lastLookupEmail = '';
   var deleteRefId = null;
+  var DEFAULT_DATE_RANGE = '7';
 
   InitiateDatatable('.table');
   $('#school, #faculty, #dept, #dateRange').select2({ theme: 'bootstrap-5', width: '100%' });
@@ -474,7 +475,7 @@
     var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
     var deptId = $('#dept').val();
-    var dateRange = $('#dateRange').val() || '7';
+    var dateRange = $('#dateRange').val() || DEFAULT_DATE_RANGE;
     var startDate = $('#startDate').val();
     var endDate = $('#endDate').val();
 
@@ -661,7 +662,7 @@
     var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
     var deptId = $('#dept').val();
-    var dateRange = $('#dateRange').val() || '7';
+    var dateRange = $('#dateRange').val() || DEFAULT_DATE_RANGE;
     var startDate = $('#startDate').val();
     var endDate = $('#endDate').val();
 

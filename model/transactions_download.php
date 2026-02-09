@@ -2,6 +2,7 @@
 // Standalone endpoint to download transactions CSV
 session_start();
 require_once(__DIR__ . '/config.php');
+require_once(__DIR__ . '/transactions_helpers.php');
 
 $admin_role = $_SESSION['nivas_adminRole'] ?? null;
 $admin_id = $_SESSION['nivas_adminId'] ?? null;
@@ -57,19 +58,7 @@ if ($material_id > 0) {
   $tran_sql .= " AND m.id = $material_id";
 }
 
-// Build the date filter
-$date_filter = "";
-if ($date_range === 'custom' && $start_date && $end_date) {
-  $start_date = mysqli_real_escape_string($conn, $start_date);
-  $end_date = mysqli_real_escape_string($conn, $end_date);
-  $date_filter = " AND t.created_at BETWEEN '$start_date 00:00:00' AND '$end_date 23:59:59'";
-} elseif ($date_range !== 'all') {
-  $days = intval($date_range);
-  if ($days > 0) {
-    $date_filter = " AND t.created_at >= DATE_SUB(NOW(), INTERVAL $days DAY)";
-  }
-}
-$tran_sql .= $date_filter;
+$tran_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date);
 
 $tran_sql .= " GROUP BY t.id, t.ref_id, t.amount, t.status, t.created_at, u.first_name, u.last_name, u.matric_no, u.adm_year, s.name, f.name, d.name ORDER BY t.created_at DESC";
 $tran_query = mysqli_query($conn, $tran_sql);

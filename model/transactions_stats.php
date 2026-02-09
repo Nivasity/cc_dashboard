@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once(__DIR__ . '/config.php');
+require_once(__DIR__ . '/transactions_helpers.php');
 
 $status = 'failed';
 $message = '';
@@ -14,7 +15,8 @@ $admin_role = $_SESSION['nivas_adminRole'] ?? null;
 $admin_id = $_SESSION['nivas_adminId'] ?? null;
 $admin_school = $admin_faculty = 0;
 if ($admin_role == 5 && $admin_id) {
-  $info = mysqli_fetch_assoc(mysqli_query($conn, "SELECT school, faculty FROM admins WHERE id = $admin_id"));
+  $admin_id_safe = intval($admin_id);
+  $info = mysqli_fetch_assoc(mysqli_query($conn, "SELECT school, faculty FROM admins WHERE id = $admin_id_safe"));
   if ($info) {
     $admin_school = (int)$info['school'];
     $admin_faculty = (int)$info['faculty'];
@@ -32,19 +34,6 @@ if ($admin_role == 5) {
   $school = $admin_school;
   if ($admin_faculty != 0) {
     $faculty = $admin_faculty;
-  }
-}
-
-// Build the date filter
-$date_filter = "";
-if ($date_range === 'custom' && $start_date && $end_date) {
-  $start_date = mysqli_real_escape_string($conn, $start_date);
-  $end_date = mysqli_real_escape_string($conn, $end_date);
-  $date_filter = " AND t.created_at BETWEEN '$start_date 00:00:00' AND '$end_date 23:59:59'";
-} elseif ($date_range !== 'all') {
-  $days = intval($date_range);
-  if ($days > 0) {
-    $date_filter = " AND t.created_at >= DATE_SUB(NOW(), INTERVAL $days DAY)";
   }
 }
 
@@ -67,7 +56,7 @@ if ($dept > 0) {
   $stats_sql .= " AND m.dept = $dept";
 }
 
-$stats_sql .= $date_filter;
+$stats_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date);
 
 $stats_query = mysqli_query($conn, $stats_sql);
 
