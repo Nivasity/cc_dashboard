@@ -441,36 +441,11 @@ function sendViaSMTP($subject, $htmlContent, $to, $smtpConfig) {
         return false;
     }
     
-    // Build email headers
+    // Use socket-based SMTP directly since mail() doesn't support authentication
     $from = 'contact@nivasity.com';
     $fromName = 'Nivasity';
     
-    $headers = array();
-    $headers[] = "From: $fromName <$from>";
-    $headers[] = "Reply-To: $from";
-    $headers[] = "MIME-Version: 1.0";
-    $headers[] = "Content-Type: text/html; charset=UTF-8";
-    $headers[] = "X-Mailer: PHP/" . phpversion();
-    
-    // Configure SMTP settings in php.ini style
-    ini_set('SMTP', $smtpConfig['host']);
-    ini_set('smtp_port', $smtpConfig['port']);
-    
-    // For authentication, we'll use stream context if available
-    // Note: PHP's mail() function has limited SMTP auth support
-    // For production, consider using PHPMailer or SwiftMailer
-    
-    // Try to use mail() with custom headers
-    $result = @mail($to, $subject, $htmlContent, implode("\r\n", $headers));
-    
-    if (!$result) {
-        error_log("Failed to send email via SMTP to $to");
-        // If mail() fails, try socket-based SMTP
-        return sendViaSMTPSocket($subject, $htmlContent, $to, $from, $fromName, $smtpConfig);
-    }
-    
-    error_log("Email sent successfully via SMTP to $to");
-    return true;
+    return sendViaSMTPSocket($subject, $htmlContent, $to, $from, $fromName, $smtpConfig);
 }
 
 /**
@@ -513,7 +488,8 @@ function sendViaSMTPSocket($subject, $htmlContent, $to, $from, $fromName, $smtpC
     fgets($socket, 515);
     
     // SMTP conversation
-    if (!$sendCommand("EHLO " . $_SERVER['SERVER_NAME'] ?? 'localhost', 250)) {
+    $serverName = $_SERVER['SERVER_NAME'] ?? 'localhost';
+    if (!$sendCommand("EHLO " . $serverName, 250)) {
         fclose($socket);
         return false;
     }
@@ -525,15 +501,16 @@ function sendViaSMTPSocket($subject, $htmlContent, $to, $from, $fromName, $smtpC
             return false;
         }
         
-        // Enable crypto
-        if (!stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+        // Enable crypto with TLS 1.2 or higher for better security
+        $cryptoMethod = STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT;
+        if (!stream_socket_enable_crypto($socket, true, $cryptoMethod)) {
             error_log("Failed to enable TLS");
             fclose($socket);
             return false;
         }
         
         // Send EHLO again after STARTTLS
-        if (!$sendCommand("EHLO " . $_SERVER['SERVER_NAME'] ?? 'localhost', 250)) {
+        if (!$sendCommand("EHLO " . $serverName, 250)) {
             fclose($socket);
             return false;
         }
