@@ -442,8 +442,8 @@ for ($m = 1; $m <= 12; $m++) {
             <!-- Latest Transactions and Internal Tickets -->
             <div class="row">
               <!-- Latest Transactions Card -->
-              <div class="col-12 col-lg-6 mb-4">
-                <div class="card">
+              <div class="col-12 col-lg-6 mb-4 d-flex">
+                <div class="card w-100">
                   <h5 class="card-header">Latest Transactions</h5>
                   <div class="table-responsive text-nowrap">
                     <table class="table">
@@ -467,8 +467,8 @@ for ($m = 1; $m <= 12; $m++) {
               </div>
 
               <!-- Latest Internal Support Tickets Card -->
-              <div class="col-12 col-lg-6 mb-4">
-                <div class="card">
+              <div class="col-12 col-lg-6 mb-4 d-flex">
+                <div class="card w-100">
                   <h5 class="card-header">Latest Internal Support Tickets</h5>
                   <div class="table-responsive text-nowrap">
                     <table class="table">
