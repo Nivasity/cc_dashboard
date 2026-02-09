@@ -26,10 +26,107 @@ function getBrevoAPIKey() {
 }
 
 /**
- * Send email using BREVO REST API
+ * Get BREVO account information including credits and SMTP relay details
  * 
- * This function sends emails via BREVO's REST API endpoint: POST /v3/smtp/email
- * Uses API key authentication instead of SMTP credentials
+ * @param string $apiKey BREVO API key
+ * @return array|null Returns account info array or null on failure
+ */
+function getBrevoAccountInfo($apiKey) {
+    $url = 'https://api.brevo.com/v3/account';
+    
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+        'accept: application/json',
+        'api-key: ' . $apiKey
+    ));
+    
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $curlError = curl_error($ch);
+    curl_close($ch);
+    
+    if ($httpCode !== 200) {
+        error_log("Failed to get BREVO account info: HTTP $httpCode" . ($curlError ? ", curl_error: $curlError" : ""));
+        return null;
+    }
+    
+    $data = json_decode($response, true);
+    if (!$data) {
+        error_log("Failed to parse BREVO account response");
+        return null;
+    }
+    
+    return $data;
+}
+
+/**
+ * Check if BREVO subscription credits are sufficient (> 50)
+ * 
+ * @param string $apiKey BREVO API key
+ * @return bool Returns true if credits > 50, false otherwise
+ */
+function hasBrevoCredits($apiKey) {
+    $accountInfo = getBrevoAccountInfo($apiKey);
+    
+    if (!$accountInfo || !isset($accountInfo['plan'])) {
+        error_log("Could not determine BREVO credits, will attempt SMTP fallback");
+        return false;
+    }
+    
+    // Find subscription plan credits
+    foreach ($accountInfo['plan'] as $plan) {
+        if ($plan['type'] === 'subscription' && isset($plan['credits'])) {
+            $credits = intval($plan['credits']);
+            error_log("BREVO subscription credits: $credits");
+            return $credits > 50;
+        }
+    }
+    
+    error_log("No subscription plan found in BREVO account");
+    return false;
+}
+
+/**
+ * Get BREVO SMTP relay configuration from account info
+ * 
+ * @param string $apiKey BREVO API key
+ * @return array|null Returns SMTP config array or null on failure
+ */
+function getBrevoSMTPConfig($apiKey) {
+    $accountInfo = getBrevoAccountInfo($apiKey);
+    
+    if (!$accountInfo || !isset($accountInfo['relay'])) {
+        error_log("Could not get BREVO SMTP relay configuration");
+        return null;
+    }
+    
+    $relay = $accountInfo['relay'];
+    if (!isset($relay['enabled']) || !$relay['enabled']) {
+        error_log("BREVO SMTP relay is not enabled");
+        return null;
+    }
+    
+    if (!isset($relay['data'])) {
+        error_log("BREVO SMTP relay data not available");
+        return null;
+    }
+    
+    return array(
+        'host' => $relay['data']['relay'] ?? null,
+        'port' => $relay['data']['port'] ?? 587,
+        'username' => $relay['data']['userName'] ?? null,
+        'password' => $apiKey  // BREVO uses API key as SMTP password
+    );
+}
+
+/**
+ * Send email using BREVO REST API or SMTP fallback
+ * 
+ * This function sends emails via BREVO's REST API endpoint if credits are sufficient (> 50).
+ * If credits are low (<= 50), it automatically falls back to SMTP relay.
+ * Uses API key authentication for both methods.
  * 
  * @param string $subject The email subject line
  * @param string $body The email body content (HTML supported)
@@ -47,30 +144,50 @@ function sendMail($subject, $body, $to) {
     // Build email content with template
     $htmlContent = buildEmailTemplate($body);
     
-    // Prepare API request payload
-    $payload = array(
-        'sender' => array(
-            'name' => 'Nivasity',
-            'email' => 'contact@nivasity.com'
-        ),
-        'to' => array(
-            array('email' => $to)
-        ),
-        'subject' => $subject,
-        'htmlContent' => $htmlContent
-    );
+    // Check if we have sufficient BREVO credits (> 50)
+    $useAPI = hasBrevoCredits($apiKey);
     
-    // Send via BREVO API
-    $result = sendBrevoAPIRequest($apiKey, $payload);
+    if ($useAPI) {
+        // Use BREVO REST API
+        error_log("Using BREVO REST API for email to $to");
+        
+        // Prepare API request payload
+        $payload = array(
+            'sender' => array(
+                'name' => 'Nivasity',
+                'email' => 'contact@nivasity.com'
+            ),
+            'to' => array(
+                array('email' => $to)
+            ),
+            'subject' => $subject,
+            'htmlContent' => $htmlContent
+        );
+        
+        // Send via BREVO API
+        $result = sendBrevoAPIRequest($apiKey, $payload);
+    } else {
+        // Fallback to SMTP relay
+        error_log("BREVO credits low or unavailable, using SMTP relay for email to $to");
+        
+        $smtpConfig = getBrevoSMTPConfig($apiKey);
+        if (!$smtpConfig) {
+            error_log("Failed to get SMTP configuration");
+            return "error";
+        }
+        
+        $result = sendViaSMTP($subject, $htmlContent, $to, $smtpConfig);
+    }
     
     return $result ? "success" : "error";
 }
 
 /**
- * Send batch emails using BREVO REST API
+ * Send batch emails using BREVO REST API or SMTP fallback
  * 
- * Sends multiple emails in a single API call (max 1000 per request)
- * More efficient for bulk email operations
+ * Sends multiple emails using BREVO API if credits are sufficient (> 50).
+ * If credits are low (<= 50), falls back to SMTP relay for each email.
+ * More efficient for bulk email operations when API is available.
  * 
  * @param string $subject The email subject line
  * @param string $body The email body content (HTML supported)
@@ -91,37 +208,63 @@ function sendMailBatch($subject, $body, $recipients) {
     $successCount = 0;
     $failCount = 0;
     
-    // Split recipients into batches of 95 (to stay under BREVO's 99-recipient limit with 1 in 'to')
-    $batches = array_chunk($recipients, 95);
+    // Check if we have sufficient BREVO credits (> 50)
+    $useAPI = hasBrevoCredits($apiKey);
     
-    foreach ($batches as $batch) {
-        // Prepare BCC array
-        $bccArray = array();
-        foreach ($batch as $email) {
-            $bccArray[] = array('email' => $email);
+    if ($useAPI) {
+        // Use BREVO REST API for batch sending
+        error_log("Using BREVO REST API for batch email to " . count($recipients) . " recipients");
+        
+        // Split recipients into batches of 95 (to stay under BREVO's 99-recipient limit with 1 in 'to')
+        $batches = array_chunk($recipients, 95);
+        
+        foreach ($batches as $batch) {
+            // Prepare BCC array
+            $bccArray = array();
+            foreach ($batch as $email) {
+                $bccArray[] = array('email' => $email);
+            }
+
+            // Prepare API request payload
+            $payload = array(
+                'sender' => array(
+                    'name' => 'Nivasity',
+                    'email' => 'contact@nivasity.com'
+                ),
+                'to' => array(
+                    array('email' => 'support@nivasity.com')
+                ),
+                'bcc' => $bccArray,
+                'subject' => $subject,
+                'htmlContent' => $htmlContent
+            );
+
+            // Send via BREVO API
+            $result = sendBrevoAPIRequest($apiKey, $payload);
+
+            if ($result) {
+                $successCount += count($batch);
+            } else {
+                $failCount += count($batch);
+            }
         }
-
-        // Prepare API request payload
-        $payload = array(
-            'sender' => array(
-                'name' => 'Nivasity',
-                'email' => 'contact@nivasity.com'
-            ),
-            'to' => array(
-                array('email' => 'support@nivasity.com')
-            ),
-            'bcc' => $bccArray,
-            'subject' => $subject,
-            'htmlContent' => $htmlContent
-        );
-
-        // Send via BREVO API
-        $result = sendBrevoAPIRequest($apiKey, $payload);
-
-        if ($result) {
-            $successCount += count($batch);
-        } else {
-            $failCount += count($batch);
+    } else {
+        // Fallback to SMTP relay - send individually
+        error_log("BREVO credits low or unavailable, using SMTP relay for batch email to " . count($recipients) . " recipients");
+        
+        $smtpConfig = getBrevoSMTPConfig($apiKey);
+        if (!$smtpConfig) {
+            error_log("Failed to get SMTP configuration for batch email");
+            return array('success_count' => 0, 'fail_count' => count($recipients));
+        }
+        
+        foreach ($recipients as $recipient) {
+            $result = sendViaSMTP($subject, $htmlContent, $recipient, $smtpConfig);
+            if ($result) {
+                $successCount++;
+            } else {
+                $failCount++;
+            }
         }
     }
     
@@ -281,6 +424,156 @@ function sendBrevoAPIRequest($apiKey, $payload) {
         error_log($logMsg);
         return false;
     }
+}
+
+/**
+ * Send email via SMTP using BREVO relay
+ * 
+ * @param string $subject Email subject
+ * @param string $htmlContent HTML email content
+ * @param string $to Recipient email address
+ * @param array $smtpConfig SMTP configuration array
+ * @return bool Returns true on success, false on failure
+ */
+function sendViaSMTP($subject, $htmlContent, $to, $smtpConfig) {
+    if (!$smtpConfig || !isset($smtpConfig['host'], $smtpConfig['port'], $smtpConfig['username'], $smtpConfig['password'])) {
+        error_log("Invalid SMTP configuration");
+        return false;
+    }
+    
+    // Use socket-based SMTP directly since mail() doesn't support authentication
+    $from = 'contact@nivasity.com';
+    $fromName = 'Nivasity';
+    
+    return sendViaSMTPSocket($subject, $htmlContent, $to, $from, $fromName, $smtpConfig);
+}
+
+/**
+ * Send email via SMTP using socket connection (fallback method)
+ * 
+ * @param string $subject Email subject
+ * @param string $htmlContent HTML email content
+ * @param string $to Recipient email address
+ * @param string $from From email address
+ * @param string $fromName From name
+ * @param array $smtpConfig SMTP configuration
+ * @return bool Returns true on success, false on failure
+ */
+function sendViaSMTPSocket($subject, $htmlContent, $to, $from, $fromName, $smtpConfig) {
+    $host = $smtpConfig['host'];
+    $port = $smtpConfig['port'];
+    $username = $smtpConfig['username'];
+    $password = $smtpConfig['password'];
+    
+    // Connect to SMTP server
+    $socket = @fsockopen($host, $port, $errno, $errstr, 30);
+    if (!$socket) {
+        error_log("SMTP Socket Error: $errno - $errstr");
+        return false;
+    }
+    
+    // Helper function to send SMTP command
+    $sendCommand = function($command, $expectedCode = 250) use ($socket) {
+        fwrite($socket, $command . "\r\n");
+        $response = fgets($socket, 515);
+        $code = substr($response, 0, 3);
+        if ($code != $expectedCode) {
+            error_log("SMTP Error: Expected $expectedCode, got $code - $response");
+            return false;
+        }
+        return true;
+    };
+    
+    // Read server greeting
+    fgets($socket, 515);
+    
+    // SMTP conversation
+    $serverName = $_SERVER['SERVER_NAME'] ?? 'localhost';
+    if (!$sendCommand("EHLO " . $serverName, 250)) {
+        fclose($socket);
+        return false;
+    }
+    
+    // Start TLS if port 587
+    if ($port == 587) {
+        if (!$sendCommand("STARTTLS", 220)) {
+            fclose($socket);
+            return false;
+        }
+        
+        // Enable crypto with TLS 1.2 or higher for better security
+        $cryptoMethod = STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT;
+        if (!stream_socket_enable_crypto($socket, true, $cryptoMethod)) {
+            error_log("Failed to enable TLS");
+            fclose($socket);
+            return false;
+        }
+        
+        // Send EHLO again after STARTTLS
+        if (!$sendCommand("EHLO " . $serverName, 250)) {
+            fclose($socket);
+            return false;
+        }
+    }
+    
+    // Authenticate
+    if (!$sendCommand("AUTH LOGIN", 334)) {
+        fclose($socket);
+        return false;
+    }
+    
+    if (!$sendCommand(base64_encode($username), 334)) {
+        fclose($socket);
+        return false;
+    }
+    
+    if (!$sendCommand(base64_encode($password), 235)) {
+        fclose($socket);
+        return false;
+    }
+    
+    // Send email
+    if (!$sendCommand("MAIL FROM: <$from>", 250)) {
+        fclose($socket);
+        return false;
+    }
+    
+    if (!$sendCommand("RCPT TO: <$to>", 250)) {
+        fclose($socket);
+        return false;
+    }
+    
+    if (!$sendCommand("DATA", 354)) {
+        fclose($socket);
+        return false;
+    }
+    
+    // Build email message
+    $message = "From: $fromName <$from>\r\n";
+    $message .= "To: <$to>\r\n";
+    $message .= "Subject: $subject\r\n";
+    $message .= "MIME-Version: 1.0\r\n";
+    $message .= "Content-Type: text/html; charset=UTF-8\r\n";
+    $message .= "\r\n";
+    $message .= $htmlContent;
+    $message .= "\r\n.\r\n";
+    
+    fwrite($socket, $message);
+    $response = fgets($socket, 515);
+    $code = substr($response, 0, 3);
+    
+    if ($code != 250) {
+        error_log("SMTP Error sending DATA: $response");
+        fclose($socket);
+        return false;
+    }
+    
+    // Quit
+    $sendCommand("QUIT", 221);
+    fclose($socket);
+    
+    error_log("Email sent successfully via SMTP socket to $to");
+    return true;
 }
 
 ?>
