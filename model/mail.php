@@ -3,10 +3,16 @@
 // This file contains email sending functions using BREVO (formerly Sendinblue) REST API
 // BREVO is the email service provider for all transactional and bulk emails
 // Configuration: API key is loaded from ../config/brevo.php
+// SMTP Fallback: Uses SMTP credentials from ../config/db.php when BREVO credits are low
 
 // Include Brevo API configuration
 if (file_exists('../config/brevo.php')) {
   require_once('../config/brevo.php');
+}
+
+// Include database/SMTP configuration
+if (file_exists('../config/db.php')) {
+  require_once('../config/db.php');
 }
 
 /**
@@ -89,7 +95,32 @@ function hasBrevoCredits($apiKey) {
 }
 
 /**
+ * Get normal SMTP configuration from db.php
+ * This is used as fallback when BREVO credits are low or unavailable
+ * 
+ * @return array|null Returns SMTP config array or null if not configured
+ */
+function getSMTPConfig() {
+    // Check if all required SMTP constants are defined
+    if (!defined('SMTP_HOST') || !defined('SMTP_PORT') || 
+        !defined('SMTP_USERNAME') || !defined('SMTP_PASSWORD')) {
+        error_log("SMTP credentials not configured in config/db.php");
+        return null;
+    }
+    
+    return array(
+        'host' => SMTP_HOST,
+        'port' => SMTP_PORT,
+        'username' => SMTP_USERNAME,
+        'password' => SMTP_PASSWORD,
+        'from_email' => defined('SMTP_FROM_EMAIL') ? SMTP_FROM_EMAIL : 'contact@nivasity.com',
+        'from_name' => defined('SMTP_FROM_NAME') ? SMTP_FROM_NAME : 'Nivasity'
+    );
+}
+
+/**
  * Get BREVO SMTP relay configuration from account info
+ * @deprecated This function is deprecated. Use getSMTPConfig() instead for normal SMTP fallback.
  * 
  * @param string $apiKey BREVO API key
  * @return array|null Returns SMTP config array or null on failure
@@ -125,8 +156,7 @@ function getBrevoSMTPConfig($apiKey) {
  * Send email using BREVO REST API or SMTP fallback
  * 
  * This function sends emails via BREVO's REST API endpoint if credits are sufficient (> 50).
- * If credits are low (<= 50), it automatically falls back to SMTP relay.
- * Uses API key authentication for both methods.
+ * If credits are low (<= 50), it automatically falls back to normal SMTP using credentials from db.php.
  * 
  * @param string $subject The email subject line
  * @param string $body The email body content (HTML supported)
@@ -167,12 +197,12 @@ function sendMail($subject, $body, $to) {
         // Send via BREVO API
         $result = sendBrevoAPIRequest($apiKey, $payload);
     } else {
-        // Fallback to SMTP relay
-        error_log("BREVO credits low or unavailable, using SMTP relay for email to $to");
+        // Fallback to normal SMTP using credentials from db.php
+        error_log("BREVO credits low or unavailable, using normal SMTP for email to $to");
         
-        $smtpConfig = getBrevoSMTPConfig($apiKey);
+        $smtpConfig = getSMTPConfig();
         if (!$smtpConfig) {
-            error_log("Failed to get SMTP configuration");
+            error_log("Failed to get SMTP configuration from db.php");
             return "error";
         }
         
@@ -186,7 +216,7 @@ function sendMail($subject, $body, $to) {
  * Send batch emails using BREVO REST API or SMTP fallback
  * 
  * Sends multiple emails using BREVO API if credits are sufficient (> 50).
- * If credits are low (<= 50), falls back to SMTP relay for each email.
+ * If credits are low (<= 50), falls back to normal SMTP for each email.
  * More efficient for bulk email operations when API is available.
  * 
  * @param string $subject The email subject line
@@ -249,12 +279,12 @@ function sendMailBatch($subject, $body, $recipients) {
             }
         }
     } else {
-        // Fallback to SMTP relay - send individually
-        error_log("BREVO credits low or unavailable, using SMTP relay for batch email to " . count($recipients) . " recipients");
+        // Fallback to normal SMTP - send individually
+        error_log("BREVO credits low or unavailable, using normal SMTP for batch email to " . count($recipients) . " recipients");
         
-        $smtpConfig = getBrevoSMTPConfig($apiKey);
+        $smtpConfig = getSMTPConfig();
         if (!$smtpConfig) {
-            error_log("Failed to get SMTP configuration for batch email");
+            error_log("Failed to get SMTP configuration from db.php for batch email");
             return array('success_count' => 0, 'fail_count' => count($recipients));
         }
         
@@ -427,7 +457,7 @@ function sendBrevoAPIRequest($apiKey, $payload) {
 }
 
 /**
- * Send email via SMTP using BREVO relay
+ * Send email via SMTP using normal SMTP server
  * 
  * @param string $subject Email subject
  * @param string $htmlContent HTML email content
@@ -442,8 +472,9 @@ function sendViaSMTP($subject, $htmlContent, $to, $smtpConfig) {
     }
     
     // Use socket-based SMTP directly since mail() doesn't support authentication
-    $from = 'contact@nivasity.com';
-    $fromName = 'Nivasity';
+    // Get from email and name from config, fallback to defaults if not set
+    $from = isset($smtpConfig['from_email']) ? $smtpConfig['from_email'] : 'contact@nivasity.com';
+    $fromName = isset($smtpConfig['from_name']) ? $smtpConfig['from_name'] : 'Nivasity';
     
     return sendViaSMTPSocket($subject, $htmlContent, $to, $from, $fromName, $smtpConfig);
 }

@@ -1,8 +1,8 @@
-# BREVO SMTP Fallback Implementation
+# SMTP Fallback Implementation
 
 ## Overview
 
-The email system now automatically falls back to SMTP relay when BREVO subscription credits are low (50 or below). This ensures continuous email delivery even when API credits are depleted.
+The email system automatically falls back to normal SMTP when BREVO subscription credits are low (50 or below). This ensures continuous email delivery even when BREVO API credits are depleted.
 
 ## How It Works
 
@@ -13,47 +13,52 @@ Before sending any email, the system:
 1. **Checks BREVO account credits** via API call to `https://api.brevo.com/v3/account`
 2. **Evaluates subscription credits**:
    - If credits > 50: Use BREVO REST API (fast, efficient)
-   - If credits ≤ 50: Use SMTP relay (reliable fallback)
+   - If credits ≤ 50: Use normal SMTP server (reliable fallback)
 3. **Logs the decision** for monitoring and debugging
-
-### API Response Structure
-
-The BREVO account API returns information including:
-
-```json
-{
-  "relay": {
-    "enabled": true,
-    "data": {
-      "userName": "913f62001@smtp-brevo.com",
-      "relay": "smtp-relay.brevo.com",
-      "port": 587
-    }
-  },
-  "plan": [
-    {
-      "type": "subscription",
-      "credits": 0,
-      "creditsType": "sendLimit"
-    }
-  ]
-}
-```
 
 ### SMTP Configuration
 
-When falling back to SMTP, the system uses:
+When falling back to SMTP, the system uses credentials from `config/db.php`:
 
-- **Host**: smtp-relay.brevo.com (from `relay.data.relay`)
-- **Port**: 587 (from `relay.data.port`)
-- **Username**: From `relay.data.userName` 
-- **Password**: BREVO API key
+- **Host**: Defined in SMTP_HOST constant
+- **Port**: Defined in SMTP_PORT constant (typically 587 for TLS, 465 for SSL)
+- **Username**: Defined in SMTP_USERNAME constant
+- **Password**: Defined in SMTP_PASSWORD constant
+- **From Email**: Defined in SMTP_FROM_EMAIL constant (defaults to 'contact@nivasity.com')
+- **From Name**: Defined in SMTP_FROM_NAME constant (defaults to 'Nivasity')
 - **Encryption**: TLS 1.2 or TLS 1.3 with STARTTLS
 - **Authentication**: LOGIN method
 
+#### Configuration Example
+
+Create `config/db.php` with the following structure:
+
+```php
+<?php
+// Database Credentials
+define('DB_USERNAME', 'your_db_username');
+define('DB_PASSWORD', 'your_db_password');
+
+// SMTP Configuration for Email Fallback
+define('SMTP_HOST', 'smtp.gmail.com');
+define('SMTP_PORT', 587);
+define('SMTP_USERNAME', 'your_email@gmail.com');
+define('SMTP_PASSWORD', 'your_app_password');
+define('SMTP_FROM_EMAIL', 'contact@nivasity.com');
+define('SMTP_FROM_NAME', 'Nivasity');
+?>
+```
+
 ## Implementation Details
 
-### New Functions
+### Functions
+
+#### `getSMTPConfig()`
+Retrieves SMTP configuration from `config/db.php`.
+
+**Returns**: Array with SMTP settings or null if not configured
+
+**Returns**: Array with SMTP settings or null if not configured
 
 #### `getBrevoAccountInfo($apiKey)`
 Retrieves complete account information from BREVO API.
@@ -67,19 +72,17 @@ Checks if subscription credits are sufficient.
 - `true` if credits > 50 (use REST API)
 - `false` if credits ≤ 50 (use SMTP)
 
-#### `getBrevoSMTPConfig($apiKey)`
-Extracts SMTP relay configuration from account info.
-
-**Returns**: Array with SMTP settings or null if relay is not enabled
+#### `getBrevoSMTPConfig($apiKey)` (Deprecated)
+This function is deprecated. The system now uses `getSMTPConfig()` to get normal SMTP credentials from `config/db.php` instead of BREVO SMTP relay.
 
 #### `sendViaSMTP($subject, $htmlContent, $to, $smtpConfig)`
-Wrapper function for SMTP email sending.
+Wrapper function for SMTP email sending using normal SMTP server.
 
 **Parameters**:
 - `$subject`: Email subject
 - `$htmlContent`: HTML email body
 - `$to`: Recipient email address
-- `$smtpConfig`: SMTP configuration array
+- `$smtpConfig`: SMTP configuration array from `getSMTPConfig()`
 
 **Returns**: `true` on success, `false` on failure
 
@@ -101,7 +104,7 @@ Low-level socket-based SMTP implementation with TLS support.
 **New behavior**:
 1. Checks credits via `hasBrevoCredits()`
 2. If credits > 50: Uses REST API (fast)
-3. If credits ≤ 50: Uses SMTP relay (reliable)
+3. If credits ≤ 50: Uses normal SMTP from `config/db.php` (reliable)
 4. Logs which method is being used
 
 #### `sendMailBatch($subject, $body, $recipients)`
@@ -110,7 +113,7 @@ Low-level socket-based SMTP implementation with TLS support.
 **New behavior**:
 1. Checks credits via `hasBrevoCredits()`
 2. If credits > 50: Uses REST API with batching (efficient)
-3. If credits ≤ 50: Sends individual emails via SMTP (slower but works)
+3. If credits ≤ 50: Sends individual emails via normal SMTP (slower but works)
 4. Returns success/failure counts
 
 ## Usage Examples
@@ -165,7 +168,7 @@ The system logs various events for monitoring:
 **Credit Check**:
 ```
 BREVO subscription credits: 0
-BREVO credits low or unavailable, using SMTP relay for email to user@example.com
+BREVO credits low or unavailable, using normal SMTP for email to user@example.com
 ```
 
 **Using REST API**:
@@ -182,7 +185,8 @@ Email sent successfully via SMTP socket to user@example.com
 **SMTP Errors**:
 ```
 SMTP Error: Expected 250, got 550 - Mailbox unavailable
-Failed to get SMTP configuration
+Failed to get SMTP configuration from db.php
+SMTP credentials not configured in config/db.php
 ```
 
 ### Checking Logs
@@ -205,11 +209,11 @@ tail -f /var/log/apache2/error.log
 - **Resource usage**: Minimal
 - **Best for**: High-volume sending with available credits
 
-### SMTP Relay (When Credits ≤ 50)
+### Normal SMTP (When Credits ≤ 50)
 - **Speed**: Slower (TCP connection + SMTP handshake per email)
 - **Batch efficiency**: One connection per recipient
 - **Resource usage**: More CPU and memory
-- **Best for**: Fallback when credits are low
+- **Best for**: Fallback when BREVO credits are low or unavailable
 
 ### Recommendations
 
@@ -217,31 +221,48 @@ tail -f /var/log/apache2/error.log
 2. **Credit Alerts**: Set up monitoring for when credits drop below 100
 3. **Batch Timing**: Schedule batch emails during off-peak hours
 4. **Test Fallback**: Periodically test SMTP fallback to ensure it works
+5. **SMTP Configuration**: Ensure `config/db.php` has valid SMTP credentials
 
 ## Troubleshooting
 
 ### Issue: Emails not sending via SMTP
 
 **Check**:
-1. BREVO API key is valid
-2. SMTP relay is enabled in BREVO account
-3. Server can connect to smtp-relay.brevo.com on port 587
+1. SMTP credentials are configured in `config/db.php`
+2. All required constants are defined (SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD)
+3. Server can connect to your SMTP server on the configured port
 4. TLS 1.2 or 1.3 is supported
+5. SMTP username and password are correct
 
 **Test connection**:
 ```bash
-openssl s_client -connect smtp-relay.brevo.com:587 -starttls smtp
+# Replace with your SMTP host and port
+openssl s_client -connect your.smtp.host:587 -starttls smtp
 ```
 
-### Issue: "Could not get BREVO SMTP relay configuration"
+### Issue: "SMTP credentials not configured in config/db.php"
 
-**Cause**: SMTP relay not enabled in BREVO account
+**Cause**: Required SMTP constants are missing from `config/db.php`
 
 **Solution**: 
-1. Log into BREVO dashboard
-2. Go to Settings → SMTP & API
-3. Enable SMTP relay
-4. Note the username and configuration
+1. Copy `config/db.example.php` to `config/db.php`
+2. Edit `config/db.php` and add all required SMTP constants:
+   - SMTP_HOST
+   - SMTP_PORT
+   - SMTP_USERNAME
+   - SMTP_PASSWORD
+   - SMTP_FROM_EMAIL (optional, defaults to contact@nivasity.com)
+   - SMTP_FROM_NAME (optional, defaults to Nivasity)
+3. Save the file and test email sending
+
+### Issue: "Failed to get SMTP configuration from db.php"
+
+**Cause**: `config/db.php` file doesn't exist or SMTP constants are not defined
+
+**Solution**:
+1. Ensure `config/db.php` exists (copy from `config/db.example.php`)
+2. Verify all SMTP constants are properly defined
+3. Check file permissions (should be readable by web server)
 
 ### Issue: TLS connection fails
 
