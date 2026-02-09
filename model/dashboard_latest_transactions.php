@@ -10,6 +10,7 @@ $admin_role = $_SESSION['nivas_adminRole'] ?? null;
 $admin_id = $_SESSION['nivas_adminId'] ?? null;
 
 if (!$admin_id) {
+  http_response_code(401);
   header('Content-Type: application/json');
   echo json_encode([
     'status' => 'error',
