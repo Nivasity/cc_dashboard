@@ -37,7 +37,8 @@ if ($admin_role == 5) {
   }
 }
 
-$stats_sql = "SELECT COUNT(DISTINCT t.id) as total_count, SUM(t.amount) as total_sum, AVG(t.amount) as average_paid " .
+// First query: Get total count and sum
+$stats_sql = "SELECT COUNT(DISTINCT t.id) as total_count, SUM(t.amount) as total_sum " .
   "FROM transactions t " .
   "JOIN users u ON t.user_id = u.id " .
   "LEFT JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
@@ -60,12 +61,39 @@ $stats_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date);
 
 $stats_query = mysqli_query($conn, $stats_sql);
 
-if ($stats_query) {
+// Second query: Get the most common payment amount (mode)
+$mode_sql = "SELECT t.amount, COUNT(*) as frequency " .
+  "FROM transactions t " .
+  "JOIN users u ON t.user_id = u.id " .
+  "LEFT JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
+  "LEFT JOIN manuals m ON b.manual_id = m.id " .
+  "LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
+
+$mode_sql .= " AND (b.ref_id IS NOT NULL OR (t.status = 'refunded' AND t.medium = 'MANUAL'))";
+
+if ($school > 0) {
+  $mode_sql .= " AND (b.school_id = $school OR (b.school_id IS NULL AND u.school = $school))";
+}
+if ($faculty != 0) {
+  $mode_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
+}
+if ($dept > 0) {
+  $mode_sql .= " AND m.dept = $dept";
+}
+
+$mode_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date);
+$mode_sql .= " GROUP BY t.amount ORDER BY frequency DESC, t.amount DESC LIMIT 1";
+
+$mode_query = mysqli_query($conn, $mode_sql);
+
+if ($stats_query && $mode_query) {
   $row = mysqli_fetch_assoc($stats_query);
+  $mode_row = mysqli_fetch_assoc($mode_query);
+  
   $stats = [
     'count' => (int)($row['total_count'] ?? 0),
     'sum' => (int)($row['total_sum'] ?? 0),
-    'average' => (float)($row['average_paid'] ?? 0)
+    'average' => (int)($mode_row['amount'] ?? 0)  // Using 'average' key for backward compatibility
   ];
   $status = 'success';
 } else {
