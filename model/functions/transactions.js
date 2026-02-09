@@ -28,7 +28,7 @@
   var deleteRefId = null;
 
   InitiateDatatable('.table');
-  $('#school, #faculty, #dept').select2({ theme: 'bootstrap-5', width: '100%' });
+  $('#school, #faculty, #dept, #dateRange').select2({ theme: 'bootstrap-5', width: '100%' });
   if ($manualSelect.length) {
     $manualSelect.select2({
       theme: 'bootstrap-5',
@@ -474,11 +474,43 @@
     var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
     var deptId = $('#dept').val();
+    var dateRange = $('#dateRange').val() || '7';
+    var startDate = $('#startDate').val();
+    var endDate = $('#endDate').val();
+
+    // Fetch statistics
+    $.ajax({
+      url: 'model/transactions_stats.php',
+      method: 'GET',
+      data: { 
+        school: schoolId, 
+        faculty: facultyId, 
+        dept: deptId,
+        date_range: dateRange,
+        start_date: startDate,
+        end_date: endDate
+      },
+      dataType: 'json',
+      success: function (res) {
+        if (res.status === 'success' && res.stats) {
+          $('#totalCount').text(res.stats.count.toLocaleString());
+          $('#totalSum').text('₦ ' + res.stats.sum.toLocaleString());
+          $('#averagePaid').text('₦ ' + Math.round(res.stats.average).toLocaleString());
+        }
+      }
+    });
 
     $.ajax({
       url: 'model/transactions_list.php',
       method: 'GET',
-      data: { school: schoolId, faculty: facultyId, dept: deptId },
+      data: { 
+        school: schoolId, 
+        faculty: facultyId, 
+        dept: deptId,
+        date_range: dateRange,
+        start_date: startDate,
+        end_date: endDate
+      },
       dataType: 'json',
       success: function (res) {
         if ($.fn.dataTable.isDataTable('.table')) {
@@ -545,6 +577,26 @@
     fetchTransactions();
   });
 
+  // Handle date range change
+  $('#dateRange').on('change', function () {
+    var dateRange = $(this).val();
+    if (dateRange === 'custom') {
+      $('#customDateRange').removeClass('d-none');
+    } else {
+      $('#customDateRange').addClass('d-none');
+      fetchTransactions();
+    }
+  });
+
+  // Handle custom date change
+  $('#startDate, #endDate').on('change', function () {
+    var startDate = $('#startDate').val();
+    var endDate = $('#endDate').val();
+    if (startDate && endDate) {
+      fetchTransactions();
+    }
+  });
+
   // Handle delete transaction (roles 1, 2, 4 only)
   $(document).on('click', '.delete-transaction', function () {
     if (!(adminRole === 1 || adminRole === 2 || adminRole === 4)) {
@@ -609,11 +661,21 @@
     var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
     var deptId = $('#dept').val();
+    var dateRange = $('#dateRange').val() || '7';
+    var startDate = $('#startDate').val();
+    var endDate = $('#endDate').val();
 
     $.ajax({
       url: 'model/transactions_download.php',
       method: 'GET',
-      data: { school: schoolId, faculty: facultyId, dept: deptId },
+      data: { 
+        school: schoolId, 
+        faculty: facultyId, 
+        dept: deptId,
+        date_range: dateRange,
+        start_date: startDate,
+        end_date: endDate
+      },
       xhr: function () {
         var xhr = new window.XMLHttpRequest();
         xhr.responseType = 'blob';

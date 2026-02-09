@@ -18,6 +18,9 @@ $school = intval($_GET['school'] ?? 0);
 $faculty = intval($_GET['faculty'] ?? 0);
 $dept = intval($_GET['dept'] ?? 0);
 $material_id = intval($_GET['material_id'] ?? 0);
+$date_range = $_GET['date_range'] ?? '7';
+$start_date = $_GET['start_date'] ?? '';
+$end_date = $_GET['end_date'] ?? '';
 
 if ($admin_role == 5) {
   $school = $admin_school;
@@ -53,6 +56,21 @@ if ($dept > 0) {
 if ($material_id > 0) {
   $tran_sql .= " AND m.id = $material_id";
 }
+
+// Build the date filter
+$date_filter = "";
+if ($date_range === 'custom' && $start_date && $end_date) {
+  $start_date = mysqli_real_escape_string($conn, $start_date);
+  $end_date = mysqli_real_escape_string($conn, $end_date);
+  $date_filter = " AND t.created_at BETWEEN '$start_date 00:00:00' AND '$end_date 23:59:59'";
+} elseif ($date_range !== 'all') {
+  $days = intval($date_range);
+  if ($days > 0) {
+    $date_filter = " AND t.created_at >= DATE_SUB(NOW(), INTERVAL $days DAY)";
+  }
+}
+$tran_sql .= $date_filter;
+
 $tran_sql .= " GROUP BY t.id, t.ref_id, t.amount, t.status, t.created_at, u.first_name, u.last_name, u.matric_no, u.adm_year, s.name, f.name, d.name ORDER BY t.created_at DESC";
 $tran_query = mysqli_query($conn, $tran_sql);
 
