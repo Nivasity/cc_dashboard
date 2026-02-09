@@ -594,6 +594,13 @@
     var startDate = $('#startDate').val();
     var endDate = $('#endDate').val();
     if (startDate && endDate) {
+      // Validate that start date is not after end date
+      if (new Date(startDate) > new Date(endDate)) {
+        if (typeof showToast === 'function') {
+          showToast('bg-warning', 'Start date must be before or equal to end date.');
+        }
+        return;
+      }
       fetchTransactions();
     }
   });

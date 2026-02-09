@@ -16,9 +16,15 @@ function buildDateFilter($conn, $date_range, $start_date, $end_date) {
   $date_filter = "";
   
   if ($date_range === 'custom' && $start_date && $end_date) {
-    $start_date = mysqli_real_escape_string($conn, $start_date);
-    $end_date = mysqli_real_escape_string($conn, $end_date);
-    $date_filter = " AND t.created_at BETWEEN '$start_date 00:00:00' AND '$end_date 23:59:59'";
+    // Validate date format
+    $start_dt = DateTime::createFromFormat('Y-m-d', $start_date);
+    $end_dt = DateTime::createFromFormat('Y-m-d', $end_date);
+    
+    if ($start_dt && $end_dt && $start_dt->format('Y-m-d') === $start_date && $end_dt->format('Y-m-d') === $end_date) {
+      $start_date = mysqli_real_escape_string($conn, $start_date);
+      $end_date = mysqli_real_escape_string($conn, $end_date);
+      $date_filter = " AND t.created_at BETWEEN '$start_date 00:00:00' AND '$end_date 23:59:59'";
+    }
   } elseif ($date_range !== 'all') {
     $days = intval($date_range);
     if ($days > 0) {
