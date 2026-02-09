@@ -439,6 +439,59 @@ for ($m = 1; $m <= 12; $m++) {
               </div>
             </div>
             
+            <!-- Latest Transactions and Internal Tickets -->
+            <div class="row">
+              <!-- Latest Transactions Card -->
+              <div class="col-12 col-lg-6 mb-4">
+                <div class="card">
+                  <h5 class="card-header">Latest Transactions</h5>
+                  <div class="table-responsive text-nowrap">
+                    <table class="table">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Ref ID</th>
+                          <th>Student</th>
+                          <th>Amount</th>
+                          <th>Status</th>
+                          <th>Date</th>
+                        </tr>
+                      </thead>
+                      <tbody id="latestTransactionsTable" class="table-border-bottom-0">
+                        <tr>
+                          <td colspan="5" class="text-center">Loading...</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Latest Internal Support Tickets Card -->
+              <div class="col-12 col-lg-6 mb-4">
+                <div class="card">
+                  <h5 class="card-header">Latest Internal Support Tickets</h5>
+                  <div class="table-responsive text-nowrap">
+                    <table class="table">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Code</th>
+                          <th>Subject</th>
+                          <th>Priority</th>
+                          <th>Status</th>
+                          <th>Date</th>
+                        </tr>
+                      </thead>
+                      <tbody id="latestAdminTicketsTable" class="table-border-bottom-0">
+                        <tr>
+                          <td colspan="5" class="text-center">Loading...</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
           </div>
           <!-- / Content -->
 
@@ -477,6 +530,104 @@ for ($m = 1; $m <= 12; $m++) {
   <!-- Page JS -->
   <script src="assets/js/dashboards-analytics.js"></script>
   <script src="assets/js/range.js"></script>
+
+  <!-- Dashboard Latest Data JS -->
+  <script>
+    $(document).ready(function() {
+      // Fetch latest transactions
+      $.ajax({
+        url: 'model/dashboard_latest_transactions.php',
+        method: 'GET',
+        dataType: 'json',
+        success: function(response) {
+          if (response.status === 'success' && response.transactions.length > 0) {
+            let html = '';
+            response.transactions.forEach(function(txn) {
+              let statusBadge = '';
+              if (txn.status === 'successful') {
+                statusBadge = '<span class="badge bg-label-success">Success</span>';
+              } else if (txn.status === 'pending') {
+                statusBadge = '<span class="badge bg-label-warning">Pending</span>';
+              } else if (txn.status === 'failed') {
+                statusBadge = '<span class="badge bg-label-danger">Failed</span>';
+              } else if (txn.status === 'refunded') {
+                statusBadge = '<span class="badge bg-label-info">Refunded</span>';
+              } else {
+                statusBadge = '<span class="badge bg-label-secondary">' + txn.status + '</span>';
+              }
+              
+              html += '<tr>' +
+                '<td><small>' + txn.ref_id + '</small></td>' +
+                '<td><strong>' + txn.student + '</strong><br><small class="text-muted">' + txn.matric + '</small></td>' +
+                '<td>₦' + Number(txn.amount).toLocaleString() + '</td>' +
+                '<td>' + statusBadge + '</td>' +
+                '<td><small>' + txn.date + '<br>' + txn.time + '</small></td>' +
+                '</tr>';
+            });
+            $('#latestTransactionsTable').html(html);
+          } else {
+            $('#latestTransactionsTable').html('<tr><td colspan="5" class="text-center text-muted">No transactions found</td></tr>');
+          }
+        },
+        error: function() {
+          $('#latestTransactionsTable').html('<tr><td colspan="5" class="text-center text-danger">Error loading transactions</td></tr>');
+        }
+      });
+
+      // Fetch latest internal support tickets
+      $.ajax({
+        url: 'model/dashboard_latest_admin_tickets.php',
+        method: 'GET',
+        dataType: 'json',
+        success: function(response) {
+          if (response.status === 'success' && response.tickets.length > 0) {
+            let html = '';
+            response.tickets.forEach(function(ticket) {
+              let priorityBadge = '';
+              if (ticket.priority === 'urgent') {
+                priorityBadge = '<span class="badge bg-label-danger">Urgent</span>';
+              } else if (ticket.priority === 'high') {
+                priorityBadge = '<span class="badge bg-label-warning">High</span>';
+              } else if (ticket.priority === 'medium') {
+                priorityBadge = '<span class="badge bg-label-info">Medium</span>';
+              } else if (ticket.priority === 'low') {
+                priorityBadge = '<span class="badge bg-label-secondary">Low</span>';
+              } else {
+                priorityBadge = '<span class="badge bg-label-secondary">' + ticket.priority + '</span>';
+              }
+              
+              let statusBadge = '';
+              if (ticket.status === 'open') {
+                statusBadge = '<span class="badge bg-label-success">Open</span>';
+              } else if (ticket.status === 'pending') {
+                statusBadge = '<span class="badge bg-label-warning">Pending</span>';
+              } else if (ticket.status === 'resolved') {
+                statusBadge = '<span class="badge bg-label-info">Resolved</span>';
+              } else if (ticket.status === 'closed') {
+                statusBadge = '<span class="badge bg-label-secondary">Closed</span>';
+              } else {
+                statusBadge = '<span class="badge bg-label-secondary">' + ticket.status + '</span>';
+              }
+              
+              html += '<tr>' +
+                '<td><small>' + ticket.code + '</small></td>' +
+                '<td><strong>' + ticket.subject.substring(0, 30) + (ticket.subject.length > 30 ? '...' : '') + '</strong></td>' +
+                '<td>' + priorityBadge + '</td>' +
+                '<td>' + statusBadge + '</td>' +
+                '<td><small>' + ticket.date + '<br>' + ticket.time + '</small></td>' +
+                '</tr>';
+            });
+            $('#latestAdminTicketsTable').html(html);
+          } else {
+            $('#latestAdminTicketsTable').html('<tr><td colspan="5" class="text-center text-muted">No tickets found</td></tr>');
+          }
+        },
+        error: function() {
+          $('#latestAdminTicketsTable').html('<tr><td colspan="5" class="text-center text-danger">Error loading tickets</td></tr>');
+        }
+      });
+    });
+  </script>
 
   <!-- Place this tag in your head or just before your close body tag. -->
   <script async defer src="https://buttons.github.io/buttons.js"></script>
