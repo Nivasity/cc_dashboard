@@ -110,7 +110,7 @@ The system uses a smart fallback strategy:
    - Standard SMTP protocol with your own mail server
    - Ensures continuous email delivery even without BREVO credits
 
-**SMTP credentials are no longer needed** - the system uses BREVO's REST API instead of SMTP.
+**Note**: While BREVO REST API is the primary method, SMTP credentials in `db.php` are required as a fallback when BREVO credits are low or unavailable.
 
 ### How BREVO is Used in the Application
 

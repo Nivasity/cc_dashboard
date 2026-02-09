@@ -58,8 +58,6 @@ Retrieves SMTP configuration from `config/db.php`.
 
 **Returns**: Array with SMTP settings or null if not configured
 
-**Returns**: Array with SMTP settings or null if not configured
-
 #### `getBrevoAccountInfo($apiKey)`
 Retrieves complete account information from BREVO API.
 
