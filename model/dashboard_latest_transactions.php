@@ -10,7 +10,8 @@ $admin_role = $_SESSION['nivas_adminRole'] ?? null;
 $admin_id = $_SESSION['nivas_adminId'] ?? null;
 $admin_school = $admin_faculty = 0;
 if ($admin_role == 5 && $admin_id) {
-  $info = mysqli_fetch_assoc(mysqli_query($conn, "SELECT school, faculty FROM admins WHERE id = $admin_id"));
+  $aid = (int)$admin_id;
+  $info = mysqli_fetch_assoc(mysqli_query($conn, "SELECT school, faculty FROM admins WHERE id = $aid"));
   if ($info) {
     $admin_school = (int)$info['school'];
     $admin_faculty = (int)$info['faculty'];
@@ -28,9 +29,11 @@ $tran_sql = "SELECT t.ref_id, t.amount, t.status, t.created_at, u.first_name, u.
 $tran_sql .= " AND (b.ref_id IS NOT NULL OR (t.status = 'refunded' AND t.medium = 'MANUAL'))";
 
 if ($admin_role == 5 && $admin_school > 0) {
-  $tran_sql .= " AND (b.school_id = $admin_school OR (b.school_id IS NULL AND u.school = $admin_school))";
+  $school_safe = (int)$admin_school;
+  $tran_sql .= " AND (b.school_id = $school_safe OR (b.school_id IS NULL AND u.school = $school_safe))";
   if ($admin_faculty != 0) {
-    $tran_sql .= " AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))";
+    $faculty_safe = (int)$admin_faculty;
+    $tran_sql .= " AND (m.faculty = $faculty_safe OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty_safe))";
   }
 }
 

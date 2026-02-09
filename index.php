@@ -533,6 +533,18 @@ for ($m = 1; $m <= 12; $m++) {
 
   <!-- Dashboard Latest Data JS -->
   <script>
+    // Helper function to escape HTML
+    function escapeHtml(text) {
+      const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      };
+      return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
     $(document).ready(function() {
       // Fetch latest transactions
       $.ajax({
@@ -544,6 +556,7 @@ for ($m = 1; $m <= 12; $m++) {
             let html = '';
             response.transactions.forEach(function(txn) {
               let statusBadge = '';
+              const status = escapeHtml(txn.status);
               if (txn.status === 'successful') {
                 statusBadge = '<span class="badge bg-label-success">Success</span>';
               } else if (txn.status === 'pending') {
@@ -553,15 +566,15 @@ for ($m = 1; $m <= 12; $m++) {
               } else if (txn.status === 'refunded') {
                 statusBadge = '<span class="badge bg-label-info">Refunded</span>';
               } else {
-                statusBadge = '<span class="badge bg-label-secondary">' + txn.status + '</span>';
+                statusBadge = '<span class="badge bg-label-secondary">' + status + '</span>';
               }
               
               html += '<tr>' +
-                '<td><small>' + txn.ref_id + '</small></td>' +
-                '<td><strong>' + txn.student + '</strong><br><small class="text-muted">' + txn.matric + '</small></td>' +
+                '<td><small>' + escapeHtml(txn.ref_id) + '</small></td>' +
+                '<td><strong>' + escapeHtml(txn.student) + '</strong><br><small class="text-muted">' + escapeHtml(txn.matric) + '</small></td>' +
                 '<td>₦' + Number(txn.amount).toLocaleString() + '</td>' +
                 '<td>' + statusBadge + '</td>' +
-                '<td><small>' + txn.date + '<br>' + txn.time + '</small></td>' +
+                '<td><small>' + escapeHtml(txn.date) + '<br>' + escapeHtml(txn.time) + '</small></td>' +
                 '</tr>';
             });
             $('#latestTransactionsTable').html(html);
@@ -584,6 +597,7 @@ for ($m = 1; $m <= 12; $m++) {
             let html = '';
             response.tickets.forEach(function(ticket) {
               let priorityBadge = '';
+              const priority = escapeHtml(ticket.priority);
               if (ticket.priority === 'urgent') {
                 priorityBadge = '<span class="badge bg-label-danger">Urgent</span>';
               } else if (ticket.priority === 'high') {
@@ -593,10 +607,11 @@ for ($m = 1; $m <= 12; $m++) {
               } else if (ticket.priority === 'low') {
                 priorityBadge = '<span class="badge bg-label-secondary">Low</span>';
               } else {
-                priorityBadge = '<span class="badge bg-label-secondary">' + ticket.priority + '</span>';
+                priorityBadge = '<span class="badge bg-label-secondary">' + priority + '</span>';
               }
               
               let statusBadge = '';
+              const status = escapeHtml(ticket.status);
               if (ticket.status === 'open') {
                 statusBadge = '<span class="badge bg-label-success">Open</span>';
               } else if (ticket.status === 'pending') {
@@ -606,15 +621,18 @@ for ($m = 1; $m <= 12; $m++) {
               } else if (ticket.status === 'closed') {
                 statusBadge = '<span class="badge bg-label-secondary">Closed</span>';
               } else {
-                statusBadge = '<span class="badge bg-label-secondary">' + ticket.status + '</span>';
+                statusBadge = '<span class="badge bg-label-secondary">' + status + '</span>';
               }
               
+              const subject = escapeHtml(ticket.subject);
+              const truncatedSubject = subject.length > 30 ? subject.substring(0, 30) + '...' : subject;
+              
               html += '<tr>' +
-                '<td><small>' + ticket.code + '</small></td>' +
-                '<td><strong>' + ticket.subject.substring(0, 30) + (ticket.subject.length > 30 ? '...' : '') + '</strong></td>' +
+                '<td><small>' + escapeHtml(ticket.code) + '</small></td>' +
+                '<td><strong>' + truncatedSubject + '</strong></td>' +
                 '<td>' + priorityBadge + '</td>' +
                 '<td>' + statusBadge + '</td>' +
-                '<td><small>' + ticket.date + '<br>' + ticket.time + '</small></td>' +
+                '<td><small>' + escapeHtml(ticket.date) + '<br>' + escapeHtml(ticket.time) + '</small></td>' +
                 '</tr>';
             });
             $('#latestAdminTicketsTable').html(html);
