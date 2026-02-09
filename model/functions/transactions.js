@@ -497,6 +497,40 @@
           $('#totalCount').text(res.stats.count.toLocaleString());
           $('#totalSum').text('₦ ' + res.stats.sum.toLocaleString());
           $('#averagePaid').text('₦ ' + Math.round(res.stats.average).toLocaleString());
+          
+          // Update count change indicator
+          var countChange = res.stats.count_change || 0;
+          var countChangeText = '';
+          var countChangeClass = '';
+          if (countChange > 0) {
+            countChangeText = '(' + countChange + '% increase)';
+            countChangeClass = 'text-success';
+          } else if (countChange < 0) {
+            countChangeText = '(' + Math.abs(countChange) + '% decrease)';
+            countChangeClass = 'text-danger';
+          }
+          $('#countChange').text(countChangeText).attr('class', 'fw-medium ' + countChangeClass);
+          
+          // Update sum change indicator
+          var sumChange = res.stats.sum_change || 0;
+          var sumChangeText = '';
+          var sumChangeClass = '';
+          if (sumChange > 0) {
+            sumChangeText = '(' + sumChange + '% increase)';
+            sumChangeClass = 'text-success';
+          } else if (sumChange < 0) {
+            sumChangeText = '(' + Math.abs(sumChange) + '% decrease)';
+            sumChangeClass = 'text-danger';
+          }
+          $('#sumChange').text(sumChangeText).attr('class', 'fw-medium ' + sumChangeClass);
+          
+          // Update mode frequency (always blue)
+          var frequency = res.stats.mode_frequency || 0;
+          var frequencyText = '';
+          if (frequency > 0) {
+            frequencyText = '(' + frequency + ' times)';
+          }
+          $('#modeFrequency').text(frequencyText).attr('class', 'fw-medium text-primary');
         }
       }
     });

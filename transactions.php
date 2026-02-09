@@ -46,39 +46,48 @@ if ($admin_role == 5) {
               <div class="col-lg-4 col-md-6 mb-4">
                 <div class="card">
                   <div class="card-body">
-                    <div class="card-title d-flex align-items-start justify-content-between">
-                      <div class="avatar flex-shrink-0">
+                    <div class="d-flex align-items-start">
+                      <div class="avatar flex-shrink-0 me-3">
                         <i class='bx bx-list-ul bx-sm'></i>
                       </div>
+                      <div class="flex-grow-1">
+                        <span class="fw-semibold d-block mb-1">Total Transaction Count</span>
+                        <h3 class="card-title mb-1" id="totalCount">0</h3>
+                        <small class="text-success" id="countChange"></small>
+                      </div>
                     </div>
-                    <span class="fw-semibold d-block mb-1">Total Transaction Count</span>
-                    <h3 class="card-title mb-2" id="totalCount">0</h3>
                   </div>
                 </div>
               </div>
               <div class="col-lg-4 col-md-6 mb-4">
                 <div class="card">
                   <div class="card-body">
-                    <div class="card-title d-flex align-items-start justify-content-between">
-                      <div class="avatar flex-shrink-0">
+                    <div class="d-flex align-items-start">
+                      <div class="avatar flex-shrink-0 me-3">
                         <i class='bx bx-wallet bx-sm'></i>
                       </div>
+                      <div class="flex-grow-1">
+                        <span class="fw-semibold d-block mb-1">Total Sum</span>
+                        <h3 class="card-title mb-1" id="totalSum">₦ 0</h3>
+                        <small class="text-success" id="sumChange"></small>
+                      </div>
                     </div>
-                    <span class="fw-semibold d-block mb-1">Total Sum</span>
-                    <h3 class="card-title mb-2" id="totalSum">₦ 0</h3>
                   </div>
                 </div>
               </div>
               <div class="col-lg-4 col-md-6 mb-4">
                 <div class="card">
                   <div class="card-body">
-                    <div class="card-title d-flex align-items-start justify-content-between">
-                      <div class="avatar flex-shrink-0">
+                    <div class="d-flex align-items-start">
+                      <div class="avatar flex-shrink-0 me-3">
                         <i class='bx bx-calculator bx-sm'></i>
                       </div>
+                      <div class="flex-grow-1">
+                        <span class="fw-semibold d-block mb-1">Commonly Paid</span>
+                        <h3 class="card-title mb-1" id="averagePaid">₦ 0</h3>
+                        <small class="text-primary" id="modeFrequency"></small>
+                      </div>
                     </div>
-                    <span class="fw-semibold d-block mb-1">Commonly Paid</span>
-                    <h3 class="card-title mb-2" id="averagePaid">₦ 0</h3>
                   </div>
                 </div>
               </div>

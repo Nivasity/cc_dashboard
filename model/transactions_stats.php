@@ -90,10 +90,84 @@ if ($stats_query && $mode_query) {
   $row = mysqli_fetch_assoc($stats_query);
   $mode_row = mysqli_fetch_assoc($mode_query);
   
+  $current_count = (int)($row['total_count'] ?? 0);
+  $current_sum = (int)($row['total_sum'] ?? 0);
+  $current_mode = (int)($mode_row['amount'] ?? 0);
+  $mode_frequency = (int)($mode_row['frequency'] ?? 0);
+  
+  // Calculate previous period stats for comparison
+  $prev_count = 0;
+  $prev_sum = 0;
+  $count_change_percent = 0;
+  $sum_change_percent = 0;
+  
+  // Build query for previous period
+  if ($date_range !== 'all') {
+    $prev_stats_sql = "SELECT COUNT(DISTINCT t.id) as total_count, SUM(t.amount) as total_sum " .
+      "FROM transactions t " .
+      "JOIN users u ON t.user_id = u.id " .
+      "LEFT JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
+      "LEFT JOIN manuals m ON b.manual_id = m.id " .
+      "LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
+    
+    $prev_stats_sql .= " AND (b.ref_id IS NOT NULL OR (t.status = 'refunded' AND t.medium = 'MANUAL'))";
+    
+    if ($school > 0) {
+      $prev_stats_sql .= " AND (b.school_id = $school OR (b.school_id IS NULL AND u.school = $school))";
+    }
+    if ($faculty != 0) {
+      $prev_stats_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
+    }
+    if ($dept > 0) {
+      $prev_stats_sql .= " AND m.dept = $dept";
+    }
+    
+    // Calculate previous period based on date range
+    if ($date_range === 'custom' && $start_date && $end_date) {
+      $start_dt = new DateTime($start_date);
+      $end_dt = new DateTime($end_date);
+      $interval = $start_dt->diff($end_dt);
+      $days = $interval->days;
+      
+      $prev_end = clone $start_dt;
+      $prev_end->modify('-1 day');
+      $prev_start = clone $prev_end;
+      $prev_start->modify("-{$days} days");
+      
+      $prev_start_str = $prev_start->format('Y-m-d');
+      $prev_end_str = $prev_end->format('Y-m-d');
+      $prev_stats_sql .= " AND t.created_at BETWEEN '{$prev_start_str} 00:00:00' AND '{$prev_end_str} 23:59:59'";
+    } else {
+      $days = intval($date_range);
+      if ($days > 0) {
+        $prev_stats_sql .= " AND t.created_at >= DATE_SUB(NOW(), INTERVAL " . ($days * 2) . " DAY)";
+        $prev_stats_sql .= " AND t.created_at < DATE_SUB(NOW(), INTERVAL {$days} DAY)";
+      }
+    }
+    
+    $prev_query = mysqli_query($conn, $prev_stats_sql);
+    if ($prev_query) {
+      $prev_row = mysqli_fetch_assoc($prev_query);
+      $prev_count = (int)($prev_row['total_count'] ?? 0);
+      $prev_sum = (int)($prev_row['total_sum'] ?? 0);
+      
+      // Calculate percentage changes
+      if ($prev_count > 0) {
+        $count_change_percent = round((($current_count - $prev_count) / $prev_count) * 100);
+      }
+      if ($prev_sum > 0) {
+        $sum_change_percent = round((($current_sum - $prev_sum) / $prev_sum) * 100);
+      }
+    }
+  }
+  
   $stats = [
-    'count' => (int)($row['total_count'] ?? 0),
-    'sum' => (int)($row['total_sum'] ?? 0),
-    'average' => (int)($mode_row['amount'] ?? 0)  // Using 'average' key for backward compatibility
+    'count' => $current_count,
+    'sum' => $current_sum,
+    'average' => $current_mode,
+    'count_change' => $count_change_percent,
+    'sum_change' => $sum_change_percent,
+    'mode_frequency' => $mode_frequency
   ];
   $status = 'success';
 } else {
