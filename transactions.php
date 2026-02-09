@@ -77,7 +77,7 @@ if ($admin_role == 5) {
                         <i class='bx bx-calculator bx-sm'></i>
                       </div>
                     </div>
-                    <span class="fw-semibold d-block mb-1">Average Paid</span>
+                    <span class="fw-semibold d-block mb-1">Commonly Paid</span>
                     <h3 class="card-title mb-2" id="averagePaid">₦ 0</h3>
                   </div>
                 </div>
