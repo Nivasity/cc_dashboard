@@ -44,7 +44,7 @@ if ($admin_role == 5) {
             <!-- Statistics Cards -->
             <div class="row mb-4">
               <div class="col-lg-4 col-md-6 mb-4">
-                <div class="card">
+                <div class="card" id="countCard">
                   <div class="card-body">
                     <div class="d-flex align-items-start">
                       <div class="avatar flex-shrink-0 me-3">
@@ -56,11 +56,16 @@ if ($admin_role == 5) {
                         <small class="text-success" id="countChange"></small>
                       </div>
                     </div>
+                    <div class="stats-loading-spinner">
+                      <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
               <div class="col-lg-4 col-md-6 mb-4">
-                <div class="card">
+                <div class="card" id="sumCard">
                   <div class="card-body">
                     <div class="d-flex align-items-start">
                       <div class="avatar flex-shrink-0 me-3">
@@ -72,11 +77,16 @@ if ($admin_role == 5) {
                         <small class="text-success" id="sumChange"></small>
                       </div>
                     </div>
+                    <div class="stats-loading-spinner">
+                      <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
               <div class="col-lg-4 col-md-6 mb-4">
-                <div class="card">
+                <div class="card" id="commonlyPaidCard">
                   <div class="card-body">
                     <div class="d-flex align-items-start">
                       <div class="avatar flex-shrink-0 me-3">
@@ -85,7 +95,12 @@ if ($admin_role == 5) {
                       <div class="flex-grow-1">
                         <span class="fw-semibold d-block mb-1">Commonly Paid</span>
                         <h3 class="card-title mb-1" id="averagePaid">₦ 0</h3>
-                        <small class="text-primary" id="modeFrequency"></small>
+                        <small class="text-info" id="modeFrequency"></small>
+                      </div>
+                    </div>
+                    <div class="stats-loading-spinner">
+                      <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
                       </div>
                     </div>
                   </div>
@@ -93,7 +108,7 @@ if ($admin_role == 5) {
               </div>
             </div>
 
-            <div class="card mb-4">
+            <div class="card mb-4" id="tableCard">
               <div class="card-body">
                 <form id="filterForm" class="row g-3 mb-4">
                   <div class="col-md-3">
@@ -165,6 +180,11 @@ if ($admin_role == 5) {
                     </thead>
                     <tbody class="table-border-bottom-0"></tbody>
                   </table>
+                </div>
+                <div class="stats-loading-spinner">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
                 </div>
               </div>
             </div>

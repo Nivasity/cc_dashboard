@@ -82,3 +82,68 @@
   overflow-y: auto !important;
   max-height: calc(90vh - 140px) !important; /* approx header+footer */
 }
+
+/* Loading shimmer effect for statistics cards */
+.stats-card-loading {
+  position: relative;
+  pointer-events: none;
+}
+
+.stats-card-loading::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 0.375rem;
+  z-index: 10;
+}
+
+.stats-loading-spinner {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 11;
+  display: none;
+}
+
+.stats-card-loading .stats-loading-spinner {
+  display: block;
+}
+
+.spinner-border-sm {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-width: 0.2em;
+}
+
+/* Shimmer animation alternative */
+@keyframes shimmer {
+  0% {
+    background-position: -468px 0;
+  }
+  100% {
+    background-position: 468px 0;
+  }
+}
+
+.stats-shimmer {
+  animation: shimmer 1.5s infinite;
+  background: linear-gradient(to right, #f6f7f8 0%, #edeef1 20%, #f6f7f8 40%, #f6f7f8 100%);
+  background-size: 800px 100px;
+}
+
+.stats-value-placeholder {
+  height: 2.5rem;
+  border-radius: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
+.stats-text-placeholder {
+  height: 1rem;
+  border-radius: 0.25rem;
+  width: 60%;
+}

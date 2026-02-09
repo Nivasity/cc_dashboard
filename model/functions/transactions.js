@@ -471,6 +471,23 @@
     });
   }
 
+  // Helper functions for loading state
+  function showStatsLoading() {
+    $('#countCard, #sumCard, #commonlyPaidCard').addClass('stats-card-loading');
+  }
+
+  function hideStatsLoading() {
+    $('#countCard, #sumCard, #commonlyPaidCard').removeClass('stats-card-loading');
+  }
+
+  function showTableLoading() {
+    $('#tableCard').addClass('stats-card-loading');
+  }
+
+  function hideTableLoading() {
+    $('#tableCard').removeClass('stats-card-loading');
+  }
+
   function fetchTransactions() {
     var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
@@ -478,6 +495,10 @@
     var dateRange = $('#dateRange').val() || DEFAULT_DATE_RANGE;
     var startDate = $('#startDate').val();
     var endDate = $('#endDate').val();
+
+    // Show loading state for stats cards
+    showStatsLoading();
+    showTableLoading();
 
     // Fetch statistics
     $.ajax({
@@ -524,14 +545,18 @@
           }
           $('#sumChange').text(sumChangeText).attr('class', 'fw-medium ' + sumChangeClass);
           
-          // Update mode frequency (always blue)
+          // Update mode frequency (always info color)
           var frequency = res.stats.mode_frequency || 0;
           var frequencyText = '';
           if (frequency > 0) {
             frequencyText = '(' + frequency + ' times)';
           }
-          $('#modeFrequency').text(frequencyText).attr('class', 'fw-medium text-primary');
+          $('#modeFrequency').text(frequencyText).attr('class', 'fw-medium text-info');
         }
+      },
+      complete: function() {
+        // Hide loading state after stats are loaded
+        hideStatsLoading();
       }
     });
 
@@ -585,6 +610,10 @@
         }
 
         InitiateDatatable('.table');
+      },
+      complete: function() {
+        // Hide loading state after table is loaded
+        hideTableLoading();
       }
     });
   }
