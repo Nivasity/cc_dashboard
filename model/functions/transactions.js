@@ -26,9 +26,10 @@
   var feedbackTimer = null;
   var lastLookupEmail = '';
   var deleteRefId = null;
+  var DEFAULT_DATE_RANGE = '7';
 
   InitiateDatatable('.table');
-  $('#school, #faculty, #dept').select2({ theme: 'bootstrap-5', width: '100%' });
+  $('#school, #faculty, #dept, #dateRange').select2({ theme: 'bootstrap-5', width: '100%' });
   if ($manualSelect.length) {
     $manualSelect.select2({
       theme: 'bootstrap-5',
@@ -470,15 +471,106 @@
     });
   }
 
+  // Helper functions for loading state
+  function showStatsLoading() {
+    $('#countCard, #sumCard, #commonlyPaidCard').addClass('stats-card-loading');
+  }
+
+  function hideStatsLoading() {
+    $('#countCard, #sumCard, #commonlyPaidCard').removeClass('stats-card-loading');
+  }
+
+  function showTableLoading() {
+    $('#tableCard').addClass('stats-card-loading');
+  }
+
+  function hideTableLoading() {
+    $('#tableCard').removeClass('stats-card-loading');
+  }
+
   function fetchTransactions() {
     var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
     var deptId = $('#dept').val();
+    var dateRange = $('#dateRange').val() || DEFAULT_DATE_RANGE;
+    var startDate = $('#startDate').val();
+    var endDate = $('#endDate').val();
+
+    // Show loading state for stats cards
+    showStatsLoading();
+    showTableLoading();
+
+    // Fetch statistics
+    $.ajax({
+      url: 'model/transactions_stats.php',
+      method: 'GET',
+      data: { 
+        school: schoolId, 
+        faculty: facultyId, 
+        dept: deptId,
+        date_range: dateRange,
+        start_date: startDate,
+        end_date: endDate
+      },
+      dataType: 'json',
+      success: function (res) {
+        if (res.status === 'success' && res.stats) {
+          $('#totalCount').text(res.stats.count.toLocaleString());
+          $('#totalSum').text('₦ ' + res.stats.sum.toLocaleString());
+          $('#averagePaid').text('₦ ' + Math.round(res.stats.average).toLocaleString());
+          
+          // Update count change indicator
+          var countChange = res.stats.count_change || 0;
+          var countChangeText = '';
+          var countChangeClass = '';
+          if (countChange > 0) {
+            countChangeText = '(' + countChange + '% increase)';
+            countChangeClass = 'text-success';
+          } else if (countChange < 0) {
+            countChangeText = '(' + Math.abs(countChange) + '% decrease)';
+            countChangeClass = 'text-danger';
+          }
+          $('#countChange').text(countChangeText).attr('class', 'fw-medium ' + countChangeClass);
+          
+          // Update sum change indicator
+          var sumChange = res.stats.sum_change || 0;
+          var sumChangeText = '';
+          var sumChangeClass = '';
+          if (sumChange > 0) {
+            sumChangeText = '(' + sumChange + '% increase)';
+            sumChangeClass = 'text-success';
+          } else if (sumChange < 0) {
+            sumChangeText = '(' + Math.abs(sumChange) + '% decrease)';
+            sumChangeClass = 'text-danger';
+          }
+          $('#sumChange').text(sumChangeText).attr('class', 'fw-medium ' + sumChangeClass);
+          
+          // Update mode frequency (always info color)
+          var frequency = res.stats.mode_frequency || 0;
+          var frequencyText = '';
+          if (frequency > 0) {
+            frequencyText = '(' + frequency + ' times)';
+          }
+          $('#modeFrequency').text(frequencyText).attr('class', 'fw-medium text-info');
+        }
+      },
+      complete: function() {
+        // Hide loading state after stats are loaded
+        hideStatsLoading();
+      }
+    });
 
     $.ajax({
       url: 'model/transactions_list.php',
       method: 'GET',
-      data: { school: schoolId, faculty: facultyId, dept: deptId },
+      data: { 
+        school: schoolId, 
+        faculty: facultyId, 
+        dept: deptId,
+        date_range: dateRange,
+        start_date: startDate,
+        end_date: endDate
+      },
       dataType: 'json',
       success: function (res) {
         if ($.fn.dataTable.isDataTable('.table')) {
@@ -518,6 +610,10 @@
         }
 
         InitiateDatatable('.table');
+      },
+      complete: function() {
+        // Hide loading state after table is loaded
+        hideTableLoading();
       }
     });
   }
@@ -543,6 +639,33 @@
   $('#filterForm').on('submit', function (e) {
     e.preventDefault();
     fetchTransactions();
+  });
+
+  // Handle date range change
+  $('#dateRange').on('change', function () {
+    var dateRange = $(this).val();
+    if (dateRange === 'custom') {
+      $('#customDateRange').removeClass('d-none');
+    } else {
+      $('#customDateRange').addClass('d-none');
+      fetchTransactions();
+    }
+  });
+
+  // Handle custom date change
+  $('#startDate, #endDate').on('change', function () {
+    var startDate = $('#startDate').val();
+    var endDate = $('#endDate').val();
+    if (startDate && endDate) {
+      // Validate that start date is not after end date
+      if (new Date(startDate) > new Date(endDate)) {
+        if (typeof showToast === 'function') {
+          showToast('bg-warning', 'Start date must be before or equal to end date.');
+        }
+        return;
+      }
+      fetchTransactions();
+    }
   });
 
   // Handle delete transaction (roles 1, 2, 4 only)
@@ -609,11 +732,21 @@
     var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
     var deptId = $('#dept').val();
+    var dateRange = $('#dateRange').val() || DEFAULT_DATE_RANGE;
+    var startDate = $('#startDate').val();
+    var endDate = $('#endDate').val();
 
     $.ajax({
       url: 'model/transactions_download.php',
       method: 'GET',
-      data: { school: schoolId, faculty: facultyId, dept: deptId },
+      data: { 
+        school: schoolId, 
+        faculty: facultyId, 
+        dept: deptId,
+        date_range: dateRange,
+        start_date: startDate,
+        end_date: endDate
+      },
       xhr: function () {
         var xhr = new window.XMLHttpRequest();
         xhr.responseType = 'blob';

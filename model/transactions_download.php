@@ -2,6 +2,7 @@
 // Standalone endpoint to download transactions CSV
 session_start();
 require_once(__DIR__ . '/config.php');
+require_once(__DIR__ . '/transactions_helpers.php');
 
 $admin_role = $_SESSION['nivas_adminRole'] ?? null;
 $admin_id = $_SESSION['nivas_adminId'] ?? null;
@@ -18,6 +19,9 @@ $school = intval($_GET['school'] ?? 0);
 $faculty = intval($_GET['faculty'] ?? 0);
 $dept = intval($_GET['dept'] ?? 0);
 $material_id = intval($_GET['material_id'] ?? 0);
+$date_range = $_GET['date_range'] ?? '7';
+$start_date = $_GET['start_date'] ?? '';
+$end_date = $_GET['end_date'] ?? '';
 
 if ($admin_role == 5) {
   $school = $admin_school;
@@ -53,6 +57,9 @@ if ($dept > 0) {
 if ($material_id > 0) {
   $tran_sql .= " AND m.id = $material_id";
 }
+
+$tran_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date);
+
 $tran_sql .= " GROUP BY t.id, t.ref_id, t.amount, t.status, t.created_at, u.first_name, u.last_name, u.matric_no, u.adm_year, s.name, f.name, d.name ORDER BY t.created_at DESC";
 $tran_query = mysqli_query($conn, $tran_sql);
 

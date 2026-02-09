@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once(__DIR__ . '/config.php');
+require_once(__DIR__ . '/transactions_helpers.php');
 
 $status = 'failed';
 $message = '';
@@ -20,6 +21,9 @@ if ($admin_role == 5 && $admin_id) {
 $school = intval($_GET['school'] ?? 0);
 $faculty = intval($_GET['faculty'] ?? 0);
 $dept = intval($_GET['dept'] ?? 0);
+$date_range = $_GET['date_range'] ?? '7';
+$start_date = $_GET['start_date'] ?? '';
+$end_date = $_GET['end_date'] ?? '';
 
 if ($admin_role == 5) {
   $school = $admin_school;
@@ -48,6 +52,9 @@ if ($faculty != 0) {
 if ($dept > 0) {
   $tran_sql .= " AND m.dept = $dept";
 }
+
+$tran_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date);
+
 $tran_sql .= " GROUP BY t.id, t.ref_id, t.amount, t.status, t.created_at, u.first_name, u.last_name, u.matric_no ORDER BY t.created_at DESC";
 $tran_query = mysqli_query($conn, $tran_sql);
 
