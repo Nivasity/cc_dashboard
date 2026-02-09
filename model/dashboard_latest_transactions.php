@@ -8,6 +8,17 @@ $transactions = [];
 
 $admin_role = $_SESSION['nivas_adminRole'] ?? null;
 $admin_id = $_SESSION['nivas_adminId'] ?? null;
+
+if (!$admin_id) {
+  header('Content-Type: application/json');
+  echo json_encode([
+    'status' => 'error',
+    'message' => 'Unauthorized',
+    'transactions' => []
+  ]);
+  exit;
+}
+
 $admin_school = $admin_faculty = 0;
 if ($admin_role == 5 && $admin_id) {
   $aid = (int)$admin_id;

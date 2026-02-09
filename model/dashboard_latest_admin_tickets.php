@@ -39,7 +39,8 @@ $q = mysqli_query($conn, $sql);
 
 if ($q) {
   while ($row = mysqli_fetch_assoc($q)) {
-    $createdAt = $row['created_at'] ?? $row['last_message_at'];
+    // Use the same timestamp logic as the ORDER BY clause for consistency
+    $lastActivityAt = $row['last_message_at'] ?? $row['created_at'];
     $tickets[] = [
       'id' => (int) $row['id'],
       'code' => $row['code'],
@@ -47,8 +48,8 @@ if ($q) {
       'status' => $row['status'],
       'priority' => $row['priority'],
       'category' => $row['category'] ?? 'N/A',
-      'date' => $createdAt ? date('M j, Y', strtotime($createdAt)) : '',
-      'time' => $createdAt ? date('h:i a', strtotime($createdAt)) : '',
+      'date' => $lastActivityAt ? date('M j, Y', strtotime($lastActivityAt)) : '',
+      'time' => $lastActivityAt ? date('h:i a', strtotime($lastActivityAt)) : '',
       'created_by' => trim(($row['created_first_name'] ?? '') . ' ' . ($row['created_last_name'] ?? '')),
       'assigned_to' => trim(($row['assigned_first_name'] ?? '') . ' ' . ($row['assigned_last_name'] ?? '')) ?: 'Unassigned'
     ];
