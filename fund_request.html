@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html
+  lang="en"
+  class="light-style customizer-hide"
+  dir="ltr"
+  data-theme="theme-default"
+  data-assets-path="assets/"
+  data-template="vertical-menu-template-free"
+>
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"
+    />
+
+    <title>Fund Request - Nivasity Management Fund</title>
+
+    <meta name="description" content="Submit a fund request to Nivasity Management Fund" />
+
+    <!-- Favicon -->
+    <link rel="icon" type="image/x-icon" href="assets/img/favicon/favicon.ico" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Icons -->
+    <link rel="stylesheet" href="assets/vendor/fonts/boxicons.css" />
+
+    <!-- Core CSS -->
+    <link rel="stylesheet" href="assets/vendor/css/core.css" class="template-customizer-core-css" />
+    <link rel="stylesheet" href="assets/vendor/css/theme-default.css" class="template-customizer-theme-css" />
+    <link rel="stylesheet" href="assets/css/demo.css" />
+
+    <!-- Vendors CSS -->
+    <link rel="stylesheet" href="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
+
+    <!-- Page CSS -->
+    <link rel="stylesheet" href="assets/vendor/css/pages/page-auth.css" />
+    
+    <!-- Helpers -->
+    <script src="assets/vendor/js/helpers.js"></script>
+    <script src="assets/js/config.js"></script>
+    
+    <style>
+      .form-label.required::after {
+        content: " *";
+        color: #ff3e1d;
+      }
+      .success-message {
+        display: none;
+        padding: 20px;
+        background-color: #d4edda;
+        border: 1px solid #c3e6cb;
+        border-radius: 5px;
+        color: #155724;
+        margin-bottom: 20px;
+      }
+      .error-message {
+        display: none;
+        padding: 20px;
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        border-radius: 5px;
+        color: #721c24;
+        margin-bottom: 20px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <!-- Content -->
+    <div class="container-xxl">
+      <div class="authentication-wrapper authentication-basic container-p-y">
+        <div class="authentication-inner">
+          <!-- Fund Request Card -->
+          <div class="card">
+            <div class="card-body">
+              <!-- Logo -->
+              <div class="app-brand justify-content-center mb-4">
+                <a href="https://nivasity.com" class="app-brand-link gap-2">
+                  <img src="https://nivasity.com/assets/images/nivasity-main.png" alt="Nivasity" style="height: 50px;">
+                </a>
+              </div>
+              <!-- /Logo -->
+              
+              <h4 class="mb-2 text-center">Nivasity Management Fund Request</h4>
+              <p class="mb-4 text-center">Please fill out the form below to submit your fund request</p>
+
+              <!-- Success Message -->
+              <div id="successMessage" class="success-message">
+                <strong>Success!</strong> Your fund request has been submitted successfully. Our finance team will review it and get back to you shortly.
+              </div>
+
+              <!-- Error Message -->
+              <div id="errorMessage" class="error-message">
+                <strong>Error!</strong> <span id="errorText">There was an error submitting your request. Please try again.</span>
+              </div>
+
+              <form id="fundRequestForm" class="mb-3">
+                <div class="mb-3">
+                  <label for="fullName" class="form-label required">Full Name</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="fullName"
+                    name="fullName"
+                    placeholder="Enter your full name"
+                    required
+                  />
+                </div>
+
+                <div class="mb-3">
+                  <label for="email" class="form-label required">Email</label>
+                  <input
+                    type="email"
+                    class="form-control"
+                    id="email"
+                    name="email"
+                    placeholder="Enter your email"
+                    required
+                  />
+                </div>
+
+                <div class="mb-3">
+                  <label for="phone" class="form-label required">Phone Number</label>
+                  <input
+                    type="tel"
+                    class="form-control"
+                    id="phone"
+                    name="phone"
+                    placeholder="Enter your phone number"
+                    required
+                  />
+                </div>
+
+                <div class="mb-3">
+                  <label for="organization" class="form-label">Organization/Institution</label>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="organization"
+                    name="organization"
+                    placeholder="Enter your organization or institution"
+                  />
+                </div>
+
+                <div class="mb-3">
+                  <label for="amountRequested" class="form-label required">Amount Requested (NGN)</label>
+                  <input
+                    type="number"
+                    class="form-control"
+                    id="amountRequested"
+                    name="amountRequested"
+                    placeholder="Enter amount in Naira"
+                    min="0"
+                    step="0.01"
+                    required
+                  />
+                </div>
+
+                <div class="mb-3">
+                  <label for="purpose" class="form-label required">Purpose of Fund Request</label>
+                  <textarea
+                    class="form-control"
+                    id="purpose"
+                    name="purpose"
+                    rows="4"
+                    placeholder="Please describe the purpose of your fund request"
+                    required
+                  ></textarea>
+                </div>
+
+                <div class="mb-3">
+                  <label for="additionalDetails" class="form-label">Additional Details</label>
+                  <textarea
+                    class="form-control"
+                    id="additionalDetails"
+                    name="additionalDetails"
+                    rows="3"
+                    placeholder="Any additional information you'd like to provide"
+                  ></textarea>
+                </div>
+
+                <div class="mb-3">
+                  <button class="btn btn-primary d-grid w-100" type="submit" id="submitBtn">
+                    Submit Request
+                  </button>
+                </div>
+              </form>
+
+              <p class="text-center">
+                <small class="text-muted">
+                  For inquiries, contact us at <a href="mailto:finance@nivasity.com">finance@nivasity.com</a>
+                </small>
+              </p>
+            </div>
+          </div>
+          <!-- /Fund Request Card -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Core JS -->
+    <script src="assets/vendor/libs/jquery/jquery.js"></script>
+    <script src="assets/vendor/libs/popper/popper.js"></script>
+    <script src="assets/vendor/js/bootstrap.js"></script>
+    <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
+    <script src="assets/vendor/js/menu.js"></script>
+    <script src="assets/js/main.js"></script>
+
+    <!-- Form Handler -->
+    <script>
+      $(document).ready(function() {
+        $('#fundRequestForm').on('submit', function(e) {
+          e.preventDefault();
+          
+          // Disable submit button
+          $('#submitBtn').prop('disabled', true).text('Submitting...');
+          
+          // Hide messages
+          $('#successMessage').hide();
+          $('#errorMessage').hide();
+          
+          // Get form data
+          var formData = {
+            fullName: $('#fullName').val(),
+            email: $('#email').val(),
+            phone: $('#phone').val(),
+            organization: $('#organization').val(),
+            amountRequested: $('#amountRequested').val(),
+            purpose: $('#purpose').val(),
+            additionalDetails: $('#additionalDetails').val()
+          };
+          
+          // Submit via AJAX
+          $.ajax({
+            url: 'model/fund_request_handler.php',
+            type: 'POST',
+            data: formData,
+            dataType: 'json',
+            success: function(response) {
+              if (response.status === 'success') {
+                // Show success message
+                $('#successMessage').show();
+                // Reset form
+                $('#fundRequestForm')[0].reset();
+                // Scroll to top
+                window.scrollTo(0, 0);
+              } else {
+                // Show error message
+                $('#errorText').text(response.message || 'There was an error submitting your request. Please try again.');
+                $('#errorMessage').show();
+                window.scrollTo(0, 0);
+              }
+            },
+            error: function() {
+              // Show error message
+              $('#errorText').text('There was an error submitting your request. Please try again.');
+              $('#errorMessage').show();
+              window.scrollTo(0, 0);
+            },
+            complete: function() {
+              // Re-enable submit button
+              $('#submitBtn').prop('disabled', false).text('Submit Request');
+            }
+          });
+        });
+      });
+    </script>
+  </body>
+</html>
