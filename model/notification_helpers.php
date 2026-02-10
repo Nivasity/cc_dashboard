@@ -212,8 +212,7 @@ function notifyCourseMaterialCreated($conn, $admin_id, $manual_id, $title, $cour
       INNER JOIN depts d ON u.dept = d.id 
       WHERE d.faculty_id = ? 
         AND u.school = ? 
-        AND u.status = "active" 
-        AND u.role = "student"
+        AND u.status = "verified" 
     ');
     $students_stmt->bind_param('ii', $faculty_id, $school_id);
   } else {
@@ -224,8 +223,7 @@ function notifyCourseMaterialCreated($conn, $admin_id, $manual_id, $title, $cour
       FROM users 
       WHERE dept = ? 
         AND school = ? 
-        AND status = "active" 
-        AND role = "student"
+        AND status = "verified" 
     ');
     $students_stmt->bind_param('ii', $dept_id, $school_id);
   }
@@ -267,7 +265,7 @@ function notifyCourseMaterialCreated($conn, $admin_id, $manual_id, $title, $cour
  */
 function notifyCourseMaterialClosed($conn, $admin_id, $manual_id, $title, $course_code, $dept_id, $school_id) {
   // Get all students in the same department and school
-  $students_stmt = $conn->prepare('SELECT id FROM users WHERE dept = ? AND school = ? AND status = "active" AND role = "student"');
+  $students_stmt = $conn->prepare('SELECT id FROM users WHERE dept = ? AND school = ? AND status = "verified"');
   $students_stmt->bind_param('ii', $dept_id, $school_id);
   $students_stmt->execute();
   $students_result = $students_stmt->get_result();
