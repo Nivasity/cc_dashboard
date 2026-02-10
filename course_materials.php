@@ -43,7 +43,7 @@ if ($admin_role == 5) {
             <div class="card mb-4" id="materialsCard">
               <div class="card-body">
                 <form id="filterForm" class="row g-3 mb-4">
-                  <div class="col-md-4">
+                  <div class="col-md-3">
                     <select name="school" id="school" class="form-select" <?php if($admin_role == 5) echo 'disabled'; ?>>
                       <?php if($admin_role != 5) { ?>
                         <option value="0">All Schools</option>
@@ -53,7 +53,7 @@ if ($admin_role == 5) {
                       <?php } ?>
                     </select>
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-3">
                     <select name="faculty" id="faculty" class="form-select" <?php if($admin_role == 5 && $admin_faculty != 0) echo 'disabled'; ?>>
                       <?php if(!($admin_role == 5 && $admin_faculty != 0)) { ?>
                         <option value="0">All Faculties</option>
@@ -63,13 +63,32 @@ if ($admin_role == 5) {
                       <?php } ?>
                     </select>
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-3">
                     <select name="dept" id="dept" class="form-select">
                       <option value="0">All Departments</option>
                       <?php while($dept = mysqli_fetch_array($depts_query)) { ?>
                         <option value="<?php echo $dept['id']; ?>"><?php echo $dept['name']; ?></option>
                       <?php } ?>
                     </select>
+                  </div>
+                  <div class="col-md-3">
+                    <select name="date_range" id="dateRange" class="form-select">
+                      <option value="7" selected>Last 7 Days</option>
+                      <option value="30">Last 30 Days</option>
+                      <option value="90">Last 90 Days</option>
+                      <option value="all">All Time</option>
+                      <option value="custom">Custom Range</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6 d-none" id="customDateRange">
+                    <div class="row g-2">
+                      <div class="col-md-6">
+                        <input type="date" class="form-control" id="startDate" name="start_date" placeholder="Start Date">
+                      </div>
+                      <div class="col-md-6">
+                        <input type="date" class="form-control" id="endDate" name="end_date" placeholder="End Date">
+                      </div>
+                    </div>
                   </div>
                   <div class="col-12">
                     <button type="submit" class="btn btn-secondary">Search</button>

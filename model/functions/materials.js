@@ -2,13 +2,14 @@ $(document).ready(function () {
   // Configuration constants
   var SUCCESS_MESSAGE_DISPLAY_DURATION = 1500; // milliseconds - time to show success message before closing modal
   var UNSELECTED_VALUE = 0; // Value indicating no selection in dropdowns (matches backend constant)
+  var DEFAULT_DATE_RANGE = '7'; // Default date range for filtering
   
   var adminRole = window.adminRole || 0;
   var adminSchool = window.adminSchool || 0;
   var adminFaculty = window.adminFaculty || 0;
 
   InitiateDatatable('.table');
-  $('#school, #faculty, #dept').select2({ theme: 'bootstrap-5', width: '100%' });
+  $('#school, #faculty, #dept, #dateRange').select2({ theme: 'bootstrap-5', width: '100%' });
   
   // Fetch materials on page load
   fetchMaterials();
@@ -70,6 +71,9 @@ $(document).ready(function () {
     var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
     var deptId = $('#dept').val();
+    var dateRange = $('#dateRange').val() || DEFAULT_DATE_RANGE;
+    var startDate = $('#startDate').val();
+    var endDate = $('#endDate').val();
 
     // Show loading state
     showTableLoading();
@@ -77,7 +81,15 @@ $(document).ready(function () {
     $.ajax({
       url: 'model/materials.php',
       method: 'GET',
-      data: { fetch: 'materials', school: schoolId, faculty: facultyId, dept: deptId },
+      data: { 
+        fetch: 'materials', 
+        school: schoolId, 
+        faculty: facultyId, 
+        dept: deptId,
+        date_range: dateRange,
+        start_date: startDate,
+        end_date: endDate
+      },
       dataType: 'json',
       success: function (res) {
         if ($.fn.dataTable.isDataTable('.table')) {
@@ -184,6 +196,29 @@ $(document).ready(function () {
     fetchMaterials();
   });
 
+  $('#dateRange').on('change', function () {
+    var dateRange = $(this).val();
+    if (dateRange === 'custom') {
+      $('#customDateRange').removeClass('d-none');
+    } else {
+      $('#customDateRange').addClass('d-none');
+      fetchMaterials();
+    }
+  });
+
+  $('#startDate, #endDate').on('change', function () {
+    var startDate = $('#startDate').val();
+    var endDate = $('#endDate').val();
+    if (startDate && endDate) {
+      // Validate date range
+      if (new Date(startDate) > new Date(endDate)) {
+        if (typeof showToast === 'function') showToast('bg-warning', 'Start date must be before end date.');
+        return;
+      }
+      fetchMaterials();
+    }
+  });
+
   $('#filterForm').on('submit', function (e) {
     e.preventDefault();
     fetchMaterials();
@@ -260,11 +295,22 @@ $(document).ready(function () {
     var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
     var deptId = $('#dept').val();
+    var dateRange = $('#dateRange').val() || DEFAULT_DATE_RANGE;
+    var startDate = $('#startDate').val();
+    var endDate = $('#endDate').val();
 
     $.ajax({
       url: 'model/materials.php',
       method: 'GET',
-      data: { download: 'csv', school: schoolId, faculty: facultyId, dept: deptId },
+      data: { 
+        download: 'csv', 
+        school: schoolId, 
+        faculty: facultyId, 
+        dept: deptId,
+        date_range: dateRange,
+        start_date: startDate,
+        end_date: endDate
+      },
       xhrFields: { responseType: 'blob' },
       beforeSend: function () {
         $btn.prop('disabled', true)

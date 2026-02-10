@@ -8,6 +8,38 @@ define('UNSELECTED_VALUE', 0);
 define('MAX_CODE_GENERATION_ATTEMPTS', 10);
 define('CODE_LENGTH', 8);
 
+/**
+ * Build date filter SQL clause based on date range parameters for materials
+ * 
+ * @param mysqli $conn Database connection for escaping strings
+ * @param string $date_range Date range type ('7', '30', '90', 'all', 'custom')
+ * @param string $start_date Start date for custom range (Y-m-d format)
+ * @param string $end_date End date for custom range (Y-m-d format)
+ * @return string SQL WHERE clause fragment (with leading AND)
+ */
+function buildMaterialDateFilter($conn, $date_range, $start_date, $end_date) {
+  $date_filter = "";
+  
+  if ($date_range === 'custom' && $start_date && $end_date) {
+    // Validate date format
+    $start_dt = DateTime::createFromFormat('Y-m-d', $start_date);
+    $end_dt = DateTime::createFromFormat('Y-m-d', $end_date);
+    
+    if ($start_dt && $end_dt && $start_dt->format('Y-m-d') === $start_date && $end_dt->format('Y-m-d') === $end_date) {
+      $start_date = mysqli_real_escape_string($conn, $start_date);
+      $end_date = mysqli_real_escape_string($conn, $end_date);
+      $date_filter = " AND m.created_at BETWEEN '$start_date 00:00:00' AND '$end_date 23:59:59'";
+    }
+  } elseif ($date_range !== 'all') {
+    $days = intval($date_range);
+    if ($days > 0) {
+      $date_filter = " AND m.created_at >= DATE_SUB(NOW(), INTERVAL $days DAY)";
+    }
+  }
+  
+  return $date_filter;
+}
+
 $statusRes = 'failed';
 $messageRes = '';
 $faculties = $departments = $materials = null;
@@ -32,6 +64,10 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
   $school = intval($_GET['school'] ?? 0);
   $faculty = intval($_GET['faculty'] ?? 0);
   $dept = intval($_GET['dept'] ?? 0);
+  $date_range = $_GET['date_range'] ?? '7';
+  $start_date = $_GET['start_date'] ?? '';
+  $end_date = $_GET['end_date'] ?? '';
+  
   if ($admin_role == 5) {
     $school = $admin_school;
     if ($admin_faculty != 0) { $faculty = $admin_faculty; }
@@ -47,6 +83,8 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
   if ($dept > 0) {
     $material_sql .= " AND m.dept = $dept";
   }
+  // Add date filter
+  $material_sql .= buildMaterialDateFilter($conn, $date_range, $start_date, $end_date);
   $material_sql .= " GROUP BY m.id ORDER BY m.created_at DESC";
   $mat_query = mysqli_query($conn, $material_sql);
 
@@ -136,6 +174,10 @@ if(isset($_GET['fetch'])){
   }
 
   if($fetch == 'materials'){
+    $date_range = $_GET['date_range'] ?? '7';
+    $start_date = $_GET['start_date'] ?? '';
+    $end_date = $_GET['end_date'] ?? '';
+    
     $material_sql = "SELECT m.id, m.code, m.title, m.course_code, m.price, m.due_date, m.level, m.user_id, m.admin_id, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name, d.name AS dept_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
     if($admin_role == 5){
       $material_sql .= " AND m.school_id = $admin_school";
@@ -153,6 +195,8 @@ if(isset($_GET['fetch'])){
     if($dept > 0){
       $material_sql .= " AND m.dept = $dept";
     }
+    // Add date filter
+    $material_sql .= buildMaterialDateFilter($conn, $date_range, $start_date, $end_date);
     $material_sql .= " GROUP BY m.id ORDER BY m.created_at DESC";
     $mat_query = mysqli_query($conn, $material_sql);
     $materials = array();
