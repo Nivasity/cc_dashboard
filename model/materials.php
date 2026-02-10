@@ -218,8 +218,10 @@ if(isset($_POST['toggle_id'])){
 // Handle new material creation
 if(isset($_POST['create_material'])){
   $school = intval($_POST['school'] ?? UNSELECTED_VALUE);
+  $host_faculty = intval($_POST['host_faculty'] ?? UNSELECTED_VALUE);
   $faculty = intval($_POST['faculty'] ?? UNSELECTED_VALUE);
   $dept = intval($_POST['dept'] ?? UNSELECTED_VALUE);
+  $level = !empty($_POST['level']) ? intval($_POST['level']) : null;
   $title = trim($_POST['title'] ?? '');
   $course_code = trim($_POST['course_code'] ?? '');
   $price_input = trim($_POST['price'] ?? '');
@@ -239,17 +241,17 @@ if(isset($_POST['create_material'])){
   else {
     $price = intval($price_input);
     
-    // Validate school and faculty are selected
-    if($school == UNSELECTED_VALUE || $faculty == UNSELECTED_VALUE){
+    // Validate school, host_faculty and faculty are selected
+    if($school == UNSELECTED_VALUE || $host_faculty == UNSELECTED_VALUE || $faculty == UNSELECTED_VALUE){
       $statusRes = 'error';
-      $messageRes = 'School and Faculty are required';
+      $messageRes = 'School, Faculty Host, and Faculty are required';
     } else {
       // Validate admin permissions
       if($admin_role == 5){
         if($school != $admin_school){
           $statusRes = 'error';
           $messageRes = 'Unauthorized: Invalid school';
-        } elseif($admin_faculty != UNSELECTED_VALUE && $faculty != $admin_faculty){
+        } elseif($admin_faculty != UNSELECTED_VALUE && ($host_faculty != $admin_faculty || $faculty != $admin_faculty)){
           $statusRes = 'error';
           $messageRes = 'Unauthorized: Invalid faculty';
         }
@@ -300,13 +302,24 @@ if(isset($_POST['create_material'])){
             $messageRes = 'Failed to generate unique code. Please try again.';
           } else {
             // Insert new material using prepared statement
-            $insert_stmt = mysqli_prepare($conn, 
-              "INSERT INTO manuals (title, course_code, price, code, due_date, quantity, dept, faculty, user_id, admin_id, school_id, status, created_at) 
-               VALUES (?, ?, ?, ?, ?, 0, ?, ?, 0, ?, ?, 'open', NOW())");
-            
-            mysqli_stmt_bind_param($insert_stmt, 'ssissiiii', 
-              $title, $course_code, $price, $code, $due_date_mysql, 
-              $dept, $faculty, $admin_id, $school);
+            // Note: host_faculty is the faculty hosting the material, faculty is who can buy it
+            if($level !== null){
+              $insert_stmt = mysqli_prepare($conn, 
+                "INSERT INTO manuals (title, course_code, price, code, due_date, quantity, dept, faculty, host_faculty, level, user_id, admin_id, school_id, status, created_at) 
+                 VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?, ?, 'open', NOW())");
+              
+              mysqli_stmt_bind_param($insert_stmt, 'ssissiiiii', 
+                $title, $course_code, $price, $code, $due_date_mysql, 
+                $dept, $faculty, $host_faculty, $level, $admin_id, $school);
+            } else {
+              $insert_stmt = mysqli_prepare($conn, 
+                "INSERT INTO manuals (title, course_code, price, code, due_date, quantity, dept, faculty, host_faculty, user_id, admin_id, school_id, status, created_at) 
+                 VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, 'open', NOW())");
+              
+              mysqli_stmt_bind_param($insert_stmt, 'ssissiiiii', 
+                $title, $course_code, $price, $code, $due_date_mysql, 
+                $dept, $faculty, $host_faculty, $admin_id, $school);
+            }
             
             if(mysqli_stmt_execute($insert_stmt)){
               $material_id = mysqli_insert_id($conn);

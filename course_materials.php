@@ -199,56 +199,98 @@ $materials_query = mysqli_query($conn, $material_sql);
               <?php } ?>
             </div>
 
-            <div class="mb-3">
-              <label for="materialFaculty" class="form-label">Faculty <span class="text-danger">*</span></label>
-              <select id="materialFaculty" name="faculty" class="form-select" required <?php if($admin_role == 5 && $admin_faculty != 0) echo 'disabled'; ?>>
-                <?php 
-                mysqli_data_seek($faculties_query, 0);
-                if(!($admin_role == 5 && $admin_faculty != 0)) { ?>
-                  <option value="">Select Faculty</option>
-                <?php } 
-                while($fac = mysqli_fetch_array($faculties_query)) { ?>
-                  <option value="<?php echo $fac['id']; ?>" <?php if($admin_role == 5 && $admin_faculty == $fac['id']) echo 'selected'; ?>><?php echo $fac['name']; ?></option>
+            <!-- Faculty Host and Faculty (2-column grid on desktop) -->
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label for="materialHostFaculty" class="form-label">Faculty Host <span class="text-danger">*</span></label>
+                <select id="materialHostFaculty" name="host_faculty" class="form-select" required <?php if($admin_role == 5 && $admin_faculty != 0) echo 'disabled'; ?>>
+                  <?php 
+                  mysqli_data_seek($faculties_query, 0);
+                  if(!($admin_role == 5 && $admin_faculty != 0)) { ?>
+                    <option value="">Select Faculty Host</option>
+                  <?php } 
+                  while($fac = mysqli_fetch_array($faculties_query)) { ?>
+                    <option value="<?php echo $fac['id']; ?>" <?php if($admin_role == 5 && $admin_faculty == $fac['id']) echo 'selected'; ?>><?php echo $fac['name']; ?></option>
+                  <?php } ?>
+                </select>
+                <div class="form-text">Faculty hosting this material</div>
+                <?php if($admin_role == 5 && $admin_faculty != 0) { ?>
+                  <input type="hidden" name="host_faculty" value="<?php echo $admin_faculty; ?>">
                 <?php } ?>
-              </select>
-              <?php if($admin_role == 5 && $admin_faculty != 0) { ?>
-                <input type="hidden" name="faculty" value="<?php echo $admin_faculty; ?>">
-              <?php } ?>
-            </div>
-
-            <div class="mb-3">
-              <label for="materialDept" class="form-label">Department</label>
-              <select id="materialDept" name="dept" class="form-select">
-                <option value="0">All Departments</option>
-                <?php 
-                mysqli_data_seek($depts_query, 0);
-                while($dept = mysqli_fetch_array($depts_query)) { ?>
-                  <option value="<?php echo $dept['id']; ?>"><?php echo $dept['name']; ?></option>
+              </div>
+              <div class="col-md-6">
+                <label for="materialFaculty" class="form-label">Faculty (Who Can Buy) <span class="text-danger">*</span></label>
+                <select id="materialFaculty" name="faculty" class="form-select" required <?php if($admin_role == 5 && $admin_faculty != 0) echo 'disabled'; ?>>
+                  <?php 
+                  mysqli_data_seek($faculties_query, 0);
+                  if(!($admin_role == 5 && $admin_faculty != 0)) { ?>
+                    <option value="">Select Faculty</option>
+                  <?php } 
+                  while($fac = mysqli_fetch_array($faculties_query)) { ?>
+                    <option value="<?php echo $fac['id']; ?>" <?php if($admin_role == 5 && $admin_faculty == $fac['id']) echo 'selected'; ?>><?php echo $fac['name']; ?></option>
+                  <?php } ?>
+                </select>
+                <div class="form-text">Students from this faculty can buy</div>
+                <?php if($admin_role == 5 && $admin_faculty != 0) { ?>
+                  <input type="hidden" name="faculty" value="<?php echo $admin_faculty; ?>">
                 <?php } ?>
-              </select>
-              <div class="form-text">Select a specific department or leave as "All Departments"</div>
+              </div>
             </div>
 
-            <div class="mb-3">
-              <label for="materialTitle" class="form-label">Course Title <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" id="materialTitle" name="title" required placeholder="e.g., Introduction to Computer Science">
+            <!-- Department and Level (2-column grid on desktop) -->
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label for="materialDept" class="form-label">Department</label>
+                <select id="materialDept" name="dept" class="form-select">
+                  <option value="0">All Departments</option>
+                  <?php 
+                  mysqli_data_seek($depts_query, 0);
+                  while($dept = mysqli_fetch_array($depts_query)) { ?>
+                    <option value="<?php echo $dept['id']; ?>"><?php echo $dept['name']; ?></option>
+                  <?php } ?>
+                </select>
+                <div class="form-text">Select specific or "All Departments"</div>
+              </div>
+              <div class="col-md-6">
+                <label for="materialLevel" class="form-label">Level</label>
+                <select id="materialLevel" name="level" class="form-select">
+                  <option value="">All Levels</option>
+                  <option value="100">100 Level</option>
+                  <option value="200">200 Level</option>
+                  <option value="300">300 Level</option>
+                  <option value="400">400 Level</option>
+                  <option value="500">500 Level</option>
+                  <option value="600">600 Level</option>
+                  <option value="700">700 Level</option>
+                </select>
+                <div class="form-text">Select specific level or "All Levels"</div>
+              </div>
             </div>
 
-            <div class="mb-3">
-              <label for="materialCourseCode" class="form-label">Course Code <span class="text-danger">*</span></label>
-              <input type="text" class="form-control" id="materialCourseCode" name="course_code" required placeholder="e.g., CSC101">
+            <!-- Course Title and Course Code (2-column grid on desktop) -->
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label for="materialTitle" class="form-label">Course Title <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="materialTitle" name="title" required placeholder="e.g., Introduction to Computer Science">
+              </div>
+              <div class="col-md-6">
+                <label for="materialCourseCode" class="form-label">Course Code <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="materialCourseCode" name="course_code" required placeholder="e.g., CSC101">
+              </div>
             </div>
 
-            <div class="mb-3">
-              <label for="materialPrice" class="form-label">Price (₦) <span class="text-danger">*</span></label>
-              <!-- Client-side validation: min='0' - Backend validates price is a non-negative integer -->
-              <input type="number" class="form-control" id="materialPrice" name="price" required min="0" step="1" placeholder="0">
-            </div>
-
-            <div class="mb-3">
-              <label for="materialDueDate" class="form-label">Due Date <span class="text-danger">*</span></label>
-              <input type="datetime-local" class="form-control" id="materialDueDate" name="due_date" required>
-              <div class="form-text">Set the deadline for this material</div>
+            <!-- Price and Due Date (2-column grid on desktop) -->
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label for="materialPrice" class="form-label">Price (₦) <span class="text-danger">*</span></label>
+                <!-- Client-side validation: min='0' - Backend validates price is a non-negative integer -->
+                <input type="number" class="form-control" id="materialPrice" name="price" required min="0" step="1" placeholder="0">
+              </div>
+              <div class="col-md-6">
+                <label for="materialDueDate" class="form-label">Due Date <span class="text-danger">*</span></label>
+                <input type="datetime-local" class="form-control" id="materialDueDate" name="due_date" required>
+                <div class="form-text">Set the deadline for this material</div>
+              </div>
             </div>
           </div>
           <div class="modal-footer">

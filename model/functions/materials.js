@@ -274,7 +274,7 @@ $(document).ready(function () {
   fetchDepts(adminRole == 5 ? adminSchool : $('#school').val(), (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val());
 
   // New Material Modal functionality
-  $('#materialSchool, #materialFaculty, #materialDept').select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal') });
+  $('#materialSchool, #materialHostFaculty, #materialFaculty, #materialDept, #materialLevel').select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal') });
 
   function fetchModalFaculties(schoolId) {
     if (adminRole == 5) {
@@ -290,17 +290,26 @@ $(document).ready(function () {
       data: { fetch: 'faculties', school: schoolId },
       dataType: 'json',
       success: function (res) {
+        var $hostFac = $('#materialHostFaculty');
         var $fac = $('#materialFaculty');
+        
+        // Update both host faculty and faculty dropdowns
+        $hostFac.empty();
         $fac.empty();
+        
         if (!res.restrict_faculty) {
+          $hostFac.append('<option value="">Select Faculty Host</option>');
           $fac.append('<option value="">Select Faculty</option>');
         }
         if (res.status === 'success' && res.faculties) {
           $.each(res.faculties, function (i, fac) {
+            $hostFac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
             $fac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
           });
         }
+        $hostFac.prop('disabled', res.restrict_faculty);
         $fac.prop('disabled', res.restrict_faculty);
+        
         // For restricted admin role 5, use their assigned faculty
         var selected = '';
         if (res.restrict_faculty && adminRole == 5 && adminFaculty !== 0) {
@@ -308,6 +317,7 @@ $(document).ready(function () {
         } else if (res.restrict_faculty && res.faculties.length > 0) {
           selected = res.faculties[0].id;
         }
+        $hostFac.val(selected).trigger('change.select2');
         $fac.val(selected).trigger('change.select2');
       }
     });
@@ -372,6 +382,7 @@ $(document).ready(function () {
 
     // Additional validation for dropdown values (checkValidity doesn't catch empty string for required dropdowns)
     var schoolVal = $('#materialSchool').val();
+    var hostFacultyVal = $('#materialHostFaculty').val();
     var facultyVal = $('#materialFaculty').val();
     
     if (!schoolVal || schoolVal == UNSELECTED_VALUE) {
@@ -379,8 +390,13 @@ $(document).ready(function () {
       return;
     }
     
+    if (!hostFacultyVal || hostFacultyVal == UNSELECTED_VALUE) {
+      $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Please select a faculty host');
+      return;
+    }
+    
     if (!facultyVal || facultyVal == UNSELECTED_VALUE) {
-      $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Please select a faculty');
+      $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Please select a faculty (who can buy)');
       return;
     }
 
@@ -436,17 +452,23 @@ $(document).ready(function () {
         $('#materialSchool').val(adminSchool).trigger('change.select2');
       }
       if (adminFaculty !== 0) {
+        $('#materialHostFaculty').val(adminFaculty).trigger('change.select2');
         $('#materialFaculty').val(adminFaculty).trigger('change.select2');
       } else {
+        $('#materialHostFaculty').val('').trigger('change.select2');
         $('#materialFaculty').val('').trigger('change.select2');
       }
     } else {
       // For non-restricted admins, only clear if there's a valid initial state
       var $school = $('#materialSchool');
+      var $hostFaculty = $('#materialHostFaculty');
       var $faculty = $('#materialFaculty');
       
       if ($school.find('option').length > 1) {
         $school.val($school.find('option:first').val()).trigger('change.select2');
+      }
+      if ($hostFaculty.find('option').length > 1) {
+        $hostFaculty.val($hostFaculty.find('option:first').val()).trigger('change.select2');
       }
       if ($faculty.find('option').length > 1) {
         $faculty.val($faculty.find('option:first').val()).trigger('change.select2');
