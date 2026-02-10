@@ -16,18 +16,11 @@ if ($admin_role == 5) {
     $faculties_query = mysqli_query($conn, "SELECT id, name FROM faculties WHERE status = 'active' AND school_id = $admin_school ORDER BY name");
     $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' AND school_id = $admin_school ORDER BY name");
   }
-  $material_sql = "SELECT m.id, m.code, m.title, m.course_code, m.price, m.due_date, m.level, m.user_id, m.admin_id, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name, d.name AS dept_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id WHERE m.school_id = $admin_school";
-  if ($admin_faculty != 0) {
-    $material_sql .= " AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))";
-  }
-  $material_sql .= " GROUP BY m.id ORDER BY m.created_at DESC";
 } else {
   $schools_query = mysqli_query($conn, "SELECT id, name FROM schools WHERE status = 'active' ORDER BY name");
   $faculties_query = mysqli_query($conn, "SELECT id, name FROM faculties WHERE status = 'active' ORDER BY name");
   $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' ORDER BY name");
-  $material_sql = "SELECT m.id, m.code, m.title, m.course_code, m.price, m.due_date, m.level, m.user_id, m.admin_id, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name, d.name AS dept_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id GROUP BY m.id ORDER BY m.created_at DESC";
 }
-$materials_query = mysqli_query($conn, $material_sql);
 ?>
 <!DOCTYPE html>
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/" data-template="vertical-menu-template-free">
@@ -99,40 +92,7 @@ $materials_query = mysqli_query($conn, $material_sql);
                       </tr>
                     </thead>
                     <tbody class="table-border-bottom-0">
-                      <?php while($mat = mysqli_fetch_array($materials_query)) { ?>
-                      <tr>
-                        <td class="text-uppercase">#<?php echo htmlspecialchars($mat['code']); ?></td>
-                        <td class="text-uppercase"><strong><?php echo $mat['title'].' ('.$mat['course_code'].')'; ?></strong></td>
-                        <td>
-                          <span class="text-uppercase text-primary"><?php echo trim(($mat['first_name'] ?? '').' '.($mat['last_name'] ?? '')); ?></span>
-                          <?php if(!empty($mat['matric_no'])) { ?>
-                            <br>Matric no: <?php echo $mat['matric_no']; ?>
-                          <?php } ?>
-                        </td>
-                        <td>₦ <?php echo number_format($mat['price']); ?></td>
-                        <td>₦ <?php echo number_format($mat['revenue']); ?></td>
-                        <td><?php echo $mat['qty_sold']; ?></td>
-                        <td><span class="fw-bold badge bg-label-<?php echo $mat['status']=='open' ? 'success' : 'danger'; ?>"><?php echo ucfirst($mat['status']); ?></span></td>
-                        <td><?php echo date('M d, Y', strtotime($mat['due_date'])); ?></td>
-                        <td>
-                          <div class="dropstart">
-                            <button type="button" class="btn p-0 dropdown-toggle hide-arrow" data-bs-toggle="dropdown" aria-expanded="true">
-                              <i class="bx bx-dots-vertical-rounded"></i>
-                            </button>
-                            <div class="dropdown-menu">
-                              <?php if($mat['db_status']=='open' && !$mat['due_passed']) { ?>
-                              <a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="<?php echo $mat['id']; ?>" data-status="<?php echo $mat['db_status']; ?>">
-                                <i class="bx bx-lock me-1"></i> Close Material
-                              </a>
-                              <?php } ?>
-                              <a href="javascript:void(0);" class="dropdown-item downloadMaterialTransactions" data-id="<?php echo (int)$mat['id']; ?>" data-code="<?php echo htmlspecialchars($mat['code']); ?>">
-                                <i class="bx bx-download me-1"></i> Download transactions list
-                              </a>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                      <?php } ?>
+                      <!-- Table rows will be populated by JavaScript via fetchMaterials() -->
                     </tbody>
                   </table>
                 </div>
