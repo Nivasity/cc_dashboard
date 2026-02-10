@@ -54,6 +54,10 @@ define('SMTP_PORT', 465);
 **Important**: 
 - The `mail.php` file is ignored by Git to keep your credentials secure
 - SMTP credentials are used as fallback when BREVO API credits are low (≤ 50)
+- **Port Selection**:
+  - Port **465**: Use for SSL/TLS (implicit SSL - secure from start)
+  - Port **587**: Use for STARTTLS (explicit TLS - upgrade to secure after connecting)
+  - Port **25**: Use for non-encrypted (not recommended)
 - For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833) instead of your regular password
 
 ### 3. Payment Gateway Configuration (`fw.php`)

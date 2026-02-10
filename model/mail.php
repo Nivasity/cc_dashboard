@@ -501,10 +501,16 @@ function sendViaSMTPSocket($subject, $htmlContent, $to, $from, $fromName, $smtpC
     $username = $smtpConfig['username'];
     $password = $smtpConfig['password'];
     
+    // Determine if we need SSL (port 465) or plain connection (port 587, 25)
+    // Port 465 requires implicit SSL (SSL from the start)
+    // Port 587 uses STARTTLS (upgrade to TLS after connecting)
+    $useSSL = ($port == 465);
+    $connectionString = $useSSL ? "ssl://$host" : $host;
+    
     // Connect to SMTP server
-    $socket = @fsockopen($host, $port, $errno, $errstr, 30);
+    $socket = @fsockopen($connectionString, $port, $errno, $errstr, 30);
     if (!$socket) {
-        error_log("SMTP Socket Error: $errno - $errstr");
+        error_log("SMTP Socket Error: $errno - $errstr (connecting to $connectionString:$port)");
         return false;
     }
     
@@ -512,6 +518,13 @@ function sendViaSMTPSocket($subject, $htmlContent, $to, $from, $fromName, $smtpC
     $sendCommand = function($command, $expectedCode = 250) use ($socket) {
         fwrite($socket, $command . "\r\n");
         $response = fgets($socket, 515);
+        
+        // Handle empty or invalid response
+        if ($response === false || trim($response) === '') {
+            error_log("SMTP Error: No response received for command: $command");
+            return false;
+        }
+        
         $code = substr($response, 0, 3);
         if ($code != $expectedCode) {
             error_log("SMTP Error: Expected $expectedCode, got $code - $response");
@@ -521,7 +534,12 @@ function sendViaSMTPSocket($subject, $htmlContent, $to, $from, $fromName, $smtpC
     };
     
     // Read server greeting
-    fgets($socket, 515);
+    $greeting = fgets($socket, 515);
+    if ($greeting === false || trim($greeting) === '') {
+        error_log("SMTP Error: No greeting received from server");
+        fclose($socket);
+        return false;
+    }
     
     // SMTP conversation
     $serverName = $_SERVER['SERVER_NAME'] ?? 'localhost';
