@@ -213,7 +213,7 @@ if(isset($_POST['create_material'])){
   $title = mysqli_real_escape_string($conn, trim($_POST['title'] ?? ''));
   $course_code = mysqli_real_escape_string($conn, trim($_POST['course_code'] ?? ''));
   $price = intval($_POST['price'] ?? 0);
-  $due_date = mysqli_real_escape_string($conn, trim($_POST['due_date'] ?? ''));
+  $due_date = trim($_POST['due_date'] ?? '');
   
   // Validate required fields
   if(empty($title) || empty($course_code) || $price < 0 || empty($due_date)){
@@ -235,40 +235,66 @@ if(isset($_POST['create_material'])){
     }
     
     if(!isset($statusRes) || $statusRes !== 'error'){
-      // Generate unique 8-character alphanumeric code
-      $code = '';
-      $isUnique = false;
-      while(!$isUnique){
-        $code = substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 8);
-        $check = mysqli_query($conn, "SELECT id FROM manuals WHERE code = '$code'");
-        if(mysqli_num_rows($check) == 0){
-          $isUnique = true;
-        }
-      }
-      
-      // Convert datetime-local format to MySQL datetime format
-      $due_date_mysql = date('Y-m-d H:i:s', strtotime($due_date));
-      
-      // Insert new material
-      $insert_sql = "INSERT INTO manuals (title, course_code, price, code, due_date, quantity, dept, faculty, user_id, admin_id, school_id, status, created_at) 
-                     VALUES ('$title', '$course_code', $price, '$code', '$due_date_mysql', 0, $dept, $faculty, 0, $admin_id, $school, 'open', NOW())";
-      
-      if(mysqli_query($conn, $insert_sql)){
-        $material_id = mysqli_insert_id($conn);
-        $statusRes = 'success';
-        $messageRes = 'Course material created successfully with code: ' . $code;
-        
-        // Log the action
-        if(function_exists('log_audit_event')){
-          log_audit_event($conn, $admin_id, 'create', 'course_material', $material_id, [
-            'title' => $title,
-            'course_code' => $course_code,
-            'code' => $code
-          ]);
-        }
-      } else {
+      // Validate and convert datetime
+      $due_date_timestamp = strtotime($due_date);
+      if($due_date_timestamp === false){
         $statusRes = 'error';
-        $messageRes = 'Failed to create material: ' . mysqli_error($conn);
+        $messageRes = 'Invalid due date format';
+      } else {
+        $due_date_mysql = date('Y-m-d H:i:s', $due_date_timestamp);
+        
+        // Generate unique 8-character alphanumeric code
+        $code = '';
+        $isUnique = false;
+        $maxAttempts = 10;
+        $attempts = 0;
+        
+        while(!$isUnique && $attempts < $maxAttempts){
+          $code = substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 8);
+          // Use prepared statement to check uniqueness
+          $check_stmt = mysqli_prepare($conn, "SELECT id FROM manuals WHERE code = ?");
+          mysqli_stmt_bind_param($check_stmt, 's', $code);
+          mysqli_stmt_execute($check_stmt);
+          mysqli_stmt_store_result($check_stmt);
+          if(mysqli_stmt_num_rows($check_stmt) == 0){
+            $isUnique = true;
+          }
+          mysqli_stmt_close($check_stmt);
+          $attempts++;
+        }
+        
+        if(!$isUnique){
+          $statusRes = 'error';
+          $messageRes = 'Failed to generate unique code. Please try again.';
+        } else {
+          // Insert new material using prepared statement
+          $insert_stmt = mysqli_prepare($conn, 
+            "INSERT INTO manuals (title, course_code, price, code, due_date, quantity, dept, faculty, user_id, admin_id, school_id, status, created_at) 
+             VALUES (?, ?, ?, ?, ?, 0, ?, ?, 0, ?, ?, 'open', NOW())");
+          
+          mysqli_stmt_bind_param($insert_stmt, 'ssissiiii', 
+            $title, $course_code, $price, $code, $due_date_mysql, 
+            $dept, $faculty, $admin_id, $school);
+          
+          if(mysqli_stmt_execute($insert_stmt)){
+            $material_id = mysqli_insert_id($conn);
+            $statusRes = 'success';
+            $messageRes = 'Course material created successfully with code: ' . $code;
+            
+            // Log the action
+            if(function_exists('log_audit_event')){
+              log_audit_event($conn, $admin_id, 'create', 'course_material', $material_id, [
+                'title' => $title,
+                'course_code' => $course_code,
+                'code' => $code
+              ]);
+            }
+          } else {
+            $statusRes = 'error';
+            $messageRes = 'Failed to create material. Please try again.';
+          }
+          mysqli_stmt_close($insert_stmt);
+        }
       }
     }
   }

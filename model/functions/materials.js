@@ -397,7 +397,22 @@ $(document).ready(function () {
   $('#newMaterialModal').on('hidden.bs.modal', function () {
     $('#newMaterialForm')[0].reset();
     $('#newMaterialAlert').addClass('d-none');
-    $('#materialSchool, #materialFaculty, #materialDept').val('').trigger('change.select2');
+    
+    // For restricted admins (role 5), restore their default values
+    if (adminRole == 5) {
+      if (adminSchool) {
+        $('#materialSchool').val(adminSchool).trigger('change.select2');
+      }
+      if (adminFaculty !== 0) {
+        $('#materialFaculty').val(adminFaculty).trigger('change.select2');
+      } else {
+        $('#materialFaculty').val('').trigger('change.select2');
+      }
+    } else {
+      // For non-restricted admins, clear the dropdowns
+      $('#materialSchool, #materialFaculty, #materialDept').val('').trigger('change.select2');
+    }
+    $('#materialDept').val('0').trigger('change.select2');
   });
 
   // Initialize modal dropdowns on modal show
