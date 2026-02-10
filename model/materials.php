@@ -225,19 +225,21 @@ if(isset($_POST['create_material'])){
   $price_input = trim($_POST['price'] ?? '');
   $due_date = trim($_POST['due_date'] ?? '');
   
-  // Validate price is numeric and non-negative (allow integers only, no decimals)
-  if(!ctype_digit($price_input)){
+  // Validate required fields first
+  if(empty($title) || empty($course_code) || empty($due_date) || empty($price_input)){
+    $statusRes = 'error';
+    $messageRes = 'All required fields must be filled';
+  }
+  // Then validate price is a non-negative integer (no decimals)
+  elseif(!ctype_digit($price_input)){
     $statusRes = 'error';
     $messageRes = 'Price must be a valid non-negative integer';
   }
   else {
     $price = intval($price_input);
     
-    // Validate required fields
-    if(empty($title) || empty($course_code) || empty($due_date)){
-      $statusRes = 'error';
-      $messageRes = 'All required fields must be filled';
-    } elseif($school == UNSELECTED_VALUE || $faculty == UNSELECTED_VALUE){
+    // Validate school and faculty are selected
+    if($school == UNSELECTED_VALUE || $faculty == UNSELECTED_VALUE){
       $statusRes = 'error';
       $messageRes = 'School and Faculty are required';
     } else {

@@ -373,12 +373,12 @@ $(document).ready(function () {
     var schoolVal = $('#materialSchool').val();
     var facultyVal = $('#materialFaculty').val();
     
-    if (!schoolVal || schoolVal === '' || schoolVal === '0') {
+    if (!schoolVal || schoolVal === '0') {
       $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Please select a school');
       return;
     }
     
-    if (!facultyVal || facultyVal === '' || facultyVal === '0') {
+    if (!facultyVal || facultyVal === '0') {
       $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Please select a faculty');
       return;
     }
@@ -461,5 +461,15 @@ $(document).ready(function () {
       fetchModalFaculties(schoolId);
       fetchModalDepts(schoolId, 0);
     }
+    
+    // Set minimum date to current datetime for better UX (backend also validates)
+    var now = new Date();
+    var year = now.getFullYear();
+    var month = String(now.getMonth() + 1).padStart(2, '0');
+    var day = String(now.getDate()).padStart(2, '0');
+    var hours = String(now.getHours()).padStart(2, '0');
+    var minutes = String(now.getMinutes()).padStart(2, '0');
+    var minDateTime = year + '-' + month + '-' + day + 'T' + hours + ':' + minutes;
+    $('#materialDueDate').attr('min', minDateTime);
   });
 });
