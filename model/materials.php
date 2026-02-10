@@ -17,9 +17,14 @@ $admin_role = $_SESSION['nivas_adminRole'] ?? null;
 $admin_id = $_SESSION['nivas_adminId'] ?? null;
 $admin_school = $admin_faculty = UNSELECTED_VALUE;
 if ($admin_role == 5 && $admin_id) {
-  $info = mysqli_fetch_assoc(mysqli_query($conn, "SELECT school, faculty FROM admins WHERE id = $admin_id"));
+  $stmt = mysqli_prepare($conn, "SELECT school, faculty FROM admins WHERE id = ?");
+  mysqli_stmt_bind_param($stmt, 'i', $admin_id);
+  mysqli_stmt_execute($stmt);
+  $result = mysqli_stmt_get_result($stmt);
+  $info = mysqli_fetch_assoc($result);
   $admin_school = $info['school'];
   $admin_faculty = $info['faculty'];
+  mysqli_stmt_close($stmt);
 }
 
 // Handle CSV download for filtered materials
@@ -220,10 +225,10 @@ if(isset($_POST['create_material'])){
   $price_input = trim($_POST['price'] ?? '');
   $due_date = trim($_POST['due_date'] ?? '');
   
-  // Validate price is numeric
-  if(!is_numeric($price_input) || $price_input < 0){
+  // Validate price is numeric and non-negative (allow integers only, no decimals)
+  if(!ctype_digit($price_input)){
     $statusRes = 'error';
-    $messageRes = 'Price must be a valid non-negative number';
+    $messageRes = 'Price must be a valid non-negative integer';
   }
   else {
     $price = intval($price_input);

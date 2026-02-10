@@ -369,6 +369,20 @@ $(document).ready(function () {
       return;
     }
 
+    // Additional validation for dropdown values (checkValidity doesn't catch empty string for required dropdowns)
+    var schoolVal = $('#materialSchool').val();
+    var facultyVal = $('#materialFaculty').val();
+    
+    if (!schoolVal || schoolVal === '' || schoolVal === '0') {
+      $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Please select a school');
+      return;
+    }
+    
+    if (!facultyVal || facultyVal === '' || facultyVal === '0') {
+      $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Please select a faculty');
+      return;
+    }
+
     var formData = $form.serialize();
     
     $submitBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Creating...');
