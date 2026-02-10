@@ -201,7 +201,7 @@ $materials_query = mysqli_query($conn, $material_sql);
 
             <div class="mb-3">
               <label for="materialFaculty" class="form-label">Faculty <span class="text-danger">*</span></label>
-              <select id="materialFaculty" name="faculty" class="form-select" required>
+              <select id="materialFaculty" name="faculty" class="form-select" required <?php if($admin_role == 5 && $admin_faculty != 0) echo 'disabled'; ?>>
                 <?php 
                 mysqli_data_seek($faculties_query, 0);
                 if(!($admin_role == 5 && $admin_faculty != 0)) { ?>
@@ -211,6 +211,9 @@ $materials_query = mysqli_query($conn, $material_sql);
                   <option value="<?php echo $fac['id']; ?>" <?php if($admin_role == 5 && $admin_faculty == $fac['id']) echo 'selected'; ?>><?php echo $fac['name']; ?></option>
                 <?php } ?>
               </select>
+              <?php if($admin_role == 5 && $admin_faculty != 0) { ?>
+                <input type="hidden" name="faculty" value="<?php echo $admin_faculty; ?>">
+              <?php } ?>
             </div>
 
             <div class="mb-3">
