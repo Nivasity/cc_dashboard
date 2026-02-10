@@ -4,7 +4,5 @@
 ALTER TABLE `manuals` 
 ADD COLUMN `admin_id` INT(11) DEFAULT NULL AFTER `user_id`;
 
--- Set default admin_id to 0 for existing records where user_id is 0
-UPDATE `manuals` 
-SET `admin_id` = 0 
-WHERE `user_id` = 0 AND `admin_id` IS NULL;
+-- Note: Existing records will have NULL admin_id to indicate unknown/unassigned admin
+-- New materials created through the admin panel will have the creating admin's ID

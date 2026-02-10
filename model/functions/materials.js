@@ -276,6 +276,10 @@ $(document).ready(function () {
     if (adminRole == 5) {
       schoolId = adminSchool;
     }
+    // Don't fetch if schoolId is not valid
+    if (!schoolId || schoolId == 0) {
+      return;
+    }
     $.ajax({
       url: 'model/materials.php',
       method: 'GET',
@@ -293,7 +297,13 @@ $(document).ready(function () {
           });
         }
         $fac.prop('disabled', res.restrict_faculty);
-        var selected = res.restrict_faculty && res.faculties.length > 0 ? res.faculties[0].id : '';
+        // For restricted admin role 5, use their assigned faculty
+        var selected = '';
+        if (res.restrict_faculty && adminRole == 5 && adminFaculty !== 0) {
+          selected = adminFaculty;
+        } else if (res.restrict_faculty && res.faculties.length > 0) {
+          selected = res.faculties[0].id;
+        }
         $fac.val(selected).trigger('change.select2');
       }
     });
@@ -409,8 +419,16 @@ $(document).ready(function () {
         $('#materialFaculty').val('').trigger('change.select2');
       }
     } else {
-      // For non-restricted admins, clear the dropdowns
-      $('#materialSchool, #materialFaculty, #materialDept').val('').trigger('change.select2');
+      // For non-restricted admins, only clear if there's a valid initial state
+      var $school = $('#materialSchool');
+      var $faculty = $('#materialFaculty');
+      
+      if ($school.find('option').length > 1) {
+        $school.val($school.find('option:first').val()).trigger('change.select2');
+      }
+      if ($faculty.find('option').length > 1) {
+        $faculty.val($faculty.find('option:first').val()).trigger('change.select2');
+      }
     }
     $('#materialDept').val('0').trigger('change.select2');
   });

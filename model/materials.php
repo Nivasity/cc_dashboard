@@ -210,8 +210,8 @@ if(isset($_POST['create_material'])){
   $school = intval($_POST['school'] ?? 0);
   $faculty = intval($_POST['faculty'] ?? 0);
   $dept = intval($_POST['dept'] ?? 0);
-  $title = mysqli_real_escape_string($conn, trim($_POST['title'] ?? ''));
-  $course_code = mysqli_real_escape_string($conn, trim($_POST['course_code'] ?? ''));
+  $title = trim($_POST['title'] ?? '');
+  $course_code = trim($_POST['course_code'] ?? '');
   $price = intval($_POST['price'] ?? 0);
   $due_date = trim($_POST['due_date'] ?? '');
   
@@ -240,6 +240,9 @@ if(isset($_POST['create_material'])){
       if($due_date_timestamp === false){
         $statusRes = 'error';
         $messageRes = 'Invalid due date format';
+      } elseif($due_date_timestamp < time()){
+        $statusRes = 'error';
+        $messageRes = 'Due date cannot be in the past';
       } else {
         $due_date_mysql = date('Y-m-d H:i:s', $due_date_timestamp);
         
