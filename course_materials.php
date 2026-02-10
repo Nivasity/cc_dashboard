@@ -16,18 +16,11 @@ if ($admin_role == 5) {
     $faculties_query = mysqli_query($conn, "SELECT id, name FROM faculties WHERE status = 'active' AND school_id = $admin_school ORDER BY name");
     $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' AND school_id = $admin_school ORDER BY name");
   }
-  $material_sql = "SELECT m.id, m.code, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name, u.last_name, u.matric_no FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN depts d ON m.dept = d.id WHERE m.school_id = $admin_school";
-  if ($admin_faculty != 0) {
-    $material_sql .= " AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))";
-  }
-  $material_sql .= " GROUP BY m.id ORDER BY m.created_at DESC";
 } else {
   $schools_query = mysqli_query($conn, "SELECT id, name FROM schools WHERE status = 'active' ORDER BY name");
   $faculties_query = mysqli_query($conn, "SELECT id, name FROM faculties WHERE status = 'active' ORDER BY name");
   $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' ORDER BY name");
-  $material_sql = "SELECT m.id, m.code, m.title, m.course_code, m.price, m.due_date, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name, u.last_name, u.matric_no FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN depts d ON m.dept = d.id GROUP BY m.id ORDER BY m.created_at DESC";
 }
-$materials_query = mysqli_query($conn, $material_sql);
 ?>
 <!DOCTYPE html>
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/" data-template="vertical-menu-template-free">
@@ -47,10 +40,10 @@ $materials_query = mysqli_query($conn, $material_sql);
         <div class="content-wrapper">
           <div class="container-xxl flex-grow-1 container-p-y">
             <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Resources Management /</span> Course Materials</h4>
-            <div class="card mb-4">
+            <div class="card mb-4" id="materialsCard">
               <div class="card-body">
                 <form id="filterForm" class="row g-3 mb-4">
-                  <div class="col-md-4">
+                  <div class="col-md-3">
                     <select name="school" id="school" class="form-select" <?php if($admin_role == 5) echo 'disabled'; ?>>
                       <?php if($admin_role != 5) { ?>
                         <option value="0">All Schools</option>
@@ -60,7 +53,7 @@ $materials_query = mysqli_query($conn, $material_sql);
                       <?php } ?>
                     </select>
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-3">
                     <select name="faculty" id="faculty" class="form-select" <?php if($admin_role == 5 && $admin_faculty != 0) echo 'disabled'; ?>>
                       <?php if(!($admin_role == 5 && $admin_faculty != 0)) { ?>
                         <option value="0">All Faculties</option>
@@ -70,13 +63,32 @@ $materials_query = mysqli_query($conn, $material_sql);
                       <?php } ?>
                     </select>
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-3">
                     <select name="dept" id="dept" class="form-select">
                       <option value="0">All Departments</option>
                       <?php while($dept = mysqli_fetch_array($depts_query)) { ?>
                         <option value="<?php echo $dept['id']; ?>"><?php echo $dept['name']; ?></option>
                       <?php } ?>
                     </select>
+                  </div>
+                  <div class="col-md-3">
+                    <select name="date_range" id="dateRange" class="form-select">
+                      <option value="7">Last 7 Days</option>
+                      <option value="30" selected>Last 30 Days</option>
+                      <option value="90">Last 90 Days</option>
+                      <option value="all">All Time</option>
+                      <option value="custom">Custom Range</option>
+                    </select>
+                  </div>
+                  <div class="col-md-6 d-none" id="customDateRange">
+                    <div class="row g-2">
+                      <div class="col-md-6">
+                        <input type="date" class="form-control" id="startDate" name="start_date" placeholder="Start Date">
+                      </div>
+                      <div class="col-md-6">
+                        <input type="date" class="form-control" id="endDate" name="end_date" placeholder="End Date">
+                      </div>
+                    </div>
                   </div>
                   <div class="col-12">
                     <button type="submit" class="btn btn-secondary">Search</button>
@@ -99,46 +111,22 @@ $materials_query = mysqli_query($conn, $material_sql);
                       </tr>
                     </thead>
                     <tbody class="table-border-bottom-0">
-                      <?php while($mat = mysqli_fetch_array($materials_query)) { ?>
-                      <tr>
-                        <td class="text-uppercase">#<?php echo htmlspecialchars($mat['code']); ?></td>
-                        <td class="text-uppercase"><strong><?php echo $mat['title'].' ('.$mat['course_code'].')'; ?></strong></td>
-                        <td>
-                          <span class="text-uppercase text-primary"><?php echo trim(($mat['first_name'] ?? '').' '.($mat['last_name'] ?? '')); ?></span>
-                          <?php if(!empty($mat['matric_no'])) { ?>
-                            <br>Matric no: <?php echo $mat['matric_no']; ?>
-                          <?php } ?>
-                        </td>
-                        <td>₦ <?php echo number_format($mat['price']); ?></td>
-                        <td>₦ <?php echo number_format($mat['revenue']); ?></td>
-                        <td><?php echo $mat['qty_sold']; ?></td>
-                        <td><span class="fw-bold badge bg-label-<?php echo $mat['status']=='open' ? 'success' : 'danger'; ?>"><?php echo ucfirst($mat['status']); ?></span></td>
-                        <td><?php echo date('M d, Y', strtotime($mat['due_date'])); ?></td>
-                        <td>
-                          <div class="dropstart">
-                            <button type="button" class="btn p-0 dropdown-toggle hide-arrow" data-bs-toggle="dropdown" aria-expanded="true">
-                              <i class="bx bx-dots-vertical-rounded"></i>
-                            </button>
-                            <div class="dropdown-menu">
-                              <?php if($mat['db_status']=='open' && !$mat['due_passed']) { ?>
-                              <a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="<?php echo $mat['id']; ?>" data-status="<?php echo $mat['db_status']; ?>">
-                                <i class="bx bx-lock me-1"></i> Close Material
-                              </a>
-                              <?php } ?>
-                              <a href="javascript:void(0);" class="dropdown-item downloadMaterialTransactions" data-id="<?php echo (int)$mat['id']; ?>" data-code="<?php echo htmlspecialchars($mat['code']); ?>">
-                                <i class="bx bx-download me-1"></i> Download transactions list
-                              </a>
-                            </div>
-                          </div>
-                        </td>
-                      </tr>
-                      <?php } ?>
+                      <!-- Table rows will be populated by JavaScript via fetchMaterials() -->
                     </tbody>
                   </table>
+                </div>
+                <div class="stats-loading-spinner">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+          <button type="button" class="btn btn-primary new_formBtn" data-bs-toggle="modal"
+            data-bs-target="#newMaterialModal" aria-label="Add new material">
+            <i class='bx bx-plus fs-3'></i>
+          </button>
           <?php include('partials/_footer.php') ?>
           <div class="content-backdrop fade"></div>
         </div>
@@ -165,5 +153,139 @@ $materials_query = mysqli_query($conn, $material_sql);
     window.adminSchool = <?php echo (int)$admin_school; ?>;
     window.adminFaculty = <?php echo (int)$admin_faculty; ?>;
   </script>
+
+  <!-- New Material Modal -->
+  <div class="modal fade" id="newMaterialModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="materialModalTitle">Add New Course Material</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="newMaterialForm" novalidate>
+          <div class="modal-body" style="max-height: calc(100vh - 200px); overflow-y: auto;">
+            <div id="newMaterialAlert" class="alert d-none" role="alert"></div>
+            <input type="hidden" id="materialId" name="material_id" value="">
+            
+            <div class="mb-3">
+              <label for="materialSchool" class="form-label">School <span class="text-danger">*</span></label>
+              <select id="materialSchool" name="school" class="form-select" required <?php if($admin_role == 5) echo 'disabled'; ?>>
+                <?php 
+                mysqli_data_seek($schools_query, 0);
+                if($admin_role != 5) { ?>
+                  <option value="">Select School</option>
+                <?php } 
+                while($school = mysqli_fetch_array($schools_query)) { ?>
+                  <option value="<?php echo $school['id']; ?>" <?php if($admin_role == 5 && $school['id'] == $admin_school) echo 'selected'; ?>><?php echo $school['name']; ?></option>
+                <?php } ?>
+              </select>
+              <?php if($admin_role == 5) { ?>
+                <input type="hidden" name="school" value="<?php echo $admin_school; ?>">
+              <?php } ?>
+            </div>
+
+            <!-- Faculty Host and Faculty (2-column grid on desktop) -->
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label for="materialHostFaculty" class="form-label">Faculty Host <span class="text-danger">*</span></label>
+                <select id="materialHostFaculty" name="host_faculty" class="form-select" required <?php if($admin_role == 5 && $admin_faculty != 0) echo 'disabled'; ?>>
+                  <?php 
+                  mysqli_data_seek($faculties_query, 0);
+                  if(!($admin_role == 5 && $admin_faculty != 0)) { ?>
+                    <option value="">Select Faculty Host</option>
+                  <?php } 
+                  while($fac = mysqli_fetch_array($faculties_query)) { ?>
+                    <option value="<?php echo $fac['id']; ?>" <?php if($admin_role == 5 && $admin_faculty == $fac['id']) echo 'selected'; ?>><?php echo $fac['name']; ?></option>
+                  <?php } ?>
+                </select>
+                <div class="form-text">Faculty hosting this material</div>
+                <?php if($admin_role == 5 && $admin_faculty != 0) { ?>
+                  <input type="hidden" name="host_faculty" value="<?php echo $admin_faculty; ?>">
+                <?php } ?>
+              </div>
+              <div class="col-md-6">
+                <label for="materialFaculty" class="form-label">Faculty (Who Can Buy) <span class="text-danger">*</span></label>
+                <select id="materialFaculty" name="faculty" class="form-select" required <?php if($admin_role == 5 && $admin_faculty != 0) echo 'disabled'; ?>>
+                  <?php 
+                  mysqli_data_seek($faculties_query, 0);
+                  if(!($admin_role == 5 && $admin_faculty != 0)) { ?>
+                    <option value="">Select Faculty</option>
+                  <?php } 
+                  while($fac = mysqli_fetch_array($faculties_query)) { ?>
+                    <option value="<?php echo $fac['id']; ?>" <?php if($admin_role == 5 && $admin_faculty == $fac['id']) echo 'selected'; ?>><?php echo $fac['name']; ?></option>
+                  <?php } ?>
+                </select>
+                <div class="form-text">Students from this faculty can buy</div>
+                <?php if($admin_role == 5 && $admin_faculty != 0) { ?>
+                  <input type="hidden" name="faculty" value="<?php echo $admin_faculty; ?>">
+                <?php } ?>
+              </div>
+            </div>
+
+            <!-- Department and Level (2-column grid on desktop) -->
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label for="materialDept" class="form-label">Department</label>
+                <select id="materialDept" name="dept" class="form-select">
+                  <option value="0">All Departments</option>
+                  <?php 
+                  mysqli_data_seek($depts_query, 0);
+                  while($dept = mysqli_fetch_array($depts_query)) { ?>
+                    <option value="<?php echo $dept['id']; ?>"><?php echo $dept['name']; ?></option>
+                  <?php } ?>
+                </select>
+                <div class="form-text">Select specific or "All Departments"</div>
+              </div>
+              <div class="col-md-6">
+                <label for="materialLevel" class="form-label">Level</label>
+                <select id="materialLevel" name="level" class="form-select">
+                  <option value="">All Levels</option>
+                  <option value="100">100 Level</option>
+                  <option value="200">200 Level</option>
+                  <option value="300">300 Level</option>
+                  <option value="400">400 Level</option>
+                  <option value="500">500 Level</option>
+                  <option value="600">600 Level</option>
+                  <option value="700">700 Level</option>
+                </select>
+                <div class="form-text">Select specific level or "All Levels"</div>
+              </div>
+            </div>
+
+            <!-- Course Title and Course Code (2-column grid on desktop) -->
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label for="materialTitle" class="form-label">Course Title <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="materialTitle" name="title" required placeholder="e.g., Introduction to Computer Science">
+              </div>
+              <div class="col-md-6">
+                <label for="materialCourseCode" class="form-label">Course Code <span class="text-danger">*</span></label>
+                <input type="text" class="form-control" id="materialCourseCode" name="course_code" required placeholder="e.g., CSC101">
+              </div>
+            </div>
+
+            <!-- Price and Due Date (2-column grid on desktop) -->
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label for="materialPrice" class="form-label">Price (₦) <span class="text-danger">*</span></label>
+                <!-- Client-side validation: min='0' - Backend validates price is a non-negative integer -->
+                <input type="number" class="form-control" id="materialPrice" name="price" required min="0" step="1" placeholder="0">
+              </div>
+              <div class="col-md-6">
+                <label for="materialDueDate" class="form-label">Due Date <span class="text-danger">*</span></label>
+                <input type="datetime-local" class="form-control" id="materialDueDate" name="due_date" required>
+                <div class="form-text">Set the deadline for this material</div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="newMaterialSubmit">Create Material</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
