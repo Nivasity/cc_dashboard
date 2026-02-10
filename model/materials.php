@@ -218,7 +218,7 @@ if(isset($_POST['create_material'])){
   // Validate required fields
   if(empty($title) || empty($course_code) || $price < 0 || empty($due_date)){
     $statusRes = 'error';
-    $messageRes = 'All required fields must be filled';
+    $messageRes = 'All required fields must be filled and price cannot be negative';
   } elseif($school == 0 || $faculty == 0){
     $statusRes = 'error';
     $messageRes = 'School and Faculty are required';
@@ -247,10 +247,14 @@ if(isset($_POST['create_material'])){
         $due_date_mysql = date('Y-m-d H:i:s', $due_date_timestamp);
         
         // Generate unique 8-character alphanumeric code using cryptographically secure random
+        // Using uppercase letters and numbers for better readability (avoid confusion like 0/O, 1/l)
         $code = '';
         $isUnique = false;
+        // Maximum attempts for code generation - 10 attempts provides high confidence
+        // of finding a unique code even with collision probability
         $maxAttempts = 10;
         $attempts = 0;
+        // Character set: A-Z and 0-9 (36 characters, 8 positions = 36^8 = ~2.8 trillion possibilities)
         $characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         $charactersLength = strlen($characters);
         

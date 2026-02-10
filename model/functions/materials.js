@@ -382,12 +382,14 @@ $(document).ready(function () {
           if (typeof showToast === 'function') {
             showToast('bg-success', res.message);
           }
+          // Success message display duration before closing modal and refreshing
+          var successMessageDelay = 1500; // milliseconds
           setTimeout(function () {
             $('#newMaterialModal').modal('hide');
             $form[0].reset();
             $alert.addClass('d-none');
             fetchMaterials();
-          }, 1500);
+          }, successMessageDelay);
         } else {
           $alert.removeClass('d-none alert-success').addClass('alert-danger').text(res.message || 'Failed to create material');
           if (typeof showToast === 'function') {
