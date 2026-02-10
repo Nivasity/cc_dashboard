@@ -2,7 +2,7 @@ $(document).ready(function () {
   // Configuration constants
   var SUCCESS_MESSAGE_DISPLAY_DURATION = 1500; // milliseconds - time to show success message before closing modal
   var UNSELECTED_VALUE = 0; // Value indicating no selection in dropdowns (matches backend constant)
-  var DEFAULT_DATE_RANGE = '7'; // Default date range for filtering (Last 7 Days)
+  var DEFAULT_DATE_RANGE = '30'; // Default date range for filtering (Last 30 Days)
   
   var adminRole = window.adminRole || 0;
   var adminSchool = window.adminSchool || 0;
