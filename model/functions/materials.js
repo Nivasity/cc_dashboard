@@ -268,4 +268,144 @@ $(document).ready(function () {
   // Initialize dropdowns to match default selections
   fetchFaculties(adminRole == 5 ? adminSchool : $('#school').val());
   fetchDepts(adminRole == 5 ? adminSchool : $('#school').val(), (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val());
+
+  // New Material Modal functionality
+  $('#materialSchool, #materialFaculty, #materialDept').select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal') });
+
+  function fetchModalFaculties(schoolId) {
+    if (adminRole == 5) {
+      schoolId = adminSchool;
+    }
+    $.ajax({
+      url: 'model/materials.php',
+      method: 'GET',
+      data: { fetch: 'faculties', school: schoolId },
+      dataType: 'json',
+      success: function (res) {
+        var $fac = $('#materialFaculty');
+        $fac.empty();
+        if (!res.restrict_faculty) {
+          $fac.append('<option value="">Select Faculty</option>');
+        }
+        if (res.status === 'success' && res.faculties) {
+          $.each(res.faculties, function (i, fac) {
+            $fac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
+          });
+        }
+        $fac.prop('disabled', res.restrict_faculty);
+        var selected = res.restrict_faculty && res.faculties.length > 0 ? res.faculties[0].id : '';
+        $fac.val(selected).trigger('change.select2');
+      }
+    });
+  }
+
+  function fetchModalDepts(schoolId, facultyId) {
+    if (adminRole == 5) {
+      schoolId = adminSchool;
+      if (adminFaculty !== 0) {
+        facultyId = adminFaculty;
+      }
+    }
+    $.ajax({
+      url: 'model/materials.php',
+      method: 'GET',
+      data: { fetch: 'departments', school: schoolId, faculty: facultyId },
+      dataType: 'json',
+      success: function (res) {
+        var $dept = $('#materialDept');
+        $dept.empty();
+        $dept.append('<option value="0">All Departments</option>');
+        if (res.status === 'success' && res.departments) {
+          $.each(res.departments, function (i, dept) {
+            $dept.append('<option value="' + dept.id + '">' + dept.name + '</option>');
+          });
+        }
+        $dept.val('0').trigger('change.select2');
+      }
+    });
+  }
+
+  $('#materialSchool').on('change', function () {
+    var schoolId = adminRole == 5 ? adminSchool : $(this).val();
+    fetchModalFaculties(schoolId);
+    fetchModalDepts(schoolId, 0);
+  });
+
+  $('#materialFaculty').on('change', function () {
+    var schoolId = adminRole == 5 ? adminSchool : $('#materialSchool').val();
+    var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $(this).val();
+    if (facultyId) {
+      fetchModalDepts(schoolId, facultyId);
+    }
+  });
+
+  // Handle new material form submission
+  $('#newMaterialForm').on('submit', function (e) {
+    e.preventDefault();
+    var $form = $(this);
+    var $alert = $('#newMaterialAlert');
+    var $submitBtn = $('#newMaterialSubmit');
+    
+    // Client-side validation
+    if (!$form[0].checkValidity()) {
+      $form[0].reportValidity();
+      return;
+    }
+
+    var formData = $form.serialize();
+    
+    $submitBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Creating...');
+    $alert.addClass('d-none');
+
+    $.ajax({
+      url: 'model/materials.php',
+      method: 'POST',
+      data: formData + '&create_material=1',
+      dataType: 'json',
+      success: function (res) {
+        if (res.status === 'success') {
+          $alert.removeClass('d-none alert-danger').addClass('alert-success').text(res.message);
+          if (typeof showToast === 'function') {
+            showToast('bg-success', res.message);
+          }
+          setTimeout(function () {
+            $('#newMaterialModal').modal('hide');
+            $form[0].reset();
+            $alert.addClass('d-none');
+            fetchMaterials();
+          }, 1500);
+        } else {
+          $alert.removeClass('d-none alert-success').addClass('alert-danger').text(res.message || 'Failed to create material');
+          if (typeof showToast === 'function') {
+            showToast('bg-danger', res.message || 'Failed to create material');
+          }
+        }
+      },
+      error: function () {
+        $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Network error. Please try again.');
+        if (typeof showToast === 'function') {
+          showToast('bg-danger', 'Network error. Please try again.');
+        }
+      },
+      complete: function () {
+        $submitBtn.prop('disabled', false).html('Create Material');
+      }
+    });
+  });
+
+  // Reset modal when closed
+  $('#newMaterialModal').on('hidden.bs.modal', function () {
+    $('#newMaterialForm')[0].reset();
+    $('#newMaterialAlert').addClass('d-none');
+    $('#materialSchool, #materialFaculty, #materialDept').val('').trigger('change.select2');
+  });
+
+  // Initialize modal dropdowns on modal show
+  $('#newMaterialModal').on('shown.bs.modal', function () {
+    var schoolId = adminRole == 5 ? adminSchool : $('#materialSchool').val();
+    if (schoolId) {
+      fetchModalFaculties(schoolId);
+      fetchModalDepts(schoolId, 0);
+    }
+  });
 });

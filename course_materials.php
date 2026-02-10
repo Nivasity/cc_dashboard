@@ -139,6 +139,10 @@ $materials_query = mysqli_query($conn, $material_sql);
               </div>
             </div>
           </div>
+          <button type="button" class="btn btn-primary new_formBtn" data-bs-toggle="modal"
+            data-bs-target="#newMaterialModal" aria-label="Add new material">
+            <i class='bx bx-plus fs-3'></i>
+          </button>
           <?php include('partials/_footer.php') ?>
           <div class="content-backdrop fade"></div>
         </div>
@@ -165,5 +169,92 @@ $materials_query = mysqli_query($conn, $material_sql);
     window.adminSchool = <?php echo (int)$admin_school; ?>;
     window.adminFaculty = <?php echo (int)$admin_faculty; ?>;
   </script>
+
+  <!-- New Material Modal -->
+  <div class="modal fade" id="newMaterialModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Add New Course Material</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="newMaterialForm" novalidate>
+          <div class="modal-body overflow-auto">
+            <div id="newMaterialAlert" class="alert d-none" role="alert"></div>
+            
+            <div class="mb-3">
+              <label for="materialSchool" class="form-label">School <span class="text-danger">*</span></label>
+              <select id="materialSchool" name="school" class="form-select" required <?php if($admin_role == 5) echo 'disabled'; ?>>
+                <?php 
+                mysqli_data_seek($schools_query, 0);
+                if($admin_role != 5) { ?>
+                  <option value="">Select School</option>
+                <?php } 
+                while($school = mysqli_fetch_array($schools_query)) { ?>
+                  <option value="<?php echo $school['id']; ?>" <?php if($admin_role == 5) echo 'selected'; ?>><?php echo $school['name']; ?></option>
+                <?php } ?>
+              </select>
+              <?php if($admin_role == 5) { ?>
+                <input type="hidden" name="school" value="<?php echo $admin_school; ?>">
+              <?php } ?>
+            </div>
+
+            <div class="mb-3">
+              <label for="materialFaculty" class="form-label">Faculty <span class="text-danger">*</span></label>
+              <select id="materialFaculty" name="faculty" class="form-select" required>
+                <?php 
+                mysqli_data_seek($faculties_query, 0);
+                if(!($admin_role == 5 && $admin_faculty != 0)) { ?>
+                  <option value="">Select Faculty</option>
+                <?php } 
+                while($fac = mysqli_fetch_array($faculties_query)) { ?>
+                  <option value="<?php echo $fac['id']; ?>" <?php if($admin_role == 5 && $admin_faculty == $fac['id']) echo 'selected'; ?>><?php echo $fac['name']; ?></option>
+                <?php } ?>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label for="materialDept" class="form-label">Department</label>
+              <select id="materialDept" name="dept" class="form-select">
+                <option value="0">All Departments</option>
+                <?php 
+                mysqli_data_seek($depts_query, 0);
+                while($dept = mysqli_fetch_array($depts_query)) { ?>
+                  <option value="<?php echo $dept['id']; ?>"><?php echo $dept['name']; ?></option>
+                <?php } ?>
+              </select>
+              <div class="form-text">Select a specific department or leave as "All Departments"</div>
+            </div>
+
+            <div class="mb-3">
+              <label for="materialTitle" class="form-label">Course Title <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="materialTitle" name="title" required placeholder="e.g., Introduction to Computer Science">
+            </div>
+
+            <div class="mb-3">
+              <label for="materialCourseCode" class="form-label">Course Code <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="materialCourseCode" name="course_code" required placeholder="e.g., CSC101">
+            </div>
+
+            <div class="mb-3">
+              <label for="materialPrice" class="form-label">Price (₦) <span class="text-danger">*</span></label>
+              <input type="number" class="form-control" id="materialPrice" name="price" required min="0" step="1" placeholder="0">
+            </div>
+
+            <div class="mb-3">
+              <label for="materialDueDate" class="form-label">Due Date <span class="text-danger">*</span></label>
+              <input type="datetime-local" class="form-control" id="materialDueDate" name="due_date" required>
+              <div class="form-text">Set the deadline for this material</div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="newMaterialSubmit">Create Material</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
