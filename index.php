@@ -444,7 +444,10 @@ for ($m = 1; $m <= 12; $m++) {
               <!-- Latest Transactions Card -->
               <div class="col-12 col-lg-6 mb-4 d-flex">
                 <div class="card w-100">
-                  <h5 class="card-header">Latest Transactions</h5>
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Latest Transactions</h5>
+                    <a href="transactions.php" class="btn btn-sm btn-outline-primary">View All Transactions</a>
+                  </div>
                   <div class="table-responsive text-nowrap">
                     <table class="table">
                       <thead class="table-light">
@@ -469,7 +472,10 @@ for ($m = 1; $m <= 12; $m++) {
               <!-- Latest Internal Support Tickets Card -->
               <div class="col-12 col-lg-6 mb-4 d-flex">
                 <div class="card w-100">
-                  <h5 class="card-header">Latest Internal Support Tickets</h5>
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Latest Internal Support Tickets</h5>
+                    <a href="admin_tickets.php" class="btn btn-sm btn-outline-primary">View All Internal Messages</a>
+                  </div>
                   <div class="table-responsive text-nowrap">
                     <table class="table">
                       <thead class="table-light">
