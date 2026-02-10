@@ -73,10 +73,10 @@ if ($admin_role == 5) {
                   </div>
                   <div class="col-md-3">
                     <select name="date_range" id="dateRange" class="form-select">
-                      <option value="7" selected>Last 7 Days</option>
+                      <option value="7">Last 7 Days</option>
                       <option value="30">Last 30 Days</option>
                       <option value="90">Last 90 Days</option>
-                      <option value="all">All Time</option>
+                      <option value="all" selected>All Time</option>
                       <option value="custom">Custom Range</option>
                     </select>
                   </div>

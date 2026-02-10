@@ -2,7 +2,7 @@ $(document).ready(function () {
   // Configuration constants
   var SUCCESS_MESSAGE_DISPLAY_DURATION = 1500; // milliseconds - time to show success message before closing modal
   var UNSELECTED_VALUE = 0; // Value indicating no selection in dropdowns (matches backend constant)
-  var DEFAULT_DATE_RANGE = '7'; // Default date range for filtering
+  var DEFAULT_DATE_RANGE = 'all'; // Default date range for filtering (show all materials)
   
   var adminRole = window.adminRole || 0;
   var adminSchool = window.adminSchool || 0;
@@ -98,6 +98,19 @@ $(document).ready(function () {
         }
         var tbody = $('.table tbody');
         tbody.empty();
+        
+        // Check for error response
+        if (res.status === 'error') {
+          console.error('Backend error:', res.message);
+          Swal.fire({
+            icon: 'error',
+            title: 'Error Loading Materials',
+            text: res.message || 'Failed to load materials'
+          });
+          hideTableLoading();
+          return;
+        }
+        
         if (res.status === 'success' && res.materials) {
           $.each(res.materials, function (i, mat) {
             var actionHtml = '<div class="dropstart">' +
@@ -172,7 +185,19 @@ $(document).ready(function () {
         // Hide loading state after table is loaded
         hideTableLoading();
       },
-      error: function() {
+      error: function(xhr, status, error) {
+        console.error('Error fetching materials:', error);
+        console.error('Response:', xhr.responseText);
+        
+        // Show error message
+        if (xhr.responseJSON && xhr.responseJSON.message) {
+          Swal.fire({
+            icon: 'error',
+            title: 'Error Loading Materials',
+            text: xhr.responseJSON.message
+          });
+        }
+        
         // Hide loading state on error
         hideTableLoading();
       }

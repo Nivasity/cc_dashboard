@@ -199,8 +199,16 @@ if(isset($_GET['fetch'])){
     $material_sql .= buildMaterialDateFilter($conn, $date_range, $start_date, $end_date);
     $material_sql .= " GROUP BY m.id ORDER BY m.created_at DESC";
     $mat_query = mysqli_query($conn, $material_sql);
-    $materials = array();
-    while($row = mysqli_fetch_assoc($mat_query)){
+    
+    // Check for SQL errors
+    if (!$mat_query) {
+      $statusRes = 'error';
+      $messageRes = 'Database query failed: ' . mysqli_error($conn);
+      error_log("Materials query error: " . mysqli_error($conn));
+      error_log("SQL: " . $material_sql);
+    } else {
+      $materials = array();
+      while($row = mysqli_fetch_assoc($mat_query)){
       // Use admin data if admin_id exists and is not 0, otherwise use user data
       if (!empty($row['admin_id']) && $row['admin_id'] != 0) {
         $posted_by = trim(($row['admin_first_name'] ?? '') . ' ' . ($row['admin_last_name'] ?? ''));
@@ -237,8 +245,9 @@ if(isset($_GET['fetch'])){
         'host_faculty' => $row['host_faculty'] ?? null,
         'dept_id' => $row['dept'] ?? null
       );
+      }
+      $statusRes = 'success';
     }
-    $statusRes = 'success';
   }
   
   // Fetch human-readable names for edit mode (school, faculties, dept, level)
