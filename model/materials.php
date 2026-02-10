@@ -374,7 +374,7 @@ if(isset($_POST['create_material'])){
                 "INSERT INTO manuals (title, course_code, price, code, due_date, quantity, dept, faculty, host_faculty, level, user_id, admin_id, school_id, status, created_at) 
                  VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?, ?, 'open', NOW())");
               
-              mysqli_stmt_bind_param($insert_stmt, 'ssissiiiii', 
+              mysqli_stmt_bind_param($insert_stmt, 'ssissiiiiii', 
                 $title, $course_code, $price, $code, $due_date_mysql, 
                 $dept, $faculty, $host_faculty, $level, $admin_id, $school);
             } else {
