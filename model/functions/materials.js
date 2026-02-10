@@ -156,7 +156,7 @@ $(document).ready(function () {
               metaInfo.push('<small class="text-muted">Dept: ' + mat.dept_name + '</small>');
             }
             if (mat.level) {
-              metaInfo.push('<small class="text-muted">Level: <span class="badge bg-label-info">' + mat.level + '</span></small>');
+              metaInfo.push('<small><span class="badge bg-label-info">Level: ' + mat.level + '</span></small>');
             }
             if (metaInfo.length > 0) {
               titleHtml += '<br>' + metaInfo.join(' | ');
