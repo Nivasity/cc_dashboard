@@ -95,10 +95,18 @@ $(document).ready(function () {
             actionHtml += '<a href="javascript:void(0);" class="dropdown-item downloadMaterialTransactions" data-id="' + mat.id + '" data-code="' + (mat.code || '') + '"><i class="bx bx-download me-1"></i> Download transactions list</a>' +
               '</div></div>';
             
-            // Posted By column with admin name and role badge
+            // Posted By column - show admin with role badge OR user with matric number
             var postedHtml = '<span class="text-uppercase text-primary">' + (mat.posted_by || 'Unknown') + '</span>';
-            if (mat.admin_role && String(mat.admin_role).trim()) { 
-              postedHtml += '<br><span class="badge bg-label-secondary">' + mat.admin_role + '</span>'; 
+            if (mat.is_admin) {
+              // Show admin role in badge if it's an admin
+              if (mat.role_or_matric && String(mat.role_or_matric).trim()) { 
+                postedHtml += '<br><span class="badge bg-label-secondary">' + mat.role_or_matric + '</span>'; 
+              }
+            } else {
+              // Show matric number for users
+              if (mat.role_or_matric && String(mat.role_or_matric).trim()) { 
+                postedHtml += '<br>Matric no: ' + mat.role_or_matric; 
+              }
             }
             
             // Title column with faculty, dept, and level info
