@@ -178,7 +178,7 @@ if(isset($_GET['fetch'])){
     $start_date = $_GET['start_date'] ?? '';
     $end_date = $_GET['end_date'] ?? '';
     
-    $material_sql = "SELECT m.id, m.code, m.title, m.course_code, m.price, m.due_date, m.level, m.user_id, m.admin_id, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name, d.name AS dept_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
+    $material_sql = "SELECT m.id, m.code, m.title, m.course_code, m.price, m.due_date, m.level, m.user_id, m.admin_id, m.school_id, m.faculty, m.host_faculty, m.dept, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name, d.name AS dept_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
     if($admin_role == 5){
       $material_sql .= " AND m.school_id = $admin_school";
       if($admin_faculty != 0){
@@ -223,13 +223,18 @@ if(isset($_GET['fetch'])){
         'status' => $row['status'],
         'db_status' => $row['db_status'],
         'due_date' => date('M d, Y', strtotime($row['due_date'])),
+        'due_date_raw' => date('Y-m-d\TH:i', strtotime($row['due_date'])),
         'due_passed' => $row['due_passed'] == 1,
         'posted_by' => $posted_by,
         'role_or_matric' => $role_or_matric,
         'is_admin' => $is_admin,
         'faculty_name' => $row['faculty_name'] ?? '',
         'dept_name' => $row['dept_name'] ?? '',
-        'level' => $row['level'] ?? null
+        'level' => $row['level'] ?? null,
+        'school_id' => $row['school_id'] ?? null,
+        'faculty_id' => $row['faculty'] ?? null,
+        'host_faculty' => $row['host_faculty'] ?? null,
+        'dept_id' => $row['dept'] ?? null
       );
     }
     $statusRes = 'success';
@@ -418,6 +423,120 @@ if(isset($_POST['create_material'])){
               $messageRes = 'Failed to create material. Please try again.';
             }
             mysqli_stmt_close($insert_stmt);
+          }
+        }
+      }
+    }
+  }
+}
+
+// Handle material update
+if(isset($_POST['update_material'])){
+  $material_id = intval($_POST['material_id'] ?? 0);
+  $school = intval($_POST['school'] ?? UNSELECTED_VALUE);
+  $host_faculty = intval($_POST['host_faculty'] ?? UNSELECTED_VALUE);
+  $faculty = intval($_POST['faculty'] ?? UNSELECTED_VALUE);
+  $dept = intval($_POST['dept'] ?? UNSELECTED_VALUE);
+  $level = !empty($_POST['level']) ? intval($_POST['level']) : null;
+  $title = trim($_POST['title'] ?? '');
+  $course_code = trim($_POST['course_code'] ?? '');
+  $price_input = trim($_POST['price'] ?? '');
+  $due_date = trim($_POST['due_date'] ?? '');
+  
+  // Validate material ID
+  if($material_id <= 0){
+    $statusRes = 'error';
+    $messageRes = 'Invalid material ID';
+  }
+  // Validate required fields first
+  elseif(empty($title) || empty($course_code) || empty($due_date) || $price_input === ''){
+    $statusRes = 'error';
+    $messageRes = 'All required fields must be filled';
+  }
+  // Then validate price is a non-negative integer
+  elseif(!ctype_digit($price_input)){
+    $statusRes = 'error';
+    $messageRes = 'Price must be a valid non-negative integer';
+  }
+  else {
+    $price = intval($price_input);
+    
+    // Validate school, host_faculty and faculty are selected
+    if($school == UNSELECTED_VALUE || $host_faculty == UNSELECTED_VALUE || $faculty == UNSELECTED_VALUE){
+      $statusRes = 'error';
+      $messageRes = 'School, Faculty Host, and Faculty are required';
+    } else {
+      // Verify the material exists and was created by this admin
+      $check_stmt = mysqli_prepare($conn, "SELECT admin_id, school_id, faculty FROM manuals WHERE id = ?");
+      mysqli_stmt_bind_param($check_stmt, 'i', $material_id);
+      mysqli_stmt_execute($check_stmt);
+      $result = mysqli_stmt_get_result($check_stmt);
+      $existing_material = mysqli_fetch_assoc($result);
+      mysqli_stmt_close($check_stmt);
+      
+      if(!$existing_material){
+        $statusRes = 'error';
+        $messageRes = 'Material not found';
+      } elseif($existing_material['admin_id'] != $admin_id){
+        $statusRes = 'error';
+        $messageRes = 'Unauthorized: You can only edit materials you created';
+      } else {
+        // Validate admin permissions
+        if($admin_role == 5){
+          if($school != $admin_school){
+            $statusRes = 'error';
+            $messageRes = 'Unauthorized: Invalid school';
+          } elseif($admin_faculty != UNSELECTED_VALUE && ($host_faculty != $admin_faculty || $faculty != $admin_faculty)){
+            $statusRes = 'error';
+            $messageRes = 'Unauthorized: Invalid faculty';
+          }
+        }
+        
+        if(!isset($statusRes) || $statusRes !== 'error'){
+          // Validate and convert datetime
+          $due_date_timestamp = strtotime($due_date);
+          if($due_date_timestamp === false){
+            $statusRes = 'error';
+            $messageRes = 'Invalid due date format';
+          } elseif($due_date_timestamp < time()){
+            $statusRes = 'error';
+            $messageRes = 'Due date cannot be in the past';
+          } else {
+            $due_date_mysql = date('Y-m-d H:i:s', $due_date_timestamp);
+            
+            // Update material using prepared statement
+            if($level !== null){
+              $update_stmt = mysqli_prepare($conn, 
+                "UPDATE manuals SET title = ?, course_code = ?, price = ?, due_date = ?, dept = ?, faculty = ?, host_faculty = ?, level = ?, school_id = ? WHERE id = ?");
+              
+              mysqli_stmt_bind_param($update_stmt, 'ssissiiiii', 
+                $title, $course_code, $price, $due_date_mysql, 
+                $dept, $faculty, $host_faculty, $level, $school, $material_id);
+            } else {
+              $update_stmt = mysqli_prepare($conn, 
+                "UPDATE manuals SET title = ?, course_code = ?, price = ?, due_date = ?, dept = ?, faculty = ?, host_faculty = ?, school_id = ? WHERE id = ?");
+              
+              mysqli_stmt_bind_param($update_stmt, 'ssissiiii', 
+                $title, $course_code, $price, $due_date_mysql, 
+                $dept, $faculty, $host_faculty, $school, $material_id);
+            }
+            
+            if(mysqli_stmt_execute($update_stmt)){
+              $statusRes = 'success';
+              $messageRes = 'Course material updated successfully';
+              
+              // Log the action
+              if(function_exists('log_audit_event')){
+                log_audit_event($conn, $admin_id, 'update', 'course_material', $material_id, [
+                  'title' => $title,
+                  'course_code' => $course_code
+                ]);
+              }
+            } else {
+              $statusRes = 'error';
+              $messageRes = 'Failed to update material. Please try again.';
+            }
+            mysqli_stmt_close($update_stmt);
           }
         }
       }

@@ -159,12 +159,13 @@ if ($admin_role == 5) {
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Add New Course Material</h5>
+          <h5 class="modal-title" id="materialModalTitle">Add New Course Material</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <form id="newMaterialForm" novalidate>
           <div class="modal-body" style="max-height: calc(100vh - 200px); overflow-y: auto;">
             <div id="newMaterialAlert" class="alert d-none" role="alert"></div>
+            <input type="hidden" id="materialId" name="material_id" value="">
             
             <div class="mb-3">
               <label for="materialSchool" class="form-label">School <span class="text-danger">*</span></label>

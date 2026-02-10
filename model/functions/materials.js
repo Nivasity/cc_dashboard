@@ -105,6 +105,11 @@ $(document).ready(function () {
               '<i class="bx bx-dots-vertical-rounded"></i></button>' +
               '<div class="dropdown-menu">';
 
+            // Add Edit option for admin-created materials
+            if (mat.is_admin) {
+              actionHtml += '<a href="javascript:void(0);" class="dropdown-item editMaterial" data-material=\'' + JSON.stringify(mat) + '\'><i class="bx bx-edit me-1"></i> Edit</a>';
+            }
+
             // Only include toggle when material is open and not due-passed
             if (!mat.due_passed && mat.db_status === 'open') {
               actionHtml += '<a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="' + mat.id + '" data-status="' + mat.db_status + '"><i class="bx bx-lock me-1"></i> Close Material</a>';
@@ -366,6 +371,63 @@ $(document).ready(function () {
     });
   });
 
+  // Handle Edit Material click
+  $(document).on('click', '.editMaterial', function (e) {
+    e.preventDefault();
+    var materialData = $(this).data('material');
+    if (materialData) {
+      openEditModal(materialData);
+    }
+  });
+
+  // Function to open modal in edit mode
+  function openEditModal(material) {
+    // Change modal title and button text
+    $('#materialModalTitle').text('Edit Course Material');
+    $('#newMaterialSubmit').text('Update Material');
+    
+    // Set material ID in hidden field
+    $('#materialId').val(material.id);
+    
+    // Populate form fields
+    $('#materialTitle').val(material.title);
+    $('#materialCourseCode').val(material.course_code);
+    $('#materialPrice').val(material.price);
+    
+    // Set due date (material.due_date_raw is in Y-m-d\TH:i format for datetime-local input)
+    if (material.due_date_raw) {
+      $('#materialDueDate').val(material.due_date_raw);
+    }
+    
+    // Set school, faculty, department, level (if available)
+    if (material.school_id) {
+      $('#materialSchool').val(material.school_id).trigger('change');
+    }
+    
+    // We need to wait for cascading dropdowns to populate
+    setTimeout(function() {
+      if (material.host_faculty) {
+        $('#materialHostFaculty').val(material.host_faculty).trigger('change');
+      }
+      if (material.faculty_id) {
+        $('#materialFaculty').val(material.faculty_id).trigger('change');
+      }
+      if (material.dept_id) {
+        $('#materialDept').val(material.dept_id).trigger('change');
+      } else {
+        $('#materialDept').val('0').trigger('change');
+      }
+      if (material.level) {
+        $('#materialLevel').val(material.level).trigger('change');
+      } else {
+        $('#materialLevel').val('').trigger('change');
+      }
+    }, 500);
+    
+    // Show the modal
+    $('#newMaterialModal').modal('show');
+  }
+
   // Initialize dropdowns to match default selections
   fetchFaculties(adminRole == 5 ? adminSchool : $('#school').val());
   fetchDepts(adminRole == 5 ? adminSchool : $('#school').val(), (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val());
@@ -470,6 +532,8 @@ $(document).ready(function () {
     var $form = $(this);
     var $alert = $('#newMaterialAlert');
     var $submitBtn = $('#newMaterialSubmit');
+    var materialId = $('#materialId').val();
+    var isEdit = materialId && materialId !== '';
     
     // Client-side validation
     if (!$form[0].checkValidity()) {
@@ -498,14 +562,17 @@ $(document).ready(function () {
     }
 
     var formData = $form.serialize();
+    var actionParam = isEdit ? 'update_material=1' : 'create_material=1';
+    var buttonText = isEdit ? 'Updating...' : 'Creating...';
+    var originalButtonText = isEdit ? 'Update Material' : 'Create Material';
     
-    $submitBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Creating...');
+    $submitBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>' + buttonText);
     $alert.addClass('d-none');
 
     $.ajax({
       url: 'model/materials.php',
       method: 'POST',
-      data: formData + '&create_material=1',
+      data: formData + '&' + actionParam,
       dataType: 'json',
       success: function (res) {
         if (res.status === 'success') {
@@ -520,9 +587,9 @@ $(document).ready(function () {
             fetchMaterials();
           }, SUCCESS_MESSAGE_DISPLAY_DURATION);
         } else {
-          $alert.removeClass('d-none alert-success').addClass('alert-danger').text(res.message || 'Failed to create material');
+          $alert.removeClass('d-none alert-success').addClass('alert-danger').text(res.message || 'Failed to ' + (isEdit ? 'update' : 'create') + ' material');
           if (typeof showToast === 'function') {
-            showToast('bg-danger', res.message || 'Failed to create material');
+            showToast('bg-danger', res.message || 'Failed to ' + (isEdit ? 'update' : 'create') + ' material');
           }
         }
       },
@@ -533,7 +600,7 @@ $(document).ready(function () {
         }
       },
       complete: function () {
-        $submitBtn.prop('disabled', false).html('Create Material');
+        $submitBtn.prop('disabled', false).html(originalButtonText);
       }
     });
   });
@@ -542,6 +609,11 @@ $(document).ready(function () {
   $('#newMaterialModal').on('hidden.bs.modal', function () {
     $('#newMaterialForm')[0].reset();
     $('#newMaterialAlert').addClass('d-none');
+    
+    // Reset to create mode
+    $('#materialModalTitle').text('Add New Course Material');
+    $('#newMaterialSubmit').text('Create Material');
+    $('#materialId').val('');
     
     // For restricted admins (role 5), restore their default values
     if (adminRole == 5) {
