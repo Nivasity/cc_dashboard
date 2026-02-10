@@ -12,7 +12,7 @@ echo "SMTP Fallback Configuration Test\n";
 echo "==============================================\n\n";
 
 // Test 1: Check if SMTP configuration is available
-echo "Test 1: Testing SMTP Configuration from smtp.php\n";
+echo "Test 1: Testing SMTP Configuration from mail.php\n";
 echo "================================================\n";
 
 $smtpConfig = getSMTPConfig();
@@ -25,7 +25,7 @@ if ($smtpConfig) {
     echo "  From Name: " . $smtpConfig['from_name'] . "\n";
 } else {
     echo "✗ SMTP Configuration not found\n";
-    echo "  Please configure config/smtp.php with SMTP credentials\n";
+    echo "  Please configure config/mail.php with SMTP credentials\n";
 }
 
 // Test 2: Test credit check logic
@@ -52,7 +52,7 @@ echo "\n\nAll logic tests completed!\n";
 echo "================================================\n";
 echo "\nTo test actual email sending:\n";
 echo "1. Configure config/brevo.php with a valid BREVO API key\n";
-echo "2. Configure config/smtp.php with valid SMTP credentials:\n";
+echo "2. Configure config/mail.php with valid SMTP credentials:\n";
 echo "   - SMTP_HOST (e.g., smtp.gmail.com)\n";
 echo "   - SMTP_PORT (e.g., 587)\n";
 echo "   - SMTP_USERNAME (your email)\n";

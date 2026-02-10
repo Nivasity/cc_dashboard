@@ -27,14 +27,14 @@ define('DB_PASSWORD', 'your_db_password');
 **Important**: 
 - The `db.php` file is ignored by Git to keep your credentials secure
 
-### 2. SMTP Configuration (`smtp.php`)
+### 2. SMTP Configuration (`mail.php`)
 
 This file contains SMTP server configuration for email fallback when BREVO credits are low or unavailable.
 
 To enable SMTP fallback:
 
-1. Copy `smtp.example.php` to `smtp.php`
-2. Edit `smtp.php` and replace placeholder values with your actual SMTP credentials
+1. Copy `mail.example.php` to `mail.php`
+2. Edit `mail.php` and replace placeholder values with your actual SMTP credentials
 
 **Example:**
 
@@ -52,7 +52,7 @@ define('SMTP_PORT', 465);
 ```
 
 **Important**: 
-- The `smtp.php` file is ignored by Git to keep your credentials secure
+- The `mail.php` file is ignored by Git to keep your credentials secure
 - SMTP credentials are used as fallback when BREVO API credits are low (≤ 50)
 - For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833) instead of your regular password
 
@@ -124,11 +124,11 @@ The system uses a smart fallback strategy:
    - Efficient for high-volume sending
 
 2. **Fallback Method (Normal SMTP)**: When BREVO credits ≤ 50 or API unavailable
-   - Uses SMTP credentials from `smtp.php`
+   - Uses SMTP credentials from `mail.php`
    - Standard SMTP protocol with your own mail server
    - Ensures continuous email delivery even without BREVO credits
 
-**Note**: While BREVO REST API is the primary method, SMTP credentials in `smtp.php` are required as a fallback when BREVO credits are low or unavailable.
+**Note**: While BREVO REST API is the primary method, SMTP credentials in `mail.php` are required as a fallback when BREVO credits are low or unavailable.
 
 ### How BREVO is Used in the Application
 

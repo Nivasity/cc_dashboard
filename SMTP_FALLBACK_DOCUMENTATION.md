@@ -18,7 +18,7 @@ Before sending any email, the system:
 
 ### SMTP Configuration
 
-When falling back to SMTP, the system uses credentials from `config/smtp.php`:
+When falling back to SMTP, the system uses credentials from `config/mail.php`:
 
 - **Host**: Defined in SMTP_HOST constant
 - **Port**: Defined in SMTP_PORT constant (typically 587 for TLS, 465 for SSL)
@@ -31,7 +31,7 @@ When falling back to SMTP, the system uses credentials from `config/smtp.php`:
 
 #### Configuration Example
 
-Create `config/smtp.php` with the following structure:
+Create `config/mail.php` with the following structure:
 
 ```php
 <?php
@@ -54,7 +54,7 @@ define('SMTP_FROM_NAME', 'Nivasity');
 ### Functions
 
 #### `getSMTPConfig()`
-Retrieves SMTP configuration from `config/smtp.php`.
+Retrieves SMTP configuration from `config/mail.php`.
 
 **Returns**: Array with SMTP settings or null if not configured
 
@@ -71,7 +71,7 @@ Checks if subscription credits are sufficient.
 - `false` if credits ≤ 50 (use SMTP)
 
 #### `getBrevoSMTPConfig($apiKey)` (Deprecated)
-This function is deprecated. The system now uses `getSMTPConfig()` to get normal SMTP credentials from `config/smtp.php` instead of BREVO SMTP relay.
+This function is deprecated. The system now uses `getSMTPConfig()` to get normal SMTP credentials from `config/mail.php` instead of BREVO SMTP relay.
 
 #### `sendViaSMTP($subject, $htmlContent, $to, $smtpConfig)`
 Wrapper function for SMTP email sending using normal SMTP server.
@@ -102,7 +102,7 @@ Low-level socket-based SMTP implementation with TLS support.
 **New behavior**:
 1. Checks credits via `hasBrevoCredits()`
 2. If credits > 50: Uses REST API (fast)
-3. If credits ≤ 50: Uses normal SMTP from `config/smtp.php` (reliable)
+3. If credits ≤ 50: Uses normal SMTP from `config/mail.php` (reliable)
 4. Logs which method is being used
 
 #### `sendMailBatch($subject, $body, $recipients)`
@@ -189,12 +189,12 @@ SMTP Error: Expected 250, got 550 - Mailbox unavailable
 
 2. SMTP configuration not found (getSMTPConfig() returns null):
 ```
-Failed to get SMTP configuration from smtp.php
+Failed to get SMTP configuration from mail.php
 ```
 
-3. SMTP constants not defined in config/smtp.php:
+3. SMTP constants not defined in config/mail.php:
 ```
-SMTP credentials not configured in config/smtp.php
+SMTP credentials not configured in config/mail.php
 ```
 
 ### Checking Logs
@@ -229,14 +229,14 @@ tail -f /var/log/apache2/error.log
 2. **Credit Alerts**: Set up monitoring for when credits drop below 100
 3. **Batch Timing**: Schedule batch emails during off-peak hours
 4. **Test Fallback**: Periodically test SMTP fallback to ensure it works
-5. **SMTP Configuration**: Ensure `config/smtp.php` has valid SMTP credentials
+5. **SMTP Configuration**: Ensure `config/mail.php` has valid SMTP credentials
 
 ## Troubleshooting
 
 ### Issue: Emails not sending via SMTP
 
 **Check**:
-1. SMTP credentials are configured in `config/smtp.php`
+1. SMTP credentials are configured in `config/mail.php`
 2. All required constants are defined (SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD)
 3. Server can connect to your SMTP server on the configured port
 4. TLS 1.2 or 1.3 is supported
@@ -248,13 +248,13 @@ tail -f /var/log/apache2/error.log
 openssl s_client -connect your.smtp.host:587 -starttls smtp
 ```
 
-### Issue: "SMTP credentials not configured in config/smtp.php"
+### Issue: "SMTP credentials not configured in config/mail.php"
 
-**Cause**: Required SMTP constants are missing from `config/smtp.php`
+**Cause**: Required SMTP constants are missing from `config/mail.php`
 
 **Solution**: 
-1. Copy `config/smtp.example.php` to `config/smtp.php`
-2. Edit `config/smtp.php` and add all required SMTP constants:
+1. Copy `config/mail.example.php` to `config/mail.php`
+2. Edit `config/mail.php` and add all required SMTP constants:
    - SMTP_HOST
    - SMTP_PORT
    - SMTP_USERNAME
@@ -263,12 +263,12 @@ openssl s_client -connect your.smtp.host:587 -starttls smtp
    - SMTP_FROM_NAME (optional, defaults to Nivasity)
 3. Save the file and test email sending
 
-### Issue: "Failed to get SMTP configuration from smtp.php"
+### Issue: "Failed to get SMTP configuration from mail.php"
 
-**Cause**: `config/smtp.php` file doesn't exist or SMTP constants are not defined
+**Cause**: `config/mail.php` file doesn't exist or SMTP constants are not defined
 
 **Solution**:
-1. Ensure `config/smtp.php` exists (copy from `config/smtp.example.php`)
+1. Ensure `config/mail.php` exists (copy from `config/mail.example.php`)
 2. Verify all SMTP constants are properly defined
 3. Check file permissions (should be readable by web server)
 

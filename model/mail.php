@@ -3,7 +3,7 @@
 // This file contains email sending functions using BREVO (formerly Sendinblue) REST API
 // BREVO is the email service provider for all transactional and bulk emails
 // Configuration: API key is loaded from ../config/brevo.php
-// SMTP Fallback: Uses SMTP credentials from ../config/smtp.php when BREVO credits are low
+// SMTP Fallback: Uses SMTP credentials from ../config/mail.php when BREVO credits are low
 
 // Include Brevo API configuration
 if (file_exists('../config/brevo.php')) {
@@ -16,8 +16,8 @@ if (file_exists('../config/db.php')) {
 }
 
 // Include SMTP configuration for email fallback
-if (file_exists('../config/smtp.php')) {
-  require_once('../config/smtp.php');
+if (file_exists('../config/mail.php')) {
+  require_once('../config/mail.php');
 }
 
 /**
@@ -100,7 +100,7 @@ function hasBrevoCredits($apiKey) {
 }
 
 /**
- * Get normal SMTP configuration from smtp.php
+ * Get normal SMTP configuration from mail.php
  * This is used as fallback when BREVO credits are low or unavailable
  * 
  * @return array|null Returns SMTP config array or null if not configured
@@ -109,7 +109,7 @@ function getSMTPConfig() {
     // Check if all required SMTP constants are defined
     if (!defined('SMTP_HOST') || !defined('SMTP_PORT') || 
         !defined('SMTP_USERNAME') || !defined('SMTP_PASSWORD')) {
-        error_log("SMTP credentials not configured in config/smtp.php");
+        error_log("SMTP credentials not configured in config/mail.php");
         return null;
     }
     
@@ -161,7 +161,7 @@ function getBrevoSMTPConfig($apiKey) {
  * Send email using BREVO REST API or SMTP fallback
  * 
  * This function sends emails via BREVO's REST API endpoint if credits are sufficient (> 50).
- * If credits are low (<= 50), it automatically falls back to normal SMTP using credentials from smtp.php.
+ * If credits are low (<= 50), it automatically falls back to normal SMTP using credentials from mail.php.
  * 
  * @param string $subject The email subject line
  * @param string $body The email body content (HTML supported)
@@ -202,12 +202,12 @@ function sendMail($subject, $body, $to) {
         // Send via BREVO API
         $result = sendBrevoAPIRequest($apiKey, $payload);
     } else {
-        // Fallback to normal SMTP using credentials from smtp.php
+        // Fallback to normal SMTP using credentials from mail.php
         error_log("BREVO credits low or unavailable, using normal SMTP for email to $to");
         
         $smtpConfig = getSMTPConfig();
         if (!$smtpConfig) {
-            error_log("Failed to get SMTP configuration from smtp.php");
+            error_log("Failed to get SMTP configuration from mail.php");
             return "error";
         }
         
@@ -289,7 +289,7 @@ function sendMailBatch($subject, $body, $recipients) {
         
         $smtpConfig = getSMTPConfig();
         if (!$smtpConfig) {
-            error_log("Failed to get SMTP configuration from smtp.php for batch email");
+            error_log("Failed to get SMTP configuration from mail.php for batch email");
             return array('success_count' => 0, 'fail_count' => count($recipients));
         }
         
