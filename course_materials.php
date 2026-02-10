@@ -40,7 +40,7 @@ if ($admin_role == 5) {
         <div class="content-wrapper">
           <div class="container-xxl flex-grow-1 container-p-y">
             <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Resources Management /</span> Course Materials</h4>
-            <div class="card mb-4">
+            <div class="card mb-4" id="materialsCard">
               <div class="card-body">
                 <form id="filterForm" class="row g-3 mb-4">
                   <div class="col-md-4">
@@ -95,6 +95,11 @@ if ($admin_role == 5) {
                       <!-- Table rows will be populated by JavaScript via fetchMaterials() -->
                     </tbody>
                   </table>
+                </div>
+                <div class="stats-loading-spinner">
+                  <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                  </div>
                 </div>
               </div>
             </div>

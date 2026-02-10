@@ -71,6 +71,9 @@ $(document).ready(function () {
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
     var deptId = $('#dept').val();
 
+    // Show loading state
+    showTableLoading();
+
     $.ajax({
       url: 'model/materials.php',
       method: 'GET',
@@ -143,8 +146,24 @@ $(document).ready(function () {
           });
         }
         InitiateDatatable('.table');
+        
+        // Hide loading state after table is loaded
+        hideTableLoading();
+      },
+      error: function() {
+        // Hide loading state on error
+        hideTableLoading();
       }
     });
+  }
+
+  // Helper functions for loading state
+  function showTableLoading() {
+    $('#materialsCard').addClass('stats-card-loading');
+  }
+
+  function hideTableLoading() {
+    $('#materialsCard').removeClass('stats-card-loading');
   }
 
   $('#school').on('change', function () {
