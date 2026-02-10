@@ -293,7 +293,8 @@ if(isset($_POST['create_material'])){
   $due_date = trim($_POST['due_date'] ?? '');
   
   // Validate required fields first
-  if(empty($title) || empty($course_code) || empty($due_date) || empty($price_input)){
+  // Note: Don't use empty() for price_input as '0' is a valid value for free materials
+  if(empty($title) || empty($course_code) || empty($due_date) || $price_input === ''){
     $statusRes = 'error';
     $messageRes = 'All required fields must be filled';
   }
