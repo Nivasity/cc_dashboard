@@ -4,16 +4,15 @@ This directory contains configuration files that are not tracked by Git for secu
 
 ## Required Configuration Files
 
-### 1. Database and SMTP Configuration (`db.php`)
+### 1. Database Configuration (`db.php`)
 
-This file contains database credentials and SMTP server configuration for email fallback.
+This file contains database credentials.
 
-To enable database connectivity and email fallback:
+To enable database connectivity:
 
 1. Copy `db.example.php` to `db.php`
 2. Edit `db.php` and replace placeholder values with your actual credentials
 3. Configure database credentials (DB_USERNAME, DB_PASSWORD)
-4. Configure SMTP credentials for email fallback when BREVO credits are low
 
 **Example:**
 
@@ -22,23 +21,42 @@ To enable database connectivity and email fallback:
 // Database Credentials
 define('DB_USERNAME', 'your_db_username');
 define('DB_PASSWORD', 'your_db_password');
-
-// SMTP Configuration for Email Fallback
-define('SMTP_HOST', 'smtp.gmail.com');
-define('SMTP_PORT', 587);
-define('SMTP_USERNAME', 'your_email@gmail.com');
-define('SMTP_PASSWORD', 'your_app_password');
-define('SMTP_FROM_EMAIL', 'contact@nivasity.com');
-define('SMTP_FROM_NAME', 'Nivasity');
 ?>
 ```
 
 **Important**: 
 - The `db.php` file is ignored by Git to keep your credentials secure
+
+### 2. SMTP Configuration (`smtp.php`)
+
+This file contains SMTP server configuration for email fallback when BREVO credits are low or unavailable.
+
+To enable SMTP fallback:
+
+1. Copy `smtp.example.php` to `smtp.php`
+2. Edit `smtp.php` and replace placeholder values with your actual SMTP credentials
+
+**Example:**
+
+```php
+<?php
+require 'PHPMailer-master/src/PHPMailer.php';
+require 'PHPMailer-master/src/SMTP.php';
+require 'PHPMailer-master/src/Exception.php';
+
+define('SMTP_HOST', 'mail.nivasity.com');
+define('SMTP_USERNAME', 'admin@nivasity.com');
+define('SMTP_PASSWORD', 'pass');
+define('SMTP_PORT', 465);
+?>
+```
+
+**Important**: 
+- The `smtp.php` file is ignored by Git to keep your credentials secure
 - SMTP credentials are used as fallback when BREVO API credits are low (≤ 50)
 - For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833) instead of your regular password
 
-### 2. Payment Gateway Configuration (`fw.php`)
+### 3. Payment Gateway Configuration (`fw.php`)
 
 This file contains API keys for Flutterwave and Paystack payment gateways used throughout the application.
 
@@ -65,7 +83,7 @@ define('PAYSTACK_SECRET_KEY', 'sk_test_your-actual-key-here');
 
 **Note:** The `fw.php` file is ignored by Git to keep your API keys secure.
 
-### 3. BREVO Email Service Configuration (`brevo.php`)
+### 4. BREVO Email Service Configuration (`brevo.php`)
 
 **IMPORTANT**: This application uses **BREVO** (formerly Sendinblue) REST API as the email service provider for all email functionality, including the students.php email system.
 
@@ -106,11 +124,11 @@ The system uses a smart fallback strategy:
    - Efficient for high-volume sending
 
 2. **Fallback Method (Normal SMTP)**: When BREVO credits ≤ 50 or API unavailable
-   - Uses SMTP credentials from `db.php`
+   - Uses SMTP credentials from `smtp.php`
    - Standard SMTP protocol with your own mail server
    - Ensures continuous email delivery even without BREVO credits
 
-**Note**: While BREVO REST API is the primary method, SMTP credentials in `db.php` are required as a fallback when BREVO credits are low or unavailable.
+**Note**: While BREVO REST API is the primary method, SMTP credentials in `smtp.php` are required as a fallback when BREVO credits are low or unavailable.
 
 ### How BREVO is Used in the Application
 

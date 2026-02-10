@@ -12,7 +12,7 @@ echo "SMTP Fallback Configuration Test\n";
 echo "==============================================\n\n";
 
 // Test 1: Check if SMTP configuration is available
-echo "Test 1: Testing SMTP Configuration from db.php\n";
+echo "Test 1: Testing SMTP Configuration from smtp.php\n";
 echo "================================================\n";
 
 $smtpConfig = getSMTPConfig();
@@ -25,7 +25,7 @@ if ($smtpConfig) {
     echo "  From Name: " . $smtpConfig['from_name'] . "\n";
 } else {
     echo "✗ SMTP Configuration not found\n";
-    echo "  Please configure config/db.php with SMTP credentials\n";
+    echo "  Please configure config/smtp.php with SMTP credentials\n";
 }
 
 // Test 2: Test credit check logic

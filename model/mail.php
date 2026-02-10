@@ -10,9 +10,14 @@ if (file_exists('../config/brevo.php')) {
   require_once('../config/brevo.php');
 }
 
-// Include database/SMTP configuration
+// Include database configuration
 if (file_exists('../config/db.php')) {
   require_once('../config/db.php');
+}
+
+// Include SMTP configuration for email fallback
+if (file_exists('../config/smtp.php')) {
+  require_once('../config/smtp.php');
 }
 
 /**
@@ -95,7 +100,7 @@ function hasBrevoCredits($apiKey) {
 }
 
 /**
- * Get normal SMTP configuration from db.php
+ * Get normal SMTP configuration from smtp.php
  * This is used as fallback when BREVO credits are low or unavailable
  * 
  * @return array|null Returns SMTP config array or null if not configured
@@ -104,7 +109,7 @@ function getSMTPConfig() {
     // Check if all required SMTP constants are defined
     if (!defined('SMTP_HOST') || !defined('SMTP_PORT') || 
         !defined('SMTP_USERNAME') || !defined('SMTP_PASSWORD')) {
-        error_log("SMTP credentials not configured in config/db.php");
+        error_log("SMTP credentials not configured in config/smtp.php");
         return null;
     }
     
@@ -197,12 +202,12 @@ function sendMail($subject, $body, $to) {
         // Send via BREVO API
         $result = sendBrevoAPIRequest($apiKey, $payload);
     } else {
-        // Fallback to normal SMTP using credentials from db.php
+        // Fallback to normal SMTP using credentials from smtp.php
         error_log("BREVO credits low or unavailable, using normal SMTP for email to $to");
         
         $smtpConfig = getSMTPConfig();
         if (!$smtpConfig) {
-            error_log("Failed to get SMTP configuration from db.php");
+            error_log("Failed to get SMTP configuration from smtp.php");
             return "error";
         }
         
@@ -284,7 +289,7 @@ function sendMailBatch($subject, $body, $recipients) {
         
         $smtpConfig = getSMTPConfig();
         if (!$smtpConfig) {
-            error_log("Failed to get SMTP configuration from db.php for batch email");
+            error_log("Failed to get SMTP configuration from smtp.php for batch email");
             return array('success_count' => 0, 'fail_count' => count($recipients));
         }
         
