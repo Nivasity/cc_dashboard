@@ -18,26 +18,31 @@ Before sending any email, the system:
 
 ### SMTP Configuration
 
-When falling back to SMTP, the system uses credentials from `config/db.php`:
+When falling back to SMTP, the system uses credentials from `config/mail.php`:
 
 - **Host**: Defined in SMTP_HOST constant
-- **Port**: Defined in SMTP_PORT constant (typically 587 for TLS, 465 for SSL)
+- **Port**: Defined in SMTP_PORT constant
+  - **465**: SSL/TLS (implicit SSL - encrypted from connection start)
+  - **587**: STARTTLS (explicit TLS - plain connection upgraded to encrypted)
+  - **25**: Non-encrypted (not recommended for production)
 - **Username**: Defined in SMTP_USERNAME constant
 - **Password**: Defined in SMTP_PASSWORD constant
 - **From Email**: Defined in SMTP_FROM_EMAIL constant (defaults to 'contact@nivasity.com')
 - **From Name**: Defined in SMTP_FROM_NAME constant (defaults to 'Nivasity')
-- **Encryption**: TLS 1.2 or TLS 1.3 with STARTTLS
+- **Encryption**: 
+  - Port 465: Implicit SSL/TLS from connection start
+  - Port 587: STARTTLS with TLS 1.2 or TLS 1.3
 - **Authentication**: LOGIN method
 
 #### Configuration Example
 
-Create `config/db.php` with the following structure:
+Create `config/mail.php` with the following structure:
 
 ```php
 <?php
-// Database Credentials
-define('DB_USERNAME', 'your_db_username');
-define('DB_PASSWORD', 'your_db_password');
+require 'PHPMailer-master/src/PHPMailer.php';
+require 'PHPMailer-master/src/SMTP.php';
+require 'PHPMailer-master/src/Exception.php';
 
 // SMTP Configuration for Email Fallback
 define('SMTP_HOST', 'smtp.gmail.com');
@@ -54,7 +59,7 @@ define('SMTP_FROM_NAME', 'Nivasity');
 ### Functions
 
 #### `getSMTPConfig()`
-Retrieves SMTP configuration from `config/db.php`.
+Retrieves SMTP configuration from `config/mail.php`.
 
 **Returns**: Array with SMTP settings or null if not configured
 
@@ -71,7 +76,7 @@ Checks if subscription credits are sufficient.
 - `false` if credits ≤ 50 (use SMTP)
 
 #### `getBrevoSMTPConfig($apiKey)` (Deprecated)
-This function is deprecated. The system now uses `getSMTPConfig()` to get normal SMTP credentials from `config/db.php` instead of BREVO SMTP relay.
+This function is deprecated. The system now uses `getSMTPConfig()` to get normal SMTP credentials from `config/mail.php` instead of BREVO SMTP relay.
 
 #### `sendViaSMTP($subject, $htmlContent, $to, $smtpConfig)`
 Wrapper function for SMTP email sending using normal SMTP server.
@@ -85,14 +90,15 @@ Wrapper function for SMTP email sending using normal SMTP server.
 **Returns**: `true` on success, `false` on failure
 
 #### `sendViaSMTPSocket($subject, $htmlContent, $to, $from, $fromName, $smtpConfig)`
-Low-level socket-based SMTP implementation with TLS support.
+Low-level socket-based SMTP implementation with SSL/TLS support.
 
 **Features**:
 - Direct TCP socket connection
-- STARTTLS encryption
-- TLS 1.2/1.3 only (secure versions)
+- **Port 465**: Implicit SSL/TLS (ssl:// connection)
+- **Port 587**: STARTTLS encryption with TLS 1.2/1.3
 - AUTH LOGIN authentication
 - Proper error handling and logging
+- Empty response detection
 
 ### Modified Functions
 
@@ -102,7 +108,7 @@ Low-level socket-based SMTP implementation with TLS support.
 **New behavior**:
 1. Checks credits via `hasBrevoCredits()`
 2. If credits > 50: Uses REST API (fast)
-3. If credits ≤ 50: Uses normal SMTP from `config/db.php` (reliable)
+3. If credits ≤ 50: Uses normal SMTP from `config/mail.php` (reliable)
 4. Logs which method is being used
 
 #### `sendMailBatch($subject, $body, $recipients)`
@@ -189,12 +195,12 @@ SMTP Error: Expected 250, got 550 - Mailbox unavailable
 
 2. SMTP configuration not found (getSMTPConfig() returns null):
 ```
-Failed to get SMTP configuration from db.php
+Failed to get SMTP configuration from mail.php
 ```
 
-3. SMTP constants not defined in config/db.php:
+3. SMTP constants not defined in config/mail.php:
 ```
-SMTP credentials not configured in config/db.php
+SMTP credentials not configured in config/mail.php
 ```
 
 ### Checking Logs
@@ -229,14 +235,14 @@ tail -f /var/log/apache2/error.log
 2. **Credit Alerts**: Set up monitoring for when credits drop below 100
 3. **Batch Timing**: Schedule batch emails during off-peak hours
 4. **Test Fallback**: Periodically test SMTP fallback to ensure it works
-5. **SMTP Configuration**: Ensure `config/db.php` has valid SMTP credentials
+5. **SMTP Configuration**: Ensure `config/mail.php` has valid SMTP credentials
 
 ## Troubleshooting
 
 ### Issue: Emails not sending via SMTP
 
 **Check**:
-1. SMTP credentials are configured in `config/db.php`
+1. SMTP credentials are configured in `config/mail.php`
 2. All required constants are defined (SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD)
 3. Server can connect to your SMTP server on the configured port
 4. TLS 1.2 or 1.3 is supported
@@ -248,13 +254,13 @@ tail -f /var/log/apache2/error.log
 openssl s_client -connect your.smtp.host:587 -starttls smtp
 ```
 
-### Issue: "SMTP credentials not configured in config/db.php"
+### Issue: "SMTP credentials not configured in config/mail.php"
 
-**Cause**: Required SMTP constants are missing from `config/db.php`
+**Cause**: Required SMTP constants are missing from `config/mail.php`
 
 **Solution**: 
-1. Copy `config/db.example.php` to `config/db.php`
-2. Edit `config/db.php` and add all required SMTP constants:
+1. Copy `config/mail.example.php` to `config/mail.php`
+2. Edit `config/mail.php` and add all required SMTP constants:
    - SMTP_HOST
    - SMTP_PORT
    - SMTP_USERNAME
@@ -263,18 +269,23 @@ openssl s_client -connect your.smtp.host:587 -starttls smtp
    - SMTP_FROM_NAME (optional, defaults to Nivasity)
 3. Save the file and test email sending
 
-### Issue: "Failed to get SMTP configuration from db.php"
+### Issue: "Failed to get SMTP configuration from mail.php"
 
-**Cause**: `config/db.php` file doesn't exist or SMTP constants are not defined
+**Cause**: `config/mail.php` file doesn't exist or SMTP constants are not defined
 
 **Solution**:
-1. Ensure `config/db.php` exists (copy from `config/db.example.php`)
+1. Ensure `config/mail.php` exists (copy from `config/mail.example.php`)
 2. Verify all SMTP constants are properly defined
 3. Check file permissions (should be readable by web server)
 
-### Issue: TLS connection fails
+### Issue: TLS/SSL connection fails
 
-**Check**:
+**For Port 465 (SSL/TLS)**:
+1. Check if server supports SSL/TLS on port 465
+2. Verify OpenSSL extension is enabled in PHP
+3. Ensure firewall allows outbound connections on port 465
+
+**For Port 587 (STARTTLS)**:
 1. PHP version supports TLS 1.2+ (PHP 7.1+)
 2. OpenSSL extension is enabled
 3. Server allows outbound connections on port 587
@@ -283,6 +294,10 @@ openssl s_client -connect your.smtp.host:587 -starttls smtp
 ```bash
 php -i | grep "OpenSSL support"
 php -i | grep "TLS"
+# Test SSL connection
+openssl s_client -connect your.smtp.host:465
+# Test STARTTLS connection  
+openssl s_client -connect your.smtp.host:587 -starttls smtp
 ```
 
 ### Issue: Authentication failures
@@ -295,14 +310,14 @@ php -i | grep "TLS"
 ## Security Features
 
 ### Encryption
-- **TLS 1.2 or TLS 1.3 only**: Older, vulnerable versions disabled
-- **STARTTLS**: Upgrades connection to encrypted
+- **Port 465**: Implicit SSL/TLS from connection start
+- **Port 587**: STARTTLS - upgrades plain connection to TLS 1.2 or TLS 1.3
 - **Certificate validation**: Automatic via OpenSSL
 
 ### Authentication
 - **AUTH LOGIN**: Standard SMTP authentication
-- **Credentials**: API key used as password (secure)
-- **No plaintext**: All credentials encrypted over TLS
+- **Credentials**: Encoded in base64 during transmission
+- **Encrypted**: All authentication over SSL/TLS connection
 
 ### Error Handling
 - **No sensitive data in logs**: Passwords and full credentials not logged

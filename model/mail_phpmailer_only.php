@@ -216,10 +216,7 @@ function createPHPMailer() {
 }
 
 /**
- * Send email using BREVO REST API or PHPMailer SMTP fallback
- * 
- * This function sends emails via BREVO's REST API endpoint if credits are sufficient (> 50).
- * If credits are low (<= 50), it automatically falls back to PHPMailer SMTP.
+ * Send email using PHPMailer SMTP
  * 
  * @param string $subject The email subject line
  * @param string $body The email body content (HTML supported)
@@ -227,44 +224,6 @@ function createPHPMailer() {
  * @return string Returns "success" if email sent successfully, "error" otherwise
  */
 function sendMail($subject, $body, $to) {
-    // Build email content with template
-    $htmlContent = buildEmailTemplate($body);
-    
-    // Try BREVO API first if configured
-    $apiKey = getBrevoAPIKey();
-    
-    if ($apiKey && hasBrevoCredits($apiKey)) {
-        // Use BREVO REST API
-        error_log("Using BREVO REST API for email to $to");
-        
-        // Prepare API request payload
-        $payload = array(
-            'sender' => array(
-                'name' => 'Nivasity',
-                'email' => 'contact@nivasity.com'
-            ),
-            'to' => array(
-                array('email' => $to)
-            ),
-            'subject' => $subject,
-            'htmlContent' => $htmlContent
-        );
-        
-        // Send via BREVO API
-        $result = sendBrevoAPIRequest($apiKey, $payload);
-        
-        if ($result) {
-            return "success";
-        }
-        
-        // If BREVO API failed, fall through to PHPMailer
-        error_log("BREVO API failed, falling back to PHPMailer for email to $to");
-    } else {
-        // No BREVO credits or API key, use PHPMailer
-        error_log("BREVO credits low or unavailable, using PHPMailer SMTP for email to $to");
-    }
-    
-    // Fallback to PHPMailer SMTP
     $mail = createPHPMailer();
     
     if (!$mail) {
@@ -273,13 +232,16 @@ function sendMail($subject, $body, $to) {
     }
     
     try {
+        // Build email content with template
+        $htmlContent = buildEmailTemplate($body);
+        
         // Recipients
         $mail->addAddress($to);
         
         // Content
         $mail->Subject = $subject;
         $mail->Body = $htmlContent;
-        $mail->AltBody = strip_tags($body);
+        $mail->AltBody = strip_tags($body); // Plain text alternative
         
         // Send email
         $mail->send();
@@ -293,10 +255,9 @@ function sendMail($subject, $body, $to) {
 }
 
 /**
- * Send batch emails using BREVO REST API or PHPMailer SMTP fallback
+ * Send batch emails using PHPMailer SMTP
  * 
- * Sends multiple emails using BREVO API if credits are sufficient (> 50).
- * If credits are low (<= 50), falls back to PHPMailer SMTP for each email.
+ * Sends multiple emails individually using PHPMailer.
  * 
  * @param string $subject The email subject line
  * @param string $body The email body content (HTML supported)
@@ -314,80 +275,37 @@ function sendMailBatch($subject, $body, $recipients) {
     $successCount = 0;
     $failCount = 0;
     
-    // Try BREVO API first if configured
-    $apiKey = getBrevoAPIKey();
+    error_log("Sending batch email to " . count($recipients) . " recipients via PHPMailer");
     
-    if ($apiKey && hasBrevoCredits($apiKey)) {
-        // Use BREVO REST API for batch sending
-        error_log("Using BREVO REST API for batch email to " . count($recipients) . " recipients");
+    // Send to each recipient individually
+    foreach ($recipients as $recipient) {
+        $mail = createPHPMailer();
         
-        // Split recipients into batches of 95 (to stay under BREVO's 99-recipient limit)
-        $batches = array_chunk($recipients, 95);
-        
-        foreach ($batches as $batch) {
-            // Prepare BCC array
-            $bccArray = array();
-            foreach ($batch as $email) {
-                $bccArray[] = array('email' => $email);
-            }
-
-            // Prepare API request payload
-            $payload = array(
-                'sender' => array(
-                    'name' => 'Nivasity',
-                    'email' => 'contact@nivasity.com'
-                ),
-                'to' => array(
-                    array('email' => 'support@nivasity.com')
-                ),
-                'bcc' => $bccArray,
-                'subject' => $subject,
-                'htmlContent' => $htmlContent
-            );
-
-            // Send via BREVO API
-            $result = sendBrevoAPIRequest($apiKey, $payload);
-
-            if ($result) {
-                $successCount += count($batch);
-            } else {
-                $failCount += count($batch);
-            }
+        if (!$mail) {
+            $failCount++;
+            continue;
         }
-    } else {
-        // BREVO credits low or unavailable, use PHPMailer SMTP
-        error_log("BREVO credits low or unavailable, using PHPMailer SMTP for batch email to " . count($recipients) . " recipients");
         
-        // Send to each recipient individually using PHPMailer
-        foreach ($recipients as $recipient) {
-            $mail = createPHPMailer();
+        try {
+            // Recipients
+            $mail->addAddress($recipient);
             
-            if (!$mail) {
-                $failCount++;
-                continue;
-            }
+            // Content
+            $mail->Subject = $subject;
+            $mail->Body = $htmlContent;
+            $mail->AltBody = strip_tags($body);
             
-            try {
-                // Recipients
-                $mail->addAddress($recipient);
-                
-                // Content
-                $mail->Subject = $subject;
-                $mail->Body = $htmlContent;
-                $mail->AltBody = strip_tags($body);
-                
-                // Send email
-                $mail->send();
-                $successCount++;
-                
-            } catch (Exception $e) {
-                error_log("PHPMailer Error: Failed to send batch email to $recipient - " . $mail->ErrorInfo);
-                $failCount++;
-            }
+            // Send email
+            $mail->send();
+            $successCount++;
             
-            // Clear addresses for next iteration
-            $mail->clearAddresses();
+        } catch (Exception $e) {
+            error_log("PHPMailer Error: Failed to send batch email to $recipient - " . $mail->ErrorInfo);
+            $failCount++;
         }
+        
+        // Clear addresses for next iteration
+        $mail->clearAddresses();
     }
     
     error_log("Batch email complete: $successCount sent, $failCount failed");
