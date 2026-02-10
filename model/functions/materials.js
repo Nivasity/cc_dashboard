@@ -1,4 +1,7 @@
 $(document).ready(function () {
+  // Configuration constants
+  var SUCCESS_MESSAGE_DISPLAY_DURATION = 1500; // milliseconds - time to show success message before closing modal
+  
   var adminRole = window.adminRole || 0;
   var adminSchool = window.adminSchool || 0;
   var adminFaculty = window.adminFaculty || 0;
@@ -382,14 +385,12 @@ $(document).ready(function () {
           if (typeof showToast === 'function') {
             showToast('bg-success', res.message);
           }
-          // Success message display duration before closing modal and refreshing
-          var successMessageDelay = 1500; // milliseconds
           setTimeout(function () {
             $('#newMaterialModal').modal('hide');
             $form[0].reset();
             $alert.addClass('d-none');
             fetchMaterials();
-          }, successMessageDelay);
+          }, SUCCESS_MESSAGE_DISPLAY_DURATION);
         } else {
           $alert.removeClass('d-none alert-success').addClass('alert-danger').text(res.message || 'Failed to create material');
           if (typeof showToast === 'function') {

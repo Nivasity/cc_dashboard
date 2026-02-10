@@ -191,7 +191,7 @@ $materials_query = mysqli_query($conn, $material_sql);
                   <option value="">Select School</option>
                 <?php } 
                 while($school = mysqli_fetch_array($schools_query)) { ?>
-                  <option value="<?php echo $school['id']; ?>" <?php if($admin_role == 5) echo 'selected'; ?>><?php echo $school['name']; ?></option>
+                  <option value="<?php echo $school['id']; ?>" <?php if($admin_role == 5 && $school['id'] == $admin_school) echo 'selected'; ?>><?php echo $school['name']; ?></option>
                 <?php } ?>
               </select>
               <?php if($admin_role == 5) { ?>
@@ -241,6 +241,7 @@ $materials_query = mysqli_query($conn, $material_sql);
 
             <div class="mb-3">
               <label for="materialPrice" class="form-label">Price (₦) <span class="text-danger">*</span></label>
+              <!-- Client-side validation: min='0' - Backend also validates price is numeric and non-negative -->
               <input type="number" class="form-control" id="materialPrice" name="price" required min="0" step="1" placeholder="0">
             </div>
 

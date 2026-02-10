@@ -3,6 +3,11 @@ session_start();
 include('config.php');
 include('functions.php');
 
+// Configuration constants
+define('UNSELECTED_VALUE', 0);
+define('MAX_CODE_GENERATION_ATTEMPTS', 10);
+define('CODE_LENGTH', 8);
+
 $statusRes = 'failed';
 $messageRes = '';
 $faculties = $departments = $materials = null;
@@ -10,7 +15,7 @@ $restrict_faculty = false;
 
 $admin_role = $_SESSION['nivas_adminRole'] ?? null;
 $admin_id = $_SESSION['nivas_adminId'] ?? null;
-$admin_school = $admin_faculty = 0;
+$admin_school = $admin_faculty = UNSELECTED_VALUE;
 if ($admin_role == 5 && $admin_id) {
   $info = mysqli_fetch_assoc(mysqli_query($conn, "SELECT school, faculty FROM admins WHERE id = $admin_id"));
   $admin_school = $info['school'];
@@ -207,107 +212,113 @@ if(isset($_POST['toggle_id'])){
 
 // Handle new material creation
 if(isset($_POST['create_material'])){
-  $school = intval($_POST['school'] ?? 0);
-  $faculty = intval($_POST['faculty'] ?? 0);
-  $dept = intval($_POST['dept'] ?? 0);
+  $school = intval($_POST['school'] ?? UNSELECTED_VALUE);
+  $faculty = intval($_POST['faculty'] ?? UNSELECTED_VALUE);
+  $dept = intval($_POST['dept'] ?? UNSELECTED_VALUE);
   $title = trim($_POST['title'] ?? '');
   $course_code = trim($_POST['course_code'] ?? '');
-  $price = intval($_POST['price'] ?? 0);
+  $price_input = trim($_POST['price'] ?? '');
   $due_date = trim($_POST['due_date'] ?? '');
   
-  // Validate required fields
-  if(empty($title) || empty($course_code) || $price < 0 || empty($due_date)){
+  // Validate price is numeric
+  if(!is_numeric($price_input) || $price_input < 0){
     $statusRes = 'error';
-    $messageRes = 'All required fields must be filled and price cannot be negative';
-  } elseif($school == 0 || $faculty == 0){
-    $statusRes = 'error';
-    $messageRes = 'School and Faculty are required';
-  } else {
-    // Validate admin permissions
-    if($admin_role == 5){
-      if($school != $admin_school){
-        $statusRes = 'error';
-        $messageRes = 'Unauthorized: Invalid school';
-      } elseif($admin_faculty != 0 && $faculty != $admin_faculty){
-        $statusRes = 'error';
-        $messageRes = 'Unauthorized: Invalid faculty';
-      }
-    }
+    $messageRes = 'Price must be a valid non-negative number';
+  }
+  else {
+    $price = intval($price_input);
     
-    if(!isset($statusRes) || $statusRes !== 'error'){
-      // Validate and convert datetime
-      $due_date_timestamp = strtotime($due_date);
-      if($due_date_timestamp === false){
-        $statusRes = 'error';
-        $messageRes = 'Invalid due date format';
-      } elseif($due_date_timestamp < time()){
-        $statusRes = 'error';
-        $messageRes = 'Due date cannot be in the past';
-      } else {
-        $due_date_mysql = date('Y-m-d H:i:s', $due_date_timestamp);
-        
-        // Generate unique 8-character alphanumeric code using cryptographically secure random
-        // Using uppercase letters and numbers for better readability (avoid confusion like 0/O, 1/l)
-        $code = '';
-        $isUnique = false;
-        // Maximum attempts for code generation - 10 attempts provides high confidence
-        // of finding a unique code even with collision probability
-        $maxAttempts = 10;
-        $attempts = 0;
-        // Character set: A-Z and 0-9 (36 characters, 8 positions = 36^8 = ~2.8 trillion possibilities)
-        $characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        $charactersLength = strlen($characters);
-        
-        while(!$isUnique && $attempts < $maxAttempts){
-          $code = '';
-          // Generate 8 random characters using random_int for cryptographic security
-          for($i = 0; $i < 8; $i++){
-            $code .= $characters[random_int(0, $charactersLength - 1)];
-          }
-          
-          // Use prepared statement to check uniqueness
-          $check_stmt = mysqli_prepare($conn, "SELECT id FROM manuals WHERE code = ?");
-          mysqli_stmt_bind_param($check_stmt, 's', $code);
-          mysqli_stmt_execute($check_stmt);
-          mysqli_stmt_store_result($check_stmt);
-          if(mysqli_stmt_num_rows($check_stmt) == 0){
-            $isUnique = true;
-          }
-          mysqli_stmt_close($check_stmt);
-          $attempts++;
-        }
-        
-        if(!$isUnique){
+    // Validate required fields
+    if(empty($title) || empty($course_code) || empty($due_date)){
+      $statusRes = 'error';
+      $messageRes = 'All required fields must be filled';
+    } elseif($school == UNSELECTED_VALUE || $faculty == UNSELECTED_VALUE){
+      $statusRes = 'error';
+      $messageRes = 'School and Faculty are required';
+    } else {
+      // Validate admin permissions
+      if($admin_role == 5){
+        if($school != $admin_school){
           $statusRes = 'error';
-          $messageRes = 'Failed to generate unique code. Please try again.';
+          $messageRes = 'Unauthorized: Invalid school';
+        } elseif($admin_faculty != UNSELECTED_VALUE && $faculty != $admin_faculty){
+          $statusRes = 'error';
+          $messageRes = 'Unauthorized: Invalid faculty';
+        }
+      }
+      
+      if(!isset($statusRes) || $statusRes !== 'error'){
+        // Validate and convert datetime
+        $due_date_timestamp = strtotime($due_date);
+        if($due_date_timestamp === false){
+          $statusRes = 'error';
+          $messageRes = 'Invalid due date format';
+        } elseif($due_date_timestamp < time()){
+          $statusRes = 'error';
+          $messageRes = 'Due date cannot be in the past';
         } else {
-          // Insert new material using prepared statement
-          $insert_stmt = mysqli_prepare($conn, 
-            "INSERT INTO manuals (title, course_code, price, code, due_date, quantity, dept, faculty, user_id, admin_id, school_id, status, created_at) 
-             VALUES (?, ?, ?, ?, ?, 0, ?, ?, 0, ?, ?, 'open', NOW())");
+          $due_date_mysql = date('Y-m-d H:i:s', $due_date_timestamp);
           
-          mysqli_stmt_bind_param($insert_stmt, 'ssissiiii', 
-            $title, $course_code, $price, $code, $due_date_mysql, 
-            $dept, $faculty, $admin_id, $school);
+          // Generate unique alphanumeric code using cryptographically secure random
+          // Using uppercase letters and numbers for better readability (avoid confusion like 0/O, 1/l)
+          $code = '';
+          $isUnique = false;
+          $attempts = 0;
+          // Character set: A-Z and 0-9 (36 characters, CODE_LENGTH positions = 36^CODE_LENGTH possibilities)
+          $characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+          $charactersLength = strlen($characters);
           
-          if(mysqli_stmt_execute($insert_stmt)){
-            $material_id = mysqli_insert_id($conn);
-            $statusRes = 'success';
-            $messageRes = 'Course material created successfully with code: ' . $code;
-            
-            // Log the action
-            if(function_exists('log_audit_event')){
-              log_audit_event($conn, $admin_id, 'create', 'course_material', $material_id, [
-                'title' => $title,
-                'course_code' => $course_code,
-                'code' => $code
-              ]);
+          while(!$isUnique && $attempts < MAX_CODE_GENERATION_ATTEMPTS){
+            $code = '';
+            // Generate random characters using random_int for cryptographic security
+            for($i = 0; $i < CODE_LENGTH; $i++){
+              $code .= $characters[random_int(0, $charactersLength - 1)];
             }
-          } else {
-            $statusRes = 'error';
-            $messageRes = 'Failed to create material. Please try again.';
+            
+            // Use prepared statement to check uniqueness
+            $check_stmt = mysqli_prepare($conn, "SELECT id FROM manuals WHERE code = ?");
+            mysqli_stmt_bind_param($check_stmt, 's', $code);
+            mysqli_stmt_execute($check_stmt);
+            mysqli_stmt_store_result($check_stmt);
+            if(mysqli_stmt_num_rows($check_stmt) == 0){
+              $isUnique = true;
+            }
+            mysqli_stmt_close($check_stmt);
+            $attempts++;
           }
-          mysqli_stmt_close($insert_stmt);
+          
+          if(!$isUnique){
+            $statusRes = 'error';
+            $messageRes = 'Failed to generate unique code. Please try again.';
+          } else {
+            // Insert new material using prepared statement
+            $insert_stmt = mysqli_prepare($conn, 
+              "INSERT INTO manuals (title, course_code, price, code, due_date, quantity, dept, faculty, user_id, admin_id, school_id, status, created_at) 
+               VALUES (?, ?, ?, ?, ?, 0, ?, ?, 0, ?, ?, 'open', NOW())");
+            
+            mysqli_stmt_bind_param($insert_stmt, 'ssissiiii', 
+              $title, $course_code, $price, $code, $due_date_mysql, 
+              $dept, $faculty, $admin_id, $school);
+            
+            if(mysqli_stmt_execute($insert_stmt)){
+              $material_id = mysqli_insert_id($conn);
+              $statusRes = 'success';
+              $messageRes = 'Course material created successfully with code: ' . $code;
+              
+              // Log the action
+              if(function_exists('log_audit_event')){
+                log_audit_event($conn, $admin_id, 'create', 'course_material', $material_id, [
+                  'title' => $title,
+                  'course_code' => $course_code,
+                  'code' => $code
+                ]);
+              }
+            } else {
+              $statusRes = 'error';
+              $messageRes = 'Failed to create material. Please try again.';
+            }
+            mysqli_stmt_close($insert_stmt);
+          }
         }
       }
     }
