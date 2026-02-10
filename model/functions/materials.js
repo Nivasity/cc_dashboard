@@ -102,11 +102,7 @@ $(document).ready(function () {
         // Check for error response
         if (res.status === 'error') {
           console.error('Backend error:', res.message);
-          Swal.fire({
-            icon: 'error',
-            title: 'Error Loading Materials',
-            text: res.message || 'Failed to load materials'
-          });
+          showToast('danger', 'Error Loading Materials', res.message || 'Failed to load materials. Please check console for details.');
           hideTableLoading();
           return;
         }
