@@ -4,3 +4,5 @@
 # .gitignore
 /assets/images/supports/
 test_mail_fallback.php
+vendor/
+composer.lock
