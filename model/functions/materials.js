@@ -316,6 +316,10 @@ $(document).ready(function () {
         facultyId = adminFaculty;
       }
     }
+    // Don't fetch if schoolId is not valid
+    if (!schoolId || schoolId == 0) {
+      return;
+    }
     $.ajax({
       url: 'model/materials.php',
       method: 'GET',

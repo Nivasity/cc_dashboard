@@ -246,14 +246,21 @@ if(isset($_POST['create_material'])){
       } else {
         $due_date_mysql = date('Y-m-d H:i:s', $due_date_timestamp);
         
-        // Generate unique 8-character alphanumeric code
+        // Generate unique 8-character alphanumeric code using cryptographically secure random
         $code = '';
         $isUnique = false;
         $maxAttempts = 10;
         $attempts = 0;
+        $characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        $charactersLength = strlen($characters);
         
         while(!$isUnique && $attempts < $maxAttempts){
-          $code = substr(str_shuffle('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'), 0, 8);
+          $code = '';
+          // Generate 8 random characters using random_int for cryptographic security
+          for($i = 0; $i < 8; $i++){
+            $code .= $characters[random_int(0, $charactersLength - 1)];
+          }
+          
           // Use prepared statement to check uniqueness
           $check_stmt = mysqli_prepare($conn, "SELECT id FROM manuals WHERE code = ?");
           mysqli_stmt_bind_param($check_stmt, 's', $code);
