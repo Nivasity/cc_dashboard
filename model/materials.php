@@ -321,6 +321,19 @@ if(isset($_POST['create_material'])){
                   'code' => $code
                 ]);
               }
+              
+              // Send notification to students
+              require_once __DIR__ . '/notification_helpers.php';
+              notifyCourseMaterialCreated(
+                $conn,
+                $admin_id,
+                $material_id,
+                $title,
+                $course_code,
+                $dept,
+                $faculty,
+                $school
+              );
             } else {
               $statusRes = 'error';
               $messageRes = 'Failed to create material. Please try again.';

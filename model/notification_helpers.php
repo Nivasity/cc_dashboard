@@ -188,6 +188,73 @@ function notifyStudentProfileUpdate($conn, $admin_id, $user_id, $update_type = '
 }
 
 /**
+ * Notify students when a new course material is posted/created
+ * 
+ * @param mysqli $conn Database connection
+ * @param int $admin_id Admin who created the material
+ * @param int $manual_id Manual/material ID
+ * @param string $title Material title
+ * @param string $course_code Course code
+ * @param int $dept_id Department ID (0 for all departments in faculty)
+ * @param int $faculty_id Faculty ID
+ * @param int $school_id School ID
+ */
+function notifyCourseMaterialCreated($conn, $admin_id, $manual_id, $title, $course_code, $dept_id, $faculty_id, $school_id) {
+  // Get students based on department setting
+  $student_ids = array();
+  
+  if ($dept_id == 0) {
+    // Material is for all departments in the faculty
+    // Get all students in the same faculty and school
+    $students_stmt = $conn->prepare('
+      SELECT DISTINCT u.id 
+      FROM users u 
+      INNER JOIN depts d ON u.dept = d.id 
+      WHERE d.faculty_id = ? 
+        AND u.school = ? 
+        AND u.status = "active" 
+        AND u.role = "student"
+    ');
+    $students_stmt->bind_param('ii', $faculty_id, $school_id);
+  } else {
+    // Material is for a specific department
+    // Get all students in the same department and school
+    $students_stmt = $conn->prepare('
+      SELECT id 
+      FROM users 
+      WHERE dept = ? 
+        AND school = ? 
+        AND status = "active" 
+        AND role = "student"
+    ');
+    $students_stmt->bind_param('ii', $dept_id, $school_id);
+  }
+  
+  $students_stmt->execute();
+  $students_result = $students_stmt->get_result();
+  
+  while ($row = $students_result->fetch_assoc()) {
+    $student_ids[] = (int)$row['id'];
+  }
+  $students_stmt->close();
+  
+  if (empty($student_ids)) {
+    return array('success' => false, 'message' => 'No students found to notify');
+  }
+  
+  $notif_title = 'New Course Material Available';
+  $notif_body = "A new course material \"" . $title . "\" (" . $course_code . ") is now available for purchase.";
+  
+  return sendNotification($conn, $admin_id, $student_ids, $notif_title, $notif_body, 'material', array(
+    'action' => 'material_details',
+    'manual_id' => $manual_id,
+    'title' => $title,
+    'course_code' => $course_code,
+    'status' => 'open'
+  ));
+}
+
+/**
  * Notify students when course material for their department is closed
  * 
  * @param mysqli $conn Database connection
