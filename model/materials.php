@@ -178,7 +178,7 @@ if(isset($_GET['fetch'])){
     $start_date = $_GET['start_date'] ?? '';
     $end_date = $_GET['end_date'] ?? '';
     
-    $material_sql = "SELECT m.id, m.code, m.title, m.course_code, m.price, m.due_date, m.level, m.user_id, m.admin_id, m.school_id, m.faculty, m.host_faculty, m.dept, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name, d.name AS dept_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
+    $material_sql = "SELECT m.id, m.code, m.title, m.course_code, m.price, m.due_date, m.level, m.user_id, m.admin_id, m.school_id, m.faculty, m.host_faculty, m.dept, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, COUNT(DISTINCT b.id) AS purchase_count, CASE WHEN m.due_date < NOW() THEN 'closed' ELSE m.status END AS status, m.status AS db_status, CASE WHEN m.due_date < NOW() THEN 1 ELSE 0 END AS due_passed, u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name, d.name AS dept_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
     if($admin_role == 5){
       $material_sql .= " AND m.school_id = $admin_school";
       if($admin_faculty != 0){
@@ -220,6 +220,7 @@ if(isset($_GET['fetch'])){
         'price' => $row['price'],
         'revenue' => $row['revenue'],
         'qty_sold' => $row['qty_sold'],
+        'purchase_count' => $row['purchase_count'] ?? 0,
         'status' => $row['status'],
         'db_status' => $row['db_status'],
         'due_date' => date('M d, Y', strtotime($row['due_date'])),
@@ -238,6 +239,68 @@ if(isset($_GET['fetch'])){
       );
     }
     $statusRes = 'success';
+  }
+  
+  // Fetch human-readable names for edit mode (school, faculties, dept, level)
+  if($fetch == 'material_names'){
+    $school_id = intval($_GET['school_id'] ?? 0);
+    $host_faculty_id = intval($_GET['host_faculty_id'] ?? 0);
+    $faculty_id = intval($_GET['faculty_id'] ?? 0);
+    $dept_id = intval($_GET['dept_id'] ?? 0);
+    $level = intval($_GET['level'] ?? 0);
+    
+    $school_name = 'Unknown School';
+    $host_faculty_name = 'Unknown Faculty';
+    $faculty_name = 'Unknown Faculty';
+    $dept_name = 'All Departments';
+    $level_text = 'All Levels';
+    
+    // Fetch school name
+    if ($school_id > 0) {
+      $school_res = mysqli_query($conn, "SELECT name FROM schools WHERE id = $school_id");
+      if ($school_row = mysqli_fetch_assoc($school_res)) {
+        $school_name = $school_row['name'];
+      }
+    }
+    
+    // Fetch host faculty name
+    if ($host_faculty_id > 0) {
+      $fac_res = mysqli_query($conn, "SELECT name FROM faculties WHERE id = $host_faculty_id");
+      if ($fac_row = mysqli_fetch_assoc($fac_res)) {
+        $host_faculty_name = $fac_row['name'];
+      }
+    }
+    
+    // Fetch faculty name (who can buy)
+    if ($faculty_id > 0) {
+      $fac_res = mysqli_query($conn, "SELECT name FROM faculties WHERE id = $faculty_id");
+      if ($fac_row = mysqli_fetch_assoc($fac_res)) {
+        $faculty_name = $fac_row['name'];
+      }
+    }
+    
+    // Fetch department name
+    if ($dept_id > 0) {
+      $dept_res = mysqli_query($conn, "SELECT name FROM depts WHERE id = $dept_id");
+      if ($dept_row = mysqli_fetch_assoc($dept_res)) {
+        $dept_name = $dept_row['name'];
+      }
+    }
+    
+    // Format level text
+    if ($level > 0) {
+      $level_text = $level . ' Level';
+    }
+    
+    echo json_encode([
+      'status' => 'success',
+      'school_name' => $school_name,
+      'host_faculty_name' => $host_faculty_name,
+      'faculty_name' => $faculty_name,
+      'dept_name' => $dept_name,
+      'level_text' => $level_text
+    ]);
+    exit;
   }
 }
 
@@ -540,6 +603,65 @@ if(isset($_POST['update_material'])){
           }
         }
       }
+    }
+  }
+}
+
+// Handle material deletion
+if(isset($_POST['delete_material'])){
+  $material_id = intval($_POST['material_id'] ?? 0);
+  
+  // Validate material ID
+  if($material_id <= 0){
+    $statusRes = 'error';
+    $messageRes = 'Invalid material ID';
+  } else {
+    // Verify the material exists, was created by this admin, is closed, and has no purchases
+    $check_stmt = mysqli_prepare($conn, 
+      "SELECT m.admin_id, m.status, m.title, m.course_code, COUNT(DISTINCT b.id) AS purchase_count 
+       FROM manuals m 
+       LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status = 'successful' 
+       WHERE m.id = ? 
+       GROUP BY m.id");
+    mysqli_stmt_bind_param($check_stmt, 'i', $material_id);
+    mysqli_stmt_execute($check_stmt);
+    $result = mysqli_stmt_get_result($check_stmt);
+    $material = mysqli_fetch_assoc($result);
+    mysqli_stmt_close($check_stmt);
+    
+    if(!$material){
+      $statusRes = 'error';
+      $messageRes = 'Material not found';
+    } elseif($material['admin_id'] != $admin_id){
+      $statusRes = 'error';
+      $messageRes = 'Unauthorized: You can only delete materials you created';
+    } elseif($material['status'] !== 'closed'){
+      $statusRes = 'error';
+      $messageRes = 'Only closed materials can be deleted. Please close the material first.';
+    } elseif($material['purchase_count'] > 0){
+      $statusRes = 'error';
+      $messageRes = 'Cannot delete material with existing purchases (' . $material['purchase_count'] . ' purchase(s) found)';
+    } else {
+      // Log the action before deletion (for audit trail)
+      if(function_exists('log_audit_event')){
+        log_audit_event($conn, $admin_id, 'delete', 'course_material', $material_id, [
+          'title' => $material['title'],
+          'course_code' => $material['course_code']
+        ]);
+      }
+      
+      // Delete the material
+      $delete_stmt = mysqli_prepare($conn, "DELETE FROM manuals WHERE id = ?");
+      mysqli_stmt_bind_param($delete_stmt, 'i', $material_id);
+      
+      if(mysqli_stmt_execute($delete_stmt)){
+        $statusRes = 'success';
+        $messageRes = 'Course material deleted successfully';
+      } else {
+        $statusRes = 'error';
+        $messageRes = 'Failed to delete material. Please try again.';
+      }
+      mysqli_stmt_close($delete_stmt);
     }
   }
 }

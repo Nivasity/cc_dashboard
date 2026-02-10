@@ -110,6 +110,11 @@ $(document).ready(function () {
               actionHtml += '<a href="javascript:void(0);" class="dropdown-item editMaterial" data-material=\'' + JSON.stringify(mat) + '\'><i class="bx bx-edit me-1"></i> Edit</a>';
             }
 
+            // Add Delete option for closed admin-created materials with no purchases
+            if (mat.is_admin && mat.db_status === 'closed' && mat.purchase_count == 0) {
+              actionHtml += '<a href="javascript:void(0);" class="dropdown-item text-danger deleteMaterial" data-id="' + mat.id + '" data-title="' + mat.title + '"><i class="bx bx-trash me-1"></i> Delete</a>';
+            }
+
             // Only include toggle when material is open and not due-passed
             if (!mat.due_passed && mat.db_status === 'open') {
               actionHtml += '<a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="' + mat.id + '" data-status="' + mat.db_status + '"><i class="bx bx-lock me-1"></i> Close Material</a>';
@@ -380,6 +385,89 @@ $(document).ready(function () {
     }
   });
 
+  // Handle Delete Material click with double confirmation
+  $(document).on('click', '.deleteMaterial', function (e) {
+    e.preventDefault();
+    var materialId = $(this).data('id');
+    var materialTitle = $(this).data('title');
+    
+    if (!materialId) {
+      if (typeof showToast === 'function') {
+        showToast('bg-danger', 'Invalid material selected.');
+      }
+      return;
+    }
+    
+    // First confirmation using SweetAlert if available
+    if (typeof Swal !== 'undefined') {
+      Swal.fire({
+        title: 'Are you sure?',
+        html: 'You are about to delete this course material:<br><strong>' + materialTitle + '</strong><br><br>This action cannot be undone!',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Yes, delete it!',
+        cancelButtonText: 'Cancel'
+      }).then((result) => {
+        if (result.isConfirmed) {
+          // Second confirmation using native browser confirm
+          if (confirm('Are you ABSOLUTELY sure you want to delete "' + materialTitle + '"? This cannot be undone.')) {
+            deleteMaterial(materialId);
+          }
+        }
+      });
+    } else {
+      // Fallback to native confirm dialogs if SweetAlert not available
+      if (confirm('Are you sure you want to delete "' + materialTitle + '"? This action cannot be undone!')) {
+        if (confirm('Are you ABSOLUTELY sure? This is your final confirmation.')) {
+          deleteMaterial(materialId);
+        }
+      }
+    }
+  });
+
+  // Function to delete material after confirmations
+  function deleteMaterial(materialId) {
+    $.ajax({
+      url: 'model/materials.php',
+      method: 'POST',
+      data: { delete_material: 1, material_id: materialId },
+      dataType: 'json',
+      success: function (res) {
+        if (res.status === 'success') {
+          if (typeof showToast === 'function') {
+            showToast('bg-success', res.message);
+          }
+          // Show success message with SweetAlert if available
+          if (typeof Swal !== 'undefined') {
+            Swal.fire('Deleted!', res.message, 'success');
+          }
+          fetchMaterials();
+        } else {
+          if (typeof showToast === 'function') {
+            showToast('bg-danger', res.message || 'Failed to delete material');
+          }
+          if (typeof Swal !== 'undefined') {
+            Swal.fire('Error', res.message || 'Failed to delete material', 'error');
+          } else {
+            alert('Error: ' + (res.message || 'Failed to delete material'));
+          }
+        }
+      },
+      error: function () {
+        if (typeof showToast === 'function') {
+          showToast('bg-danger', 'Network error. Please try again.');
+        }
+        if (typeof Swal !== 'undefined') {
+          Swal.fire('Error', 'Network error. Please try again.', 'error');
+        } else {
+          alert('Network error. Please try again.');
+        }
+      }
+    });
+  }
+
   // Function to open modal in edit mode
   function openEditModal(material) {
     // Change modal title and button text
@@ -389,7 +477,7 @@ $(document).ready(function () {
     // Set material ID in hidden field
     $('#materialId').val(material.id);
     
-    // Populate form fields
+    // Populate EDITABLE fields (these remain interactive)
     $('#materialTitle').val(material.title);
     $('#materialCourseCode').val(material.course_code);
     $('#materialPrice').val(material.price);
@@ -399,30 +487,49 @@ $(document).ready(function () {
       $('#materialDueDate').val(material.due_date_raw);
     }
     
-    // Set school, faculty, department, level (if available)
-    if (material.school_id) {
-      $('#materialSchool').val(material.school_id).trigger('change');
-    }
+    // For NON-EDITABLE fields, we need to:
+    // 1. Fetch human-readable names (school, faculty, dept names)
+    // 2. Replace select2 dropdowns with disabled text inputs showing the values
+    // 3. Store the IDs in hidden attributes or hidden fields for backend submission
     
-    // We need to wait for cascading dropdowns to populate
-    setTimeout(function() {
-      if (material.host_faculty) {
-        $('#materialHostFaculty').val(material.host_faculty).trigger('change');
+    // Fetch names for non-editable fields and populate them as disabled inputs
+    $.ajax({
+      url: 'model/materials.php',
+      method: 'GET',
+      data: { 
+        fetch: 'material_names', 
+        school_id: material.school_id,
+        host_faculty_id: material.host_faculty,
+        faculty_id: material.faculty_id,
+        dept_id: material.dept_id || 0,
+        level: material.level || ''
+      },
+      dataType: 'json',
+      success: function (res) {
+        if (res.status === 'success') {
+          // Destroy select2 instances for fields we're converting to disabled inputs
+          $('#materialSchool').select2('destroy');
+          $('#materialHostFaculty').select2('destroy');
+          $('#materialFaculty').select2('destroy');
+          $('#materialDept').select2('destroy');
+          $('#materialLevel').select2('destroy');
+          
+          // Replace with disabled text inputs showing names
+          $('#materialSchool').replaceWith('<input type="text" class="form-control" id="materialSchool" value="' + res.school_name + '" disabled>');
+          $('#materialHostFaculty').replaceWith('<input type="text" class="form-control" id="materialHostFaculty" value="' + res.host_faculty_name + '" disabled>');
+          $('#materialFaculty').replaceWith('<input type="text" class="form-control" id="materialFaculty" value="' + res.faculty_name + '" disabled>');
+          $('#materialDept').replaceWith('<input type="text" class="form-control" id="materialDept" value="' + res.dept_name + '" disabled>');
+          $('#materialLevel').replaceWith('<input type="text" class="form-control" id="materialLevel" value="' + res.level_text + '" disabled>');
+          
+          // Store IDs in hidden fields for backend submission
+          $('#newMaterialForm').append('<input type="hidden" name="school" value="' + material.school_id + '">');
+          $('#newMaterialForm').append('<input type="hidden" name="host_faculty" value="' + material.host_faculty + '">');
+          $('#newMaterialForm').append('<input type="hidden" name="faculty" value="' + material.faculty_id + '">');
+          $('#newMaterialForm').append('<input type="hidden" name="dept" value="' + (material.dept_id || 0) + '">');
+          $('#newMaterialForm').append('<input type="hidden" name="level" value="' + (material.level || '') + '">');
+        }
       }
-      if (material.faculty_id) {
-        $('#materialFaculty').val(material.faculty_id).trigger('change');
-      }
-      if (material.dept_id) {
-        $('#materialDept').val(material.dept_id).trigger('change');
-      } else {
-        $('#materialDept').val('0').trigger('change');
-      }
-      if (material.level) {
-        $('#materialLevel').val(material.level).trigger('change');
-      } else {
-        $('#materialLevel').val('').trigger('change');
-      }
-    }, 500);
+    });
     
     // Show the modal
     $('#newMaterialModal').modal('show');
@@ -614,6 +721,23 @@ $(document).ready(function () {
     $('#materialModalTitle').text('Add New Course Material');
     $('#newMaterialSubmit').text('Create Material');
     $('#materialId').val('');
+    
+    // Remove any hidden fields added during edit mode
+    $('#newMaterialForm').find('input[type="hidden"][name="school"], input[type="hidden"][name="host_faculty"], input[type="hidden"][name="faculty"], input[type="hidden"][name="dept"], input[type="hidden"][name="level"]').remove();
+    
+    // If fields were replaced with disabled inputs during edit, restore them to select2 dropdowns
+    // Check if materialSchool is currently a text input (disabled)
+    if ($('#materialSchool').is('input[type="text"][disabled]')) {
+      // Restore original select dropdowns for school, faculty, dept, level
+      $('#materialSchool').replaceWith('<select class="form-select" id="materialSchool" name="school" required></select>');
+      $('#materialHostFaculty').replaceWith('<select class="form-select" id="materialHostFaculty" name="host_faculty" required></select>');
+      $('#materialFaculty').replaceWith('<select class="form-select" id="materialFaculty" name="faculty" required></select>');
+      $('#materialDept').replaceWith('<select class="form-select" id="materialDept" name="dept" required></select>');
+      $('#materialLevel').replaceWith('<select class="form-select" id="materialLevel" name="level"></select>');
+      
+      // Re-initialize select2 on restored dropdowns
+      $('#materialSchool, #materialHostFaculty, #materialFaculty, #materialDept, #materialLevel').select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal') });
+    }
     
     // For restricted admins (role 5), restore their default values
     if (adminRole == 5) {
