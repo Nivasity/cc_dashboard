@@ -94,11 +94,32 @@ $(document).ready(function () {
 
             actionHtml += '<a href="javascript:void(0);" class="dropdown-item downloadMaterialTransactions" data-id="' + mat.id + '" data-code="' + (mat.code || '') + '"><i class="bx bx-download me-1"></i> Download transactions list</a>' +
               '</div></div>';
-            var postedHtml = '<span class="text-uppercase text-primary">' + (mat.posted_by || '') + '</span>';
-            if (mat.matric && String(mat.matric).trim()) { postedHtml += '<br>Matric no: ' + mat.matric; }
+            
+            // Posted By column with admin name and role badge
+            var postedHtml = '<span class="text-uppercase text-primary">' + (mat.posted_by || 'Unknown') + '</span>';
+            if (mat.admin_role && String(mat.admin_role).trim()) { 
+              postedHtml += '<br><span class="badge bg-label-secondary">' + mat.admin_role + '</span>'; 
+            }
+            
+            // Title column with faculty, dept, and level info
+            var titleHtml = '<strong>' + mat.title + ' (' + mat.course_code + ')</strong>';
+            var metaInfo = [];
+            if (mat.faculty_name && String(mat.faculty_name).trim()) {
+              metaInfo.push('<small class="text-muted">Faculty: ' + mat.faculty_name + '</small>');
+            }
+            if (mat.dept_name && String(mat.dept_name).trim()) {
+              metaInfo.push('<small class="text-muted">Dept: ' + mat.dept_name + '</small>');
+            }
+            if (mat.level) {
+              metaInfo.push('<small class="text-muted">Level: <span class="badge bg-label-info">' + mat.level + '</span></small>');
+            }
+            if (metaInfo.length > 0) {
+              titleHtml += '<br>' + metaInfo.join(' | ');
+            }
+            
             var row = '<tr>' +
               '<td class="text-uppercase">' + (mat.code || '') + '</td>' +
-              '<td class="text-uppercase"><strong>' + mat.title + ' (' + mat.course_code + ')</strong></td>' +
+              '<td class="text-uppercase">' + titleHtml + '</td>' +
               '<td>' + postedHtml + '</td>' +
               '<td>₦ ' + Number(mat.price).toLocaleString() + '</td>' +
               '<td>₦ ' + Number(mat.revenue).toLocaleString() + '</td>' +
