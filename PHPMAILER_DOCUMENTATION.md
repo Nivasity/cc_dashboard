@@ -1,8 +1,318 @@
-# PHPMailer Email System Documentation
+# Email System Documentation - BREVO with PHPMailer Fallback
 
 ## Overview
 
-The Command Center Dashboard uses **PHPMailer** for all email sending operations. This provides a reliable, standards-compliant SMTP email solution without dependencies on third-party email APIs.
+The Command Center Dashboard uses a **hybrid email system**:
+- **Primary**: BREVO REST API (when credits available)
+- **Fallback**: PHPMailer SMTP (when BREVO credits low or unavailable)
+
+This provides the best of both worlds: efficiency of BREVO API with reliability of direct SMTP.
+
+## How It Works
+
+### Email Flow
+
+```
+Application calls sendMail() or sendMailBatch()
+    ↓
+Check if BREVO API key configured
+    ↓
+    YES → Check BREVO credits
+        ↓
+        Credits > 50?
+            ↓
+            YES → Send via BREVO REST API ✅
+            ↓
+            NO → Fall through to PHPMailer
+    ↓
+    NO or Failed → Use PHPMailer SMTP ✅
+        ↓
+    Email Sent Successfully
+```
+
+### Why This Approach?
+
+**BREVO API (Primary)**:
+- ✅ Fast REST API calls
+- ✅ Batch sending (up to 95 recipients per call)
+- ✅ Efficient for high-volume sending
+- ✅ No SMTP connection overhead
+
+**PHPMailer SMTP (Fallback)**:
+- ✅ Works when BREVO credits depleted
+- ✅ Direct SMTP - no third-party dependency
+- ✅ Reliable, battle-tested library
+- ✅ Handles SMTP protocol correctly (unlike old socket code)
+- ✅ Automatic SSL/TLS support
+
+## Configuration
+
+### Required Files
+
+1. **config/brevo.php** (Optional - for BREVO API):
+```php
+<?php
+define('BREVO_API_KEY', 'xkeysib-your-actual-api-key-here');
+?>
+```
+
+2. **config/mail.php** (Required - for PHPMailer fallback):
+```php
+<?php
+require 'PHPMailer-master/src/PHPMailer.php';
+require 'PHPMailer-master/src/SMTP.php';
+require 'PHPMailer-master/src/Exception.php';
+
+define('SMTP_HOST', 'mail.nivasity.com');
+define('SMTP_USERNAME', 'admin@nivasity.com');
+define('SMTP_PASSWORD', 'your_password');
+define('SMTP_PORT', 465);
+
+// Optional
+define('SMTP_FROM_EMAIL', 'contact@nivasity.com');
+define('SMTP_FROM_NAME', 'Nivasity');
+?>
+```
+
+### Setup Priority
+
+1. **Minimum setup** (PHPMailer only):
+   - Create `config/mail.php` with SMTP credentials
+   - All emails will use PHPMailer SMTP
+   
+2. **Recommended setup** (Hybrid):
+   - Create `config/brevo.php` with API key
+   - Create `config/mail.php` with SMTP credentials
+   - Uses BREVO when credits available, PHPMailer as fallback
+
+## API Usage
+
+The API is the same regardless of which method sends the email:
+
+### Single Email
+
+```php
+require_once('model/mail.php');
+
+$result = sendMail(
+    'Email Subject',
+    '<p>Email body (HTML supported)</p>',
+    'recipient@example.com'
+);
+
+// Returns "success" or "error"
+```
+
+### Batch Email
+
+```php
+require_once('model/mail.php');
+
+$recipients = [
+    'user1@example.com',
+    'user2@example.com',
+    'user3@example.com'
+];
+
+$result = sendMailBatch(
+    'Email Subject',
+    '<p>Email body (HTML supported)</p>',
+    $recipients
+);
+
+// Returns: ['success_count' => 3, 'fail_count' => 0]
+```
+
+## Decision Logic
+
+### sendMail() Decision Flow
+
+```php
+if (BREVO_API_KEY configured AND BREVO credits > 50) {
+    // Send via BREVO REST API
+    $result = sendBrevoAPIRequest(...);
+    if ($result) return "success";
+    // If BREVO fails, fall through to PHPMailer
+}
+
+// Use PHPMailer SMTP
+$mail = createPHPMailer();
+$mail->send();
+return "success";
+```
+
+### sendMailBatch() Decision Flow
+
+```php
+if (BREVO_API_KEY configured AND BREVO credits > 50) {
+    // Send via BREVO REST API in batches of 95
+    foreach (array_chunk($recipients, 95) as $batch) {
+        sendBrevoAPIRequest(...);
+    }
+} else {
+    // Send individually via PHPMailer
+    foreach ($recipients as $recipient) {
+        $mail = createPHPMailer();
+        $mail->send();
+    }
+}
+```
+
+## Error Handling
+
+### Old Socket SMTP Issue (FIXED)
+
+**Old Error:**
+```
+SMTP Error: Expected 250, got 220
+```
+
+**Cause:** Buggy socket-based SMTP code in fallback
+
+**Fix:** Now uses PHPMailer which handles SMTP protocol correctly ✅
+
+### Current Error Handling
+
+The system gracefully handles all failures:
+
+1. **BREVO API fails** → Falls back to PHPMailer
+2. **PHPMailer SMTP fails** → Returns "error" with log entry
+3. **No config** → Returns "error" with log entry
+
+All errors are logged to PHP error log for debugging.
+
+## Testing
+
+### Test Configuration
+
+```bash
+php test_phpmailer.php
+```
+
+This tests:
+- SMTP configuration loading
+- PHPMailer instance creation
+- Port detection (SSL vs STARTTLS)
+
+### Test Actual Sending
+
+Create a test script:
+
+```php
+<?php
+require_once('model/mail.php');
+
+// This will automatically use BREVO or PHPMailer
+$result = sendMail(
+    'Test Email',
+    '<p>This is a test email.</p>',
+    'your-email@example.com'
+);
+
+echo $result === "success" ? "✓ Email sent\n" : "✗ Email failed\n";
+
+// Check logs to see which method was used:
+// "Using BREVO REST API" or "using PHPMailer SMTP"
+?>
+```
+
+## Monitoring
+
+### Check Which Method Is Being Used
+
+Monitor your PHP error logs:
+
+```bash
+tail -f /var/log/php-errors.log | grep -E "BREVO|PHPMailer"
+```
+
+**BREVO API used:**
+```
+[timestamp] BREVO subscription credits: 500
+[timestamp] Using BREVO REST API for email to user@example.com
+```
+
+**PHPMailer fallback used:**
+```
+[timestamp] BREVO subscription credits: 0
+[timestamp] BREVO credits low or unavailable, using PHPMailer SMTP for email to user@example.com
+[timestamp] Email sent successfully via PHPMailer to user@example.com
+```
+
+## Migration Notes
+
+### From Old Socket SMTP
+
+If migrating from the old socket-based SMTP fallback:
+
+**Changes:**
+- ✅ Removed buggy socket SMTP code
+- ✅ Added PHPMailer as fallback
+- ✅ Fixed "Expected 250, got 220" error
+- ✅ Better SSL/TLS support
+
+**No code changes needed** - `sendMail()` and `sendMailBatch()` API unchanged!
+
+### From BREVO-Only
+
+If you were using BREVO API only:
+
+**What's new:**
+- ✅ Automatic fallback when credits depleted
+- ✅ No downtime when BREVO unavailable
+- ✅ Just add `config/mail.php` for fallback
+
+## Troubleshooting
+
+### BREVO API Issues
+
+**"BREVO API key not configured"**
+- Create `config/brevo.php` with BREVO_API_KEY
+- Or rely on PHPMailer SMTP only
+
+**"Insufficient BREVO credits"**
+- Top up BREVO account
+- Or let it fall back to PHPMailer automatically
+
+### PHPMailer Issues
+
+**"Cannot create PHPMailer: SMTP configuration not available"**
+- Create `config/mail.php` with SMTP credentials
+- Verify all required constants defined
+
+**"PHPMailer Error: SMTP connect() failed"**
+- Check SMTP_HOST, SMTP_PORT
+- Verify firewall allows outbound SMTP
+- Test connection: `openssl s_client -connect mail.nivasity.com:465`
+
+## Best Practices
+
+1. **Configure both methods** for redundancy
+2. **Monitor BREVO credits** to avoid unexpected fallback
+3. **Test fallback regularly** to ensure SMTP credentials valid
+4. **Keep PHPMailer library updated** in PHPMailer-master directory
+5. **Use SSL/TLS** (port 465 or 587) never plain port 25
+
+## Performance
+
+### BREVO API (When Available)
+- Single email: ~100-200ms
+- Batch 95 emails: ~200-300ms (BCC method)
+- Very efficient for bulk sending
+
+### PHPMailer SMTP (Fallback)
+- Single email: ~500-1000ms (SMTP connect + send)
+- Batch emails: ~500ms per email (individual sends)
+- Slower but reliable
+
+**Recommendation:** Keep BREVO credits topped up for best performance.
+
+---
+
+**System**: Hybrid BREVO + PHPMailer
+**Status**: Production Ready ✅
+**Last Updated**: February 2026
+
 
 ## Architecture
 
