@@ -3,7 +3,7 @@
 // This file contains email sending functions using BREVO (formerly Sendinblue) REST API
 // BREVO is the email service provider for all transactional and bulk emails
 // Configuration: API key is loaded from ../config/brevo.php
-// SMTP Fallback: Uses SMTP credentials from ../config/db.php when BREVO credits are low
+// SMTP Fallback: Uses SMTP credentials from ../config/smtp.php when BREVO credits are low
 
 // Include Brevo API configuration
 if (file_exists('../config/brevo.php')) {
@@ -161,7 +161,7 @@ function getBrevoSMTPConfig($apiKey) {
  * Send email using BREVO REST API or SMTP fallback
  * 
  * This function sends emails via BREVO's REST API endpoint if credits are sufficient (> 50).
- * If credits are low (<= 50), it automatically falls back to normal SMTP using credentials from db.php.
+ * If credits are low (<= 50), it automatically falls back to normal SMTP using credentials from smtp.php.
  * 
  * @param string $subject The email subject line
  * @param string $body The email body content (HTML supported)

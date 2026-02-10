@@ -52,7 +52,7 @@ echo "\n\nAll logic tests completed!\n";
 echo "================================================\n";
 echo "\nTo test actual email sending:\n";
 echo "1. Configure config/brevo.php with a valid BREVO API key\n";
-echo "2. Configure config/db.php with valid SMTP credentials:\n";
+echo "2. Configure config/smtp.php with valid SMTP credentials:\n";
 echo "   - SMTP_HOST (e.g., smtp.gmail.com)\n";
 echo "   - SMTP_PORT (e.g., 587)\n";
 echo "   - SMTP_USERNAME (your email)\n";
