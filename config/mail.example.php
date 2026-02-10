@@ -1,6 +1,6 @@
 <?php
 // SMTP Configuration Example for Email Fallback
-// Copy this file to smtp.php and add your actual SMTP credentials
+// Copy this file to mail.php and add your actual SMTP credentials
 // This file is ignored by Git to keep your credentials secure
 
 // SMTP Server Configuration
