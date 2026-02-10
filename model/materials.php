@@ -230,7 +230,8 @@ if(isset($_POST['create_material'])){
     $statusRes = 'error';
     $messageRes = 'All required fields must be filled';
   }
-  // Then validate price is a non-negative integer (no decimals)
+  // Then validate price is a non-negative integer (no decimals, no leading zeros except '0' itself)
+  // ctype_digit() returns true for strings containing only digits 0-9
   elseif(!ctype_digit($price_input)){
     $statusRes = 'error';
     $messageRes = 'Price must be a valid non-negative integer';

@@ -1,6 +1,7 @@
 $(document).ready(function () {
   // Configuration constants
   var SUCCESS_MESSAGE_DISPLAY_DURATION = 1500; // milliseconds - time to show success message before closing modal
+  var UNSELECTED_VALUE = 0; // Value indicating no selection in dropdowns (matches backend constant)
   
   var adminRole = window.adminRole || 0;
   var adminSchool = window.adminSchool || 0;
@@ -373,12 +374,12 @@ $(document).ready(function () {
     var schoolVal = $('#materialSchool').val();
     var facultyVal = $('#materialFaculty').val();
     
-    if (!schoolVal || schoolVal === '0') {
+    if (!schoolVal || schoolVal == UNSELECTED_VALUE) {
       $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Please select a school');
       return;
     }
     
-    if (!facultyVal || facultyVal === '0') {
+    if (!facultyVal || facultyVal == UNSELECTED_VALUE) {
       $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Please select a faculty');
       return;
     }

@@ -241,7 +241,7 @@ $materials_query = mysqli_query($conn, $material_sql);
 
             <div class="mb-3">
               <label for="materialPrice" class="form-label">Price (₦) <span class="text-danger">*</span></label>
-              <!-- Client-side validation: min='0' - Backend also validates price is numeric and non-negative -->
+              <!-- Client-side validation: min='0' - Backend validates price is a non-negative integer -->
               <input type="number" class="form-control" id="materialPrice" name="price" required min="0" step="1" placeholder="0">
             </div>
 
