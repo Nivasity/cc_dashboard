@@ -118,7 +118,7 @@ if (isset($_GET['fetch'])) {
           $attQ = mysqli_query($conn, $attSql);
           while ($arow = mysqli_fetch_assoc($attQ)) {
             $filePath = $arow['file_path'];
-            // Add domain prefix for user incoming messages
+            // Add domain prefix for all user incoming messages (regardless of school)
             if ($mrow['sender_type'] === 'user') {
               $domain = "https://funaab.nivasity.com/";
               // Only prepend if the path doesn't already start with http
