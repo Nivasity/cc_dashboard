@@ -61,17 +61,40 @@ $(document).ready(function () {
       }
 
       if (Array.isArray(m.attachments) && m.attachments.length) {
-        html += '<div class="mt-1 small">Attachments: ';
         m.attachments.forEach(function (a, idx) {
           if (!a.file_path || !a.file_name) return;
           var href = a.file_path;
           if (!/^https?:\/\//i.test(href) && href.charAt(0) !== '/') {
             href = '/' + href;
           }
-          if (idx > 0) html += ', ';
-          html += '<a href="' + href + '" target="_blank" rel="noopener noreferrer">' + a.file_name + '</a>';
+          
+          // Check if attachment is an image
+          var isImage = /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(a.file_name);
+          var mimeIsImage = a.mime_type && a.mime_type.startsWith('image/');
+          
+          if (isImage || mimeIsImage) {
+            // Display image preview with same max-width as message
+            html += '<div class="mt-2 w-75' + (m.sender_type === 'admin' ? ' ms-auto' : ' me-auto') + '">';
+            html += '<a href="' + href + '" target="_blank" rel="noopener noreferrer">';
+            html += '<img src="' + href + '" class="img-fluid rounded border" alt="' + a.file_name + '" style="max-width: 100%; height: auto;">';
+            html += '</a>';
+            html += '<div class="small text-muted mt-1">' + a.file_name + '</div>';
+            html += '</div>';
+          } else {
+            // Display as link for non-image files
+            if (idx === 0) html += '<div class="mt-1 small">Attachments: ';
+            else html += ', ';
+            html += '<a href="' + href + '" target="_blank" rel="noopener noreferrer">' + a.file_name + '</a>';
+          }
         });
-        html += '</div>';
+        // Close the attachments div if we had any non-image attachments
+        if (m.attachments.some(function(a) { 
+          var isImage = /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(a.file_name);
+          var mimeIsImage = a.mime_type && a.mime_type.startsWith('image/');
+          return !(isImage || mimeIsImage);
+        })) {
+          html += '</div>';
+        }
       }
 
       html += '</div>';
