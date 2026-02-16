@@ -555,14 +555,14 @@ if(isset($_POST['update_material'])){
             $update_stmt = mysqli_prepare($conn, 
               "UPDATE manuals SET title = ?, course_code = ?, price = ?, dept = ?, faculty = ?, host_faculty = ?, level = ?, school_id = ? WHERE id = ?");
             
-            mysqli_stmt_bind_param($update_stmt, 'ssiiiiii', 
+            mysqli_stmt_bind_param($update_stmt, 'ssiiiiiii', 
               $title, $course_code, $price, 
               $dept, $faculty, $host_faculty, $level, $school, $material_id);
           } else {
             $update_stmt = mysqli_prepare($conn, 
               "UPDATE manuals SET title = ?, course_code = ?, price = ?, dept = ?, faculty = ?, host_faculty = ?, school_id = ? WHERE id = ?");
             
-            mysqli_stmt_bind_param($update_stmt, 'ssiiiii', 
+            mysqli_stmt_bind_param($update_stmt, 'ssiiiiii', 
               $title, $course_code, $price, 
               $dept, $faculty, $host_faculty, $school, $material_id);
           }
