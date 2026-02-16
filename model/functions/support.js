@@ -77,28 +77,39 @@ $(document).ready(function () {
         // Helper function to check if attachment is an image
         var isImageAttachment = function(attachment) {
           if (!attachment || !attachment.file_name) return false;
-          var isImage = /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(attachment.file_name);
-          var mimeIsImage = attachment.mime_type && attachment.mime_type.startsWith('image/');
+          // Note: SVG excluded due to potential XSS risks (can contain embedded scripts)
+          var isImage = /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(attachment.file_name);
+          var mimeIsImage = attachment.mime_type && /^image\/(jpeg|png|gif|bmp|webp)$/i.test(attachment.mime_type);
           return isImage || mimeIsImage;
         };
         
+        // Helper function to validate and sanitize URLs
+        var sanitizeUrl = function(url) {
+          if (!url) return '#';
+          // Only allow http and https protocols
+          if (/^https?:\/\//i.test(url)) {
+            return url;
+          }
+          // For relative paths, ensure they start with /
+          if (url.charAt(0) === '/') {
+            return url;
+          }
+          return '/' + url;
+        };
+        
         var hasNonImageAttachment = false;
+        var messageWidth = 'w-75'; // Same width as message body
         
         m.attachments.forEach(function (a, idx) {
           if (!a.file_path || !a.file_name) return;
-          var href = a.file_path;
-          if (!/^https?:\/\//i.test(href) && href.charAt(0) !== '/') {
-            href = '/' + href;
-          }
-          
-          var escapedHref = escapeHtml(href);
+          var href = sanitizeUrl(a.file_path);
           var escapedFileName = escapeHtml(a.file_name);
           
           if (isImageAttachment(a)) {
             // Display image preview with same max-width as message
-            html += '<div class="mt-2 w-75' + (m.sender_type === 'admin' ? ' ms-auto' : ' me-auto') + '">';
-            html += '<a href="' + escapedHref + '" target="_blank" rel="noopener noreferrer">';
-            html += '<img src="' + escapedHref + '" class="img-fluid rounded border" alt="' + escapedFileName + '">';
+            html += '<div class="mt-2 ' + messageWidth + (m.sender_type === 'admin' ? ' ms-auto' : ' me-auto') + '">';
+            html += '<a href="' + href + '" target="_blank" rel="noopener noreferrer">';
+            html += '<img src="' + href + '" class="img-fluid rounded border" alt="' + escapedFileName + '">';
             html += '</a>';
             html += '<div class="small text-muted mt-1">' + escapedFileName + '</div>';
             html += '</div>';
@@ -110,7 +121,7 @@ $(document).ready(function () {
             } else {
               html += ', ';
             }
-            html += '<a href="' + escapedHref + '" target="_blank" rel="noopener noreferrer">' + escapedFileName + '</a>';
+            html += '<a href="' + href + '" target="_blank" rel="noopener noreferrer">' + escapedFileName + '</a>';
           }
         });
         
