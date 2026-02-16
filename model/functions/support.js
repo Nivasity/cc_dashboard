@@ -20,6 +20,19 @@ $(document).ready(function () {
       return '<div class="text-muted small">No messages yet.</div>';
     }
 
+    // Helper function to escape HTML entities
+    function escapeHtml(text) {
+      if (!text) return '';
+      var map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      };
+      return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
     messages.forEach(function (m) {
       var senderLabel = 'System';
       if (m.sender_type === 'user') {
@@ -63,6 +76,7 @@ $(document).ready(function () {
       if (Array.isArray(m.attachments) && m.attachments.length) {
         // Helper function to check if attachment is an image
         var isImageAttachment = function(attachment) {
+          if (!attachment || !attachment.file_name) return false;
           var isImage = /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(attachment.file_name);
           var mimeIsImage = attachment.mime_type && attachment.mime_type.startsWith('image/');
           return isImage || mimeIsImage;
@@ -77,13 +91,16 @@ $(document).ready(function () {
             href = '/' + href;
           }
           
+          var escapedHref = escapeHtml(href);
+          var escapedFileName = escapeHtml(a.file_name);
+          
           if (isImageAttachment(a)) {
             // Display image preview with same max-width as message
             html += '<div class="mt-2 w-75' + (m.sender_type === 'admin' ? ' ms-auto' : ' me-auto') + '">';
-            html += '<a href="' + href + '" target="_blank" rel="noopener noreferrer">';
-            html += '<img src="' + href + '" class="img-fluid rounded border" alt="' + a.file_name + '">';
+            html += '<a href="' + escapedHref + '" target="_blank" rel="noopener noreferrer">';
+            html += '<img src="' + escapedHref + '" class="img-fluid rounded border" alt="' + escapedFileName + '">';
             html += '</a>';
-            html += '<div class="small text-muted mt-1">' + a.file_name + '</div>';
+            html += '<div class="small text-muted mt-1">' + escapedFileName + '</div>';
             html += '</div>';
           } else {
             // Display as link for non-image files
@@ -93,7 +110,7 @@ $(document).ready(function () {
             } else {
               html += ', ';
             }
-            html += '<a href="' + href + '" target="_blank" rel="noopener noreferrer">' + a.file_name + '</a>';
+            html += '<a href="' + escapedHref + '" target="_blank" rel="noopener noreferrer">' + escapedFileName + '</a>';
           }
         });
         
