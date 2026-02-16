@@ -106,7 +106,6 @@ if ($admin_role == 5) {
                         <th>Revenue</th>
                         <th>Qty Sold</th>
                         <th>Availability</th>
-                        <th>Due Date</th>
                         <th>Action</th>
                       </tr>
                     </thead>
@@ -264,18 +263,11 @@ if ($admin_role == 5) {
               </div>
             </div>
 
-            <!-- Price and Due Date (2-column grid on desktop) -->
-            <div class="row g-3 mb-3">
-              <div class="col-md-6">
-                <label for="materialPrice" class="form-label">Price (₦) <span class="text-danger">*</span></label>
-                <!-- Client-side validation: min='0' - Backend validates price is a non-negative integer -->
-                <input type="number" class="form-control" id="materialPrice" name="price" required min="0" step="1" placeholder="0">
-              </div>
-              <div class="col-md-6">
-                <label for="materialDueDate" class="form-label">Due Date <span class="text-danger">*</span></label>
-                <input type="datetime-local" class="form-control" id="materialDueDate" name="due_date" required>
-                <div class="form-text">Set the deadline for this material</div>
-              </div>
+            <!-- Price -->
+            <div class="mb-3">
+              <label for="materialPrice" class="form-label">Price (₦) <span class="text-danger">*</span></label>
+              <!-- Client-side validation: min='0' - Backend validates price is a non-negative integer -->
+              <input type="number" class="form-control" id="materialPrice" name="price" required min="0" step="1" placeholder="0">
             </div>
           </div>
           <div class="modal-footer">

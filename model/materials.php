@@ -91,7 +91,7 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
   header('Content-Type: text/csv; charset=utf-8');
   header('Content-Disposition: attachment; filename="materials_' . date('Ymd_His') . '.csv"');
   $out = fopen('php://output', 'w');
-  fputcsv($out, ['Title (Course Code)', 'Posted By', 'Role/Matric No', 'Unit Price', 'Revenue', 'Qty Sold', 'Availability', 'Due Date']);
+  fputcsv($out, ['Title (Course Code)', 'Posted By', 'Role/Matric No', 'Unit Price', 'Revenue', 'Qty Sold', 'Availability']);
   while ($row = mysqli_fetch_assoc($mat_query)) {
     // Use admin data if admin_id exists and is not 0, otherwise use user data
     if (!empty($row['admin_id']) && $row['admin_id'] != 0) {
@@ -108,8 +108,7 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
       $row['price'],
       $row['revenue'],
       $row['qty_sold'],
-      $row['status'],
-      date('M d, Y', strtotime($row['due_date']))
+      $row['status']
     ]);
   }
   fclose($out);
@@ -231,8 +230,6 @@ if(isset($_GET['fetch'])){
         'purchase_count' => $row['purchase_count'] ?? 0,
         'status' => $row['status'],
         'db_status' => $row['db_status'],
-        'due_date' => date('M d, Y', strtotime($row['due_date'])),
-        'due_date_raw' => date('Y-m-d\TH:i', strtotime($row['due_date'])),
         'posted_by' => $posted_by,
         'role_or_matric' => $role_or_matric,
         'is_admin' => $is_admin,
@@ -366,11 +363,10 @@ if(isset($_POST['create_material'])){
   $title = trim($_POST['title'] ?? '');
   $course_code = trim($_POST['course_code'] ?? '');
   $price_input = trim($_POST['price'] ?? '');
-  $due_date = trim($_POST['due_date'] ?? '');
   
   // Validate required fields first
   // Note: Don't use empty() for price_input as '0' is a valid value for free materials
-  if(empty($title) || empty($course_code) || empty($due_date) || $price_input === ''){
+  if(empty($title) || empty($course_code) || $price_input === ''){
     $statusRes = 'error';
     $messageRes = 'All required fields must be filled';
   }
@@ -400,101 +396,92 @@ if(isset($_POST['create_material'])){
       }
       
       if(!isset($statusRes) || $statusRes !== 'error'){
-        // Validate and convert datetime
-        $due_date_timestamp = strtotime($due_date);
-        if($due_date_timestamp === false){
-          $statusRes = 'error';
-          $messageRes = 'Invalid due date format';
-        } elseif($due_date_timestamp < time()){
-          $statusRes = 'error';
-          $messageRes = 'Due date cannot be in the past';
-        } else {
-          $due_date_mysql = date('Y-m-d H:i:s', $due_date_timestamp);
-          
-          // Generate unique alphanumeric code using cryptographically secure random
-          // Using uppercase letters and numbers for better readability (avoid confusion like 0/O, 1/l)
+        // Set a default far-future due date since the field is required in DB but no longer used
+        $due_date_mysql = '2099-12-31 23:59:59';
+        
+        // Generate unique alphanumeric code using cryptographically secure random
+        // Using uppercase letters and numbers for better readability (avoid confusion like 0/O, 1/l)
+        $code = '';
+        $isUnique = false;
+        $attempts = 0;
+        // Character set: A-Z and 0-9 (36 characters, CODE_LENGTH positions = 36^CODE_LENGTH possibilities)
+        $characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        $charactersLength = strlen($characters);
+        
+        while(!$isUnique && $attempts < MAX_CODE_GENERATION_ATTEMPTS){
           $code = '';
-          $isUnique = false;
-          $attempts = 0;
-          // Character set: A-Z and 0-9 (36 characters, CODE_LENGTH positions = 36^CODE_LENGTH possibilities)
-          $characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-          $charactersLength = strlen($characters);
-          
-          while(!$isUnique && $attempts < MAX_CODE_GENERATION_ATTEMPTS){
-            $code = '';
-            // Generate random characters using random_int for cryptographic security
-            for($i = 0; $i < CODE_LENGTH; $i++){
-              $code .= $characters[random_int(0, $charactersLength - 1)];
-            }
-            
-            // Use prepared statement to check uniqueness
-            $check_stmt = mysqli_prepare($conn, "SELECT id FROM manuals WHERE code = ?");
-            mysqli_stmt_bind_param($check_stmt, 's', $code);
-            mysqli_stmt_execute($check_stmt);
-            mysqli_stmt_store_result($check_stmt);
-            if(mysqli_stmt_num_rows($check_stmt) == 0){
-              $isUnique = true;
-            }
-            mysqli_stmt_close($check_stmt);
-            $attempts++;
+          // Generate random characters using random_int for cryptographic security
+          for($i = 0; $i < CODE_LENGTH; $i++){
+            $code .= $characters[random_int(0, $charactersLength - 1)];
           }
           
-          if(!$isUnique){
-            $statusRes = 'error';
-            $messageRes = 'Failed to generate unique code. Please try again.';
+          // Use prepared statement to check uniqueness
+          $check_stmt = mysqli_prepare($conn, "SELECT id FROM manuals WHERE code = ?");
+          mysqli_stmt_bind_param($check_stmt, 's', $code);
+          mysqli_stmt_execute($check_stmt);
+          mysqli_stmt_store_result($check_stmt);
+          if(mysqli_stmt_num_rows($check_stmt) == 0){
+            $isUnique = true;
+          }
+          mysqli_stmt_close($check_stmt);
+          $attempts++;
+        }
+        
+        if(!$isUnique){
+          $statusRes = 'error';
+          $messageRes = 'Failed to generate unique code. Please try again.';
+        } else {
+          // Insert new material using prepared statement
+          // Note: host_faculty is the faculty hosting the material, faculty is who can buy it
+          if($level !== null){
+            $insert_stmt = mysqli_prepare($conn, 
+              "INSERT INTO manuals (title, course_code, price, code, due_date, quantity, dept, faculty, host_faculty, level, user_id, admin_id, school_id, status, created_at) 
+               VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?, ?, 'open', NOW())");
+            
+            mysqli_stmt_bind_param($insert_stmt, 'ssissiiiiii', 
+              $title, $course_code, $price, $code, $due_date_mysql, 
+              $dept, $faculty, $host_faculty, $level, $admin_id, $school);
           } else {
-            // Insert new material using prepared statement
-            // Note: host_faculty is the faculty hosting the material, faculty is who can buy it
-            if($level !== null){
-              $insert_stmt = mysqli_prepare($conn, 
-                "INSERT INTO manuals (title, course_code, price, code, due_date, quantity, dept, faculty, host_faculty, level, user_id, admin_id, school_id, status, created_at) 
-                 VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?, ?, 'open', NOW())");
-              
-              mysqli_stmt_bind_param($insert_stmt, 'ssissiiiiii', 
-                $title, $course_code, $price, $code, $due_date_mysql, 
-                $dept, $faculty, $host_faculty, $level, $admin_id, $school);
-            } else {
-              $insert_stmt = mysqli_prepare($conn, 
-                "INSERT INTO manuals (title, course_code, price, code, due_date, quantity, dept, faculty, host_faculty, user_id, admin_id, school_id, status, created_at) 
-                 VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, 'open', NOW())");
-              
-              mysqli_stmt_bind_param($insert_stmt, 'ssissiiiii', 
-                $title, $course_code, $price, $code, $due_date_mysql, 
-                $dept, $faculty, $host_faculty, $admin_id, $school);
+            $insert_stmt = mysqli_prepare($conn, 
+              "INSERT INTO manuals (title, course_code, price, code, due_date, quantity, dept, faculty, host_faculty, user_id, admin_id, school_id, status, created_at) 
+               VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, 'open', NOW())");
+            
+            mysqli_stmt_bind_param($insert_stmt, 'ssissiiiii', 
+              $title, $course_code, $price, $code, $due_date_mysql, 
+              $dept, $faculty, $host_faculty, $admin_id, $school);
+          }
+          
+          if(mysqli_stmt_execute($insert_stmt)){
+            $material_id = mysqli_insert_id($conn);
+            $statusRes = 'success';
+            $messageRes = 'Course material created successfully with code: ' . $code;
+            
+            // Log the action
+            if(function_exists('log_audit_event')){
+              log_audit_event($conn, $admin_id, 'create', 'course_material', $material_id, [
+                'title' => $title,
+                'course_code' => $course_code,
+                'code' => $code
+              ]);
             }
             
-            if(mysqli_stmt_execute($insert_stmt)){
-              $material_id = mysqli_insert_id($conn);
-              $statusRes = 'success';
-              $messageRes = 'Course material created successfully with code: ' . $code;
-              
-              // Log the action
-              if(function_exists('log_audit_event')){
-                log_audit_event($conn, $admin_id, 'create', 'course_material', $material_id, [
-                  'title' => $title,
-                  'course_code' => $course_code,
-                  'code' => $code
-                ]);
-              }
-              
-              // Send notification to students
-              require_once __DIR__ . '/notification_helpers.php';
-              notifyCourseMaterialCreated(
-                $conn,
-                $admin_id,
-                $material_id,
-                $title,
-                $course_code,
-                $dept,
-                $faculty,
-                $school
-              );
-            } else {
-              $statusRes = 'error';
-              $messageRes = 'Failed to create material. Please try again.';
-            }
-            mysqli_stmt_close($insert_stmt);
+            // Send notification to students
+            require_once __DIR__ . '/notification_helpers.php';
+            notifyCourseMaterialCreated(
+              $conn,
+              $admin_id,
+              $material_id,
+              $title,
+              $course_code,
+              $dept,
+              $faculty,
+              $school
+            );
+          } else {
+            $statusRes = 'error';
+            $messageRes = 'Failed to create material. Please try again.';
           }
+          mysqli_stmt_close($insert_stmt);
         }
       }
     }
@@ -512,7 +499,6 @@ if(isset($_POST['update_material'])){
   $title = trim($_POST['title'] ?? '');
   $course_code = trim($_POST['course_code'] ?? '');
   $price_input = trim($_POST['price'] ?? '');
-  $due_date = trim($_POST['due_date'] ?? '');
   
   // Validate material ID
   if($material_id <= 0){
@@ -520,7 +506,7 @@ if(isset($_POST['update_material'])){
     $messageRes = 'Invalid material ID';
   }
   // Validate required fields first
-  elseif(empty($title) || empty($course_code) || empty($due_date) || $price_input === ''){
+  elseif(empty($title) || empty($course_code) || $price_input === ''){
     $statusRes = 'error';
     $messageRes = 'All required fields must be filled';
   }
@@ -564,51 +550,39 @@ if(isset($_POST['update_material'])){
         }
         
         if(!isset($statusRes) || $statusRes !== 'error'){
-          // Validate and convert datetime
-          $due_date_timestamp = strtotime($due_date);
-          if($due_date_timestamp === false){
-            $statusRes = 'error';
-            $messageRes = 'Invalid due date format';
-          } elseif($due_date_timestamp < time()){
-            $statusRes = 'error';
-            $messageRes = 'Due date cannot be in the past';
+          // Update material using prepared statement (no due_date update needed)
+          if($level !== null){
+            $update_stmt = mysqli_prepare($conn, 
+              "UPDATE manuals SET title = ?, course_code = ?, price = ?, dept = ?, faculty = ?, host_faculty = ?, level = ?, school_id = ? WHERE id = ?");
+            
+            mysqli_stmt_bind_param($update_stmt, 'ssiiiiii', 
+              $title, $course_code, $price, 
+              $dept, $faculty, $host_faculty, $level, $school, $material_id);
           } else {
-            $due_date_mysql = date('Y-m-d H:i:s', $due_date_timestamp);
+            $update_stmt = mysqli_prepare($conn, 
+              "UPDATE manuals SET title = ?, course_code = ?, price = ?, dept = ?, faculty = ?, host_faculty = ?, school_id = ? WHERE id = ?");
             
-            // Update material using prepared statement
-            if($level !== null){
-              $update_stmt = mysqli_prepare($conn, 
-                "UPDATE manuals SET title = ?, course_code = ?, price = ?, due_date = ?, dept = ?, faculty = ?, host_faculty = ?, level = ?, school_id = ? WHERE id = ?");
-              
-              mysqli_stmt_bind_param($update_stmt, 'ssissiiiii', 
-                $title, $course_code, $price, $due_date_mysql, 
-                $dept, $faculty, $host_faculty, $level, $school, $material_id);
-            } else {
-              $update_stmt = mysqli_prepare($conn, 
-                "UPDATE manuals SET title = ?, course_code = ?, price = ?, due_date = ?, dept = ?, faculty = ?, host_faculty = ?, school_id = ? WHERE id = ?");
-              
-              mysqli_stmt_bind_param($update_stmt, 'ssissiiii', 
-                $title, $course_code, $price, $due_date_mysql, 
-                $dept, $faculty, $host_faculty, $school, $material_id);
-            }
-            
-            if(mysqli_stmt_execute($update_stmt)){
-              $statusRes = 'success';
-              $messageRes = 'Course material updated successfully';
-              
-              // Log the action
-              if(function_exists('log_audit_event')){
-                log_audit_event($conn, $admin_id, 'update', 'course_material', $material_id, [
-                  'title' => $title,
-                  'course_code' => $course_code
-                ]);
-              }
-            } else {
-              $statusRes = 'error';
-              $messageRes = 'Failed to update material. Please try again.';
-            }
-            mysqli_stmt_close($update_stmt);
+            mysqli_stmt_bind_param($update_stmt, 'ssiiiii', 
+              $title, $course_code, $price, 
+              $dept, $faculty, $host_faculty, $school, $material_id);
           }
+          
+          if(mysqli_stmt_execute($update_stmt)){
+            $statusRes = 'success';
+            $messageRes = 'Course material updated successfully';
+            
+            // Log the action
+            if(function_exists('log_audit_event')){
+              log_audit_event($conn, $admin_id, 'update', 'course_material', $material_id, [
+                'title' => $title,
+                'course_code' => $course_code
+              ]);
+            }
+          } else {
+            $statusRes = 'error';
+            $messageRes = 'Failed to update material. Please try again.';
+          }
+          mysqli_stmt_close($update_stmt);
         }
       }
     }
