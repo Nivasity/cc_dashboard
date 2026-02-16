@@ -61,6 +61,15 @@ $(document).ready(function () {
       }
 
       if (Array.isArray(m.attachments) && m.attachments.length) {
+        // Helper function to check if attachment is an image
+        var isImageAttachment = function(attachment) {
+          var isImage = /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(attachment.file_name);
+          var mimeIsImage = attachment.mime_type && attachment.mime_type.startsWith('image/');
+          return isImage || mimeIsImage;
+        };
+        
+        var hasNonImageAttachment = false;
+        
         m.attachments.forEach(function (a, idx) {
           if (!a.file_path || !a.file_name) return;
           var href = a.file_path;
@@ -68,31 +77,28 @@ $(document).ready(function () {
             href = '/' + href;
           }
           
-          // Check if attachment is an image
-          var isImage = /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(a.file_name);
-          var mimeIsImage = a.mime_type && a.mime_type.startsWith('image/');
-          
-          if (isImage || mimeIsImage) {
+          if (isImageAttachment(a)) {
             // Display image preview with same max-width as message
             html += '<div class="mt-2 w-75' + (m.sender_type === 'admin' ? ' ms-auto' : ' me-auto') + '">';
             html += '<a href="' + href + '" target="_blank" rel="noopener noreferrer">';
-            html += '<img src="' + href + '" class="img-fluid rounded border" alt="' + a.file_name + '" style="max-width: 100%; height: auto;">';
+            html += '<img src="' + href + '" class="img-fluid rounded border" alt="' + a.file_name + '">';
             html += '</a>';
             html += '<div class="small text-muted mt-1">' + a.file_name + '</div>';
             html += '</div>';
           } else {
             // Display as link for non-image files
-            if (idx === 0) html += '<div class="mt-1 small">Attachments: ';
-            else html += ', ';
+            if (!hasNonImageAttachment) {
+              html += '<div class="mt-1 small">Attachments: ';
+              hasNonImageAttachment = true;
+            } else {
+              html += ', ';
+            }
             html += '<a href="' + href + '" target="_blank" rel="noopener noreferrer">' + a.file_name + '</a>';
           }
         });
+        
         // Close the attachments div if we had any non-image attachments
-        if (m.attachments.some(function(a) { 
-          var isImage = /\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i.test(a.file_name);
-          var mimeIsImage = a.mime_type && a.mime_type.startsWith('image/');
-          return !(isImage || mimeIsImage);
-        })) {
+        if (hasNonImageAttachment) {
           html += '</div>';
         }
       }
