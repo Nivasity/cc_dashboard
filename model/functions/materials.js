@@ -124,9 +124,11 @@ $(document).ready(function () {
               actionHtml += '<a href="javascript:void(0);" class="dropdown-item text-danger deleteMaterial" data-id="' + mat.id + '" data-title="' + mat.title + '"><i class="bx bx-trash me-1"></i> Delete</a>';
             }
 
-            // Only include toggle when material is open and not due-passed
-            if (!mat.due_passed && mat.db_status === 'open') {
+            // Include toggle for materials that are open or closed
+            if (mat.db_status === 'open') {
               actionHtml += '<a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="' + mat.id + '" data-status="' + mat.db_status + '"><i class="bx bx-lock me-1"></i> Close Material</a>';
+            } else if (mat.db_status === 'closed') {
+              actionHtml += '<a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="' + mat.id + '" data-status="' + mat.db_status + '"><i class="bx bx-lock-open me-1"></i> Open Material</a>';
             }
 
             actionHtml += '<a href="javascript:void(0);" class="dropdown-item downloadMaterialTransactions" data-id="' + mat.id + '" data-code="' + (mat.code || '') + '"><i class="bx bx-download me-1"></i> Download transactions list</a>' +
