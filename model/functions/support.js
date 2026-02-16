@@ -97,19 +97,25 @@ $(document).ready(function () {
           return '/' + url;
         };
         
+        // Helper function to get alignment class based on sender type
+        var getAlignmentClass = function(senderType) {
+          return senderType === 'admin' ? ' ms-auto' : ' me-auto';
+        };
+        
         var hasNonImageAttachment = false;
         var messageWidth = 'w-75'; // Same width as message body
         
         m.attachments.forEach(function (a, idx) {
           if (!a.file_path || !a.file_name) return;
           var href = sanitizeUrl(a.file_path);
+          var escapedHref = escapeHtml(href);
           var escapedFileName = escapeHtml(a.file_name);
           
           if (isImageAttachment(a)) {
             // Display image preview with same max-width as message
-            html += '<div class="mt-2 ' + messageWidth + (m.sender_type === 'admin' ? ' ms-auto' : ' me-auto') + '">';
-            html += '<a href="' + href + '" target="_blank" rel="noopener noreferrer">';
-            html += '<img src="' + href + '" class="img-fluid rounded border" alt="' + escapedFileName + '">';
+            html += '<div class="mt-2 ' + messageWidth + getAlignmentClass(m.sender_type) + '">';
+            html += '<a href="' + escapedHref + '" target="_blank" rel="noopener noreferrer">';
+            html += '<img src="' + escapedHref + '" class="img-fluid rounded border" alt="' + escapedFileName + '">';
             html += '</a>';
             html += '<div class="small text-muted mt-1">' + escapedFileName + '</div>';
             html += '</div>';
@@ -121,7 +127,7 @@ $(document).ready(function () {
             } else {
               html += ', ';
             }
-            html += '<a href="' + href + '" target="_blank" rel="noopener noreferrer">' + escapedFileName + '</a>';
+            html += '<a href="' + escapedHref + '" target="_blank" rel="noopener noreferrer">' + escapedFileName + '</a>';
           }
         });
         
