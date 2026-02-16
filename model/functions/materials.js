@@ -124,9 +124,11 @@ $(document).ready(function () {
               actionHtml += '<a href="javascript:void(0);" class="dropdown-item text-danger deleteMaterial" data-id="' + mat.id + '" data-title="' + mat.title + '"><i class="bx bx-trash me-1"></i> Delete</a>';
             }
 
-            // Only include toggle when material is open and not due-passed
-            if (!mat.due_passed && mat.db_status === 'open') {
+            // Include toggle for materials that are open or closed
+            if (mat.db_status === 'open') {
               actionHtml += '<a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="' + mat.id + '" data-status="' + mat.db_status + '"><i class="bx bx-lock me-1"></i> Close Material</a>';
+            } else if (mat.db_status === 'closed') {
+              actionHtml += '<a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="' + mat.id + '" data-status="' + mat.db_status + '"><i class="bx bx-lock-open me-1"></i> Open Material</a>';
             }
 
             actionHtml += '<a href="javascript:void(0);" class="dropdown-item downloadMaterialTransactions" data-id="' + mat.id + '" data-code="' + (mat.code || '') + '"><i class="bx bx-download me-1"></i> Download transactions list</a>' +
@@ -170,7 +172,6 @@ $(document).ready(function () {
               '<td>₦ ' + Number(mat.revenue).toLocaleString() + '</td>' +
               '<td>' + mat.qty_sold + '</td>' +
               '<td><span class="fw-bold badge bg-label-' + (mat.status === 'open' ? 'success' : 'danger') + '">' + mat.status.charAt(0).toUpperCase() + mat.status.slice(1) + '</span></td>' +
-              '<td>' + mat.due_date + '</td>' +
               '<td>' + actionHtml + '</td>' +
               '</tr>';
             tbody.append(row);
@@ -503,11 +504,6 @@ $(document).ready(function () {
     $('#materialCourseCode').val(material.course_code);
     $('#materialPrice').val(material.price);
     
-    // Set due date (material.due_date_raw is in Y-m-d\TH:i format for datetime-local input)
-    if (material.due_date_raw) {
-      $('#materialDueDate').val(material.due_date_raw);
-    }
-    
     // For NON-EDITABLE fields, we need to:
     // 1. Fetch human-readable names (school, faculty, dept names)
     // 2. Replace select2 dropdowns with disabled text inputs showing the values
@@ -798,15 +794,5 @@ $(document).ready(function () {
       fetchModalFaculties(schoolId);
       fetchModalDepts(schoolId, 0);
     }
-    
-    // Set minimum date to current datetime for better UX (backend also validates)
-    var now = new Date();
-    var year = now.getFullYear();
-    var month = String(now.getMonth() + 1).padStart(2, '0');
-    var day = String(now.getDate()).padStart(2, '0');
-    var hours = String(now.getHours()).padStart(2, '0');
-    var minutes = String(now.getMinutes()).padStart(2, '0');
-    var minDateTime = year + '-' + month + '-' + day + 'T' + hours + ':' + minutes;
-    $('#materialDueDate').attr('min', minDateTime);
   });
 });

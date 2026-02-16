@@ -137,11 +137,11 @@ if ($admin_role == 5 && $admin_school > 0) {
   } else {
     $dept_count = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS count FROM depts WHERE status='active' AND school_id = $admin_school AND faculty_id = $admin_faculty"))['count'] ?? 0);
   }
-  // Open materials: status open AND due date not passed; scoped by faculty if assigned
+  // Open materials: status open; scoped by faculty if assigned
   if ($admin_faculty == 0) {
-    $open_materials = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS count FROM manuals m WHERE m.status='open' AND m.school_id = $admin_school AND m.due_date >= NOW()"))['count'] ?? 0);
+    $open_materials = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS count FROM manuals m WHERE m.status='open' AND m.school_id = $admin_school"))['count'] ?? 0);
   } else {
-    $open_materials = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS count FROM manuals m LEFT JOIN depts d ON m.dept = d.id WHERE m.status='open' AND m.school_id = $admin_school AND m.due_date >= NOW() AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))"))['count'] ?? 0);
+    $open_materials = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS count FROM manuals m LEFT JOIN depts d ON m.dept = d.id WHERE m.status='open' AND m.school_id = $admin_school AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))"))['count'] ?? 0);
   }
 }
 
