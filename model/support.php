@@ -119,12 +119,14 @@ if (isset($_GET['fetch'])) {
           while ($arow = mysqli_fetch_assoc($attQ)) {
             $filePath = $arow['file_path'];
             // Add domain prefix for user incoming messages
-            if ($mrow['sender_type'] === 'user' && !empty($mrow['user_school'])) {
+            if ($mrow['sender_type'] === 'user' && isset($mrow['user_school']) && $mrow['user_school'] !== null) {
               $userSchool = (int) $mrow['user_school'];
-              $domain = ($userSchool === 1) ? "https://funaab.nivasity.com/" : "https://nivasity.com/";
-              // Only prepend if the path doesn't already start with http
-              if (!preg_match('/^https?:\/\//i', $filePath)) {
-                $filePath = $domain . $filePath;
+              if ($userSchool > 0) {
+                $domain = ($userSchool === 1) ? "https://funaab.nivasity.com/" : "https://nivasity.com/";
+                // Only prepend if the path doesn't already start with http
+                if (!preg_match('/^https?:\/\//i', $filePath)) {
+                  $filePath = $domain . $filePath;
+                }
               }
             }
             $attachments[] = array(
