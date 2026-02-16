@@ -48,7 +48,7 @@ if (isset($_GET['fetch'])) {
       if ($admin_role == 5 && $admin_school > 0) {
         $sql .= " AND u.school = $admin_school";
       }
-      $sql .= " ORDER BY COALESCE(st.last_message_at, st.created_at) DESC";
+      $sql .= " ORDER BY st.created_at DESC";
       $q = mysqli_query($conn, $sql);
       $tickets = array();
       while ($row = mysqli_fetch_assoc($q)) {
@@ -101,7 +101,7 @@ if (isset($_GET['fetch'])) {
         $ticketId = (int) $row['id'];
         $messages = array();
         $msgSql = "SELECT m.id, m.ticket_id, m.sender_type, m.user_id, m.admin_id, m.body, m.is_internal, m.created_at,
-                          u.first_name AS user_first_name, u.last_name AS user_last_name,
+                          u.first_name AS user_first_name, u.last_name AS user_last_name, u.school AS user_school,
                           a.first_name AS admin_first_name, a.last_name AS admin_last_name
                    FROM support_ticket_messages m
                    LEFT JOIN users u ON m.user_id = u.id
@@ -117,9 +117,18 @@ if (isset($_GET['fetch'])) {
                      WHERE message_id = $mid";
           $attQ = mysqli_query($conn, $attSql);
           while ($arow = mysqli_fetch_assoc($attQ)) {
+            $filePath = $arow['file_path'];
+            // Add domain prefix for all user incoming messages (regardless of school)
+            if ($mrow['sender_type'] === 'user') {
+              $domain = "https://funaab.nivasity.com/";
+              // Only prepend if the path doesn't already start with http
+              if (!preg_match('/^https?:\/\//i', $filePath)) {
+                $filePath = $domain . $filePath;
+              }
+            }
             $attachments[] = array(
               'id' => (int) $arow['id'],
-              'file_path' => $arow['file_path'],
+              'file_path' => $filePath,
               'file_name' => $arow['file_name'],
               'mime_type' => $arow['mime_type'],
               'file_size' => isset($arow['file_size']) ? (int) $arow['file_size'] : null

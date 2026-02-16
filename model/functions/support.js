@@ -20,6 +20,19 @@ $(document).ready(function () {
       return '<div class="text-muted small">No messages yet.</div>';
     }
 
+    // Helper function to escape HTML entities
+    function escapeHtml(text) {
+      if (!text) return '';
+      var map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      };
+      return String(text).replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
     messages.forEach(function (m) {
       var senderLabel = 'System';
       if (m.sender_type === 'user') {
@@ -61,17 +74,67 @@ $(document).ready(function () {
       }
 
       if (Array.isArray(m.attachments) && m.attachments.length) {
-        html += '<div class="mt-1 small">Attachments: ';
+        // Helper function to check if attachment is an image
+        var isImageAttachment = function(attachment) {
+          if (!attachment || !attachment.file_name) return false;
+          // Note: SVG excluded due to potential XSS risks (can contain embedded scripts)
+          var isImage = /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(attachment.file_name);
+          var mimeIsImage = attachment.mime_type && /^image\/(jpeg|png|gif|bmp|webp)$/i.test(attachment.mime_type);
+          return isImage || mimeIsImage;
+        };
+        
+        // Helper function to validate and sanitize URLs
+        var sanitizeUrl = function(url) {
+          if (!url) return '#';
+          // Only allow http and https protocols
+          if (/^https?:\/\//i.test(url)) {
+            return url;
+          }
+          // For relative paths, ensure they start with /
+          if (url.charAt(0) === '/') {
+            return url;
+          }
+          return '/' + url;
+        };
+        
+        // Helper function to get alignment class based on sender type
+        var getAlignmentClass = function(senderType) {
+          return senderType === 'admin' ? ' ms-auto' : ' me-auto';
+        };
+        
+        var hasNonImageAttachment = false;
+        var messageWidth = 'w-75'; // Same width as message body
+        
         m.attachments.forEach(function (a, idx) {
           if (!a.file_path || !a.file_name) return;
-          var href = a.file_path;
-          if (!/^https?:\/\//i.test(href) && href.charAt(0) !== '/') {
-            href = '/' + href;
+          var href = sanitizeUrl(a.file_path);
+          var escapedHref = escapeHtml(href);
+          var escapedFileName = escapeHtml(a.file_name);
+          
+          if (isImageAttachment(a)) {
+            // Display image preview with same max-width as message
+            html += '<div class="mt-2 ' + messageWidth + getAlignmentClass(m.sender_type) + '">';
+            html += '<a href="' + escapedHref + '" target="_blank" rel="noopener noreferrer">';
+            html += '<img src="' + escapedHref + '" class="img-fluid rounded border" alt="' + escapedFileName + '">';
+            html += '</a>';
+            html += '<div class="small text-muted mt-1">' + escapedFileName + '</div>';
+            html += '</div>';
+          } else {
+            // Display as link for non-image files
+            if (!hasNonImageAttachment) {
+              html += '<div class="mt-1 small">Attachments: ';
+              hasNonImageAttachment = true;
+            } else {
+              html += ', ';
+            }
+            html += '<a href="' + escapedHref + '" target="_blank" rel="noopener noreferrer">' + escapedFileName + '</a>';
           }
-          if (idx > 0) html += ', ';
-          html += '<a href="' + href + '" target="_blank" rel="noopener noreferrer">' + a.file_name + '</a>';
         });
-        html += '</div>';
+        
+        // Close the attachments div if we had any non-image attachments
+        if (hasNonImageAttachment) {
+          html += '</div>';
+        }
       }
 
       html += '</div>';
