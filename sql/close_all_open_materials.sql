@@ -7,6 +7,8 @@
 -- Created: 2026-02-16
 -- Purpose: As part of the update to ignore due date criteria for closed materials,
 --          this script provides a way to close all materials that are currently open.
+--
+-- Note: The table 'manuals' stores course materials in the database
 
 -- Update all materials with status='open' to status='closed'
 UPDATE manuals 
