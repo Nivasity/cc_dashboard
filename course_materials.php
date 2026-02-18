@@ -126,6 +126,10 @@ if ($admin_role == 5) {
             data-bs-target="#newMaterialModal" aria-label="Add new material">
             <i class='bx bx-plus fs-3'></i>
           </button>
+          <button type="button" class="btn btn-info howto_btn" data-bs-toggle="modal"
+            data-bs-target="#howtoModal" aria-label="How to manage course materials" id="howtoBtn">
+            <i class='bx bx-help-circle fs-3'></i>
+          </button>
           <?php include('partials/_footer.php') ?>
           <div class="content-backdrop fade"></div>
         </div>
@@ -278,6 +282,76 @@ if ($admin_role == 5) {
       </div>
     </div>
   </div>
+
+  <!-- How to Modal -->
+  <div class="modal fade" id="howtoModal" tabindex="-1" aria-labelledby="howtoModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="howtoModalLabel">How to Manage Course Materials</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body p-0">
+          <div class="ratio ratio-16x9">
+            <iframe id="howtoVideo" src="" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    /* Blur background when modal is shown */
+    body.modal-open .layout-wrapper {
+      filter: blur(5px);
+      transition: filter 0.3s ease;
+    }
+    
+    body:not(.modal-open) .layout-wrapper {
+      filter: none;
+      transition: filter 0.3s ease;
+    }
+  </style>
+
+  <script>
+    // Periodic tooltip for How to button
+    document.addEventListener('DOMContentLoaded', function() {
+      const howtoBtn = document.getElementById('howtoBtn');
+      if (howtoBtn) {
+        // Initialize Bootstrap tooltip
+        const tooltip = new bootstrap.Tooltip(howtoBtn, {
+          title: 'Click to learn how to manage course materials',
+          placement: 'right',
+          trigger: 'manual'
+        });
+
+        // Show tooltip periodically every 10 seconds
+        setInterval(function() {
+          tooltip.show();
+          setTimeout(function() {
+            tooltip.hide();
+          }, 3000); // Hide after 3 seconds
+        }, 10000); // Show every 10 seconds
+      }
+
+      // Handle video modal
+      const howtoModal = document.getElementById('howtoModal');
+      const howtoVideo = document.getElementById('howtoVideo');
+      
+      // Set video source when modal is shown
+      // TODO: Replace this URL with the actual video URL
+      const videoURL = 'https://www.youtube.com/embed/kji658wVds4'; // Placeholder - replace with actual video
+      
+      howtoModal.addEventListener('show.bs.modal', function() {
+        howtoVideo.setAttribute('src', videoURL + '?autoplay=1');
+      });
+
+      // Clear video source when modal is hidden to stop playback
+      howtoModal.addEventListener('hidden.bs.modal', function() {
+        howtoVideo.setAttribute('src', '');
+      });
+    });
+  </script>
 
 </body>
 </html>
