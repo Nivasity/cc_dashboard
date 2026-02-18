@@ -839,6 +839,8 @@ $(document).ready(function () {
   $('#newMaterialModal').on('shown.bs.modal', function () {
     // Skip fetching if we're in edit mode - data is already loaded
     if ($(this).data('isEditMode')) {
+      // Clear the flag so user can change dropdowns normally after modal is shown
+      $(this).removeData('isEditMode');
       return;
     }
     
