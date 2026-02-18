@@ -544,9 +544,9 @@ $(document).ready(function () {
           });
         }
         
-        // Set the selected values BEFORE triggering select2
-        $hostFac.val(hostFacultyId);
-        $fac.val(facultyId);
+        // Set the selected values and trigger select2 to update display
+        $hostFac.val(hostFacultyId).trigger('change.select2');
+        $fac.val(facultyId).trigger('change.select2');
         
         // Step 3: Fetch and populate departments
         $.ajax({
@@ -564,25 +564,25 @@ $(document).ready(function () {
               });
             }
             
-            // Set the selected department value
-            $dept.val(deptId);
+            // Set the selected department value and trigger select2 to update display
+            $dept.val(deptId).trigger('change.select2');
             
-            // Step 4: Set level value
-            $('#materialLevel').val(level);
+            // Step 4: Set level value and trigger select2 to update display
+            $('#materialLevel').val(level).trigger('change.select2');
             
             // Step 5: NOW show the modal - all data is loaded and selected
             $('#newMaterialModal').modal('show');
           },
           error: function() {
             // On error, still show the modal with whatever data we have
-            $('#materialLevel').val(level);
+            $('#materialLevel').val(level).trigger('change.select2');
             $('#newMaterialModal').modal('show');
           }
         });
       },
       error: function() {
         // On error, still show the modal with basic data
-        $('#materialLevel').val(level);
+        $('#materialLevel').val(level).trigger('change.select2');
         $('#newMaterialModal').modal('show');
       }
     });
