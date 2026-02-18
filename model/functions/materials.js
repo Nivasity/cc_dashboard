@@ -503,7 +503,7 @@ $(document).ready(function () {
     $('#newMaterialModal').data('isEditMode', true);
     $('#newMaterialModal').data('editMaterial', material);
     
-    // Populate all editable fields (now ALL fields are editable)
+    // Populate editable fields
     $('#materialTitle').val(material.title);
     $('#materialCourseCode').val(material.course_code);
     $('#materialPrice').val(material.price);
@@ -516,74 +516,169 @@ $(document).ready(function () {
     var deptId = material.dept_id || 0;
     var level = material.level || '';
     
-    // Step 1: Set school value (already populated in HTML)
-    $('#materialSchool').val(schoolId);
-    
-    // Step 2: Fetch and populate faculties for this school
+    // Step 1: Fetch school name and make it read-only
+    // School cannot be changed during edit as it would invalidate faculty/dept relationships
     $.ajax({
       url: 'model/materials.php',
       method: 'GET',
-      data: { fetch: 'faculties', school: schoolId },
+      data: { 
+        fetch: 'material_names', 
+        school_id: schoolId,
+        host_faculty_id: 0,
+        faculty_id: 0,
+        dept_id: 0,
+        level: 0
+      },
       dataType: 'json',
       success: function (res) {
-        var $hostFac = $('#materialHostFaculty');
-        var $fac = $('#materialFaculty');
-        
-        // Populate both host faculty and faculty dropdowns
-        $hostFac.empty();
-        $fac.empty();
-        
-        if (!res.restrict_faculty) {
-          $hostFac.append('<option value="">Select Faculty Host</option>');
-          $fac.append('<option value="">Select Faculty</option>');
-        }
-        if (res.status === 'success' && res.faculties) {
-          $.each(res.faculties, function (i, fac) {
-            $hostFac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
-            $fac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
-          });
+        if (res.status === 'success') {
+          // Destroy select2 on school field
+          $('#materialSchool').select2('destroy');
+          
+          // Replace school select with disabled text input showing the school name
+          $('#materialSchool').replaceWith('<input type="text" class="form-control" id="materialSchool" value="' + res.school_name + '" disabled>');
+          
+          // Add hidden input with school ID for form submission
+          $('#newMaterialForm').append('<input type="hidden" name="school" value="' + schoolId + '">');
         }
         
-        // Set the selected values and trigger select2 to update display
-        $hostFac.val(hostFacultyId).trigger('change.select2');
-        $fac.val(facultyId).trigger('change.select2');
-        
-        // Step 3: Fetch and populate departments
+        // Step 2: Fetch and populate faculties for this school
         $.ajax({
           url: 'model/materials.php',
           method: 'GET',
-          data: { fetch: 'departments', school: schoolId, faculty: facultyId },
+          data: { fetch: 'faculties', school: schoolId },
           dataType: 'json',
           success: function (res) {
-            var $dept = $('#materialDept');
-            $dept.empty();
-            $dept.append('<option value="0">All Departments</option>');
-            if (res.status === 'success' && res.departments) {
-              $.each(res.departments, function (i, dept) {
-                $dept.append('<option value="' + dept.id + '">' + dept.name + '</option>');
+            var $hostFac = $('#materialHostFaculty');
+            var $fac = $('#materialFaculty');
+            
+            // Populate both host faculty and faculty dropdowns
+            $hostFac.empty();
+            $fac.empty();
+            
+            if (!res.restrict_faculty) {
+              $hostFac.append('<option value="">Select Faculty Host</option>');
+              $fac.append('<option value="">Select Faculty</option>');
+            }
+            if (res.status === 'success' && res.faculties) {
+              $.each(res.faculties, function (i, fac) {
+                $hostFac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
+                $fac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
               });
             }
             
-            // Set the selected department value and trigger select2 to update display
-            $dept.val(deptId).trigger('change.select2');
+            // Set the selected values and trigger select2 to update display
+            $hostFac.val(hostFacultyId).trigger('change.select2');
+            $fac.val(facultyId).trigger('change.select2');
             
-            // Step 4: Set level value and trigger select2 to update display
-            $('#materialLevel').val(level).trigger('change.select2');
-            
-            // Step 5: NOW show the modal - all data is loaded and selected
-            $('#newMaterialModal').modal('show');
+            // Step 3: Fetch and populate departments
+            $.ajax({
+              url: 'model/materials.php',
+              method: 'GET',
+              data: { fetch: 'departments', school: schoolId, faculty: facultyId },
+              dataType: 'json',
+              success: function (res) {
+                var $dept = $('#materialDept');
+                $dept.empty();
+                $dept.append('<option value="0">All Departments</option>');
+                if (res.status === 'success' && res.departments) {
+                  $.each(res.departments, function (i, dept) {
+                    $dept.append('<option value="' + dept.id + '">' + dept.name + '</option>');
+                  });
+                }
+                
+                // Set the selected department value and trigger select2 to update display
+                $dept.val(deptId).trigger('change.select2');
+                
+                // Step 4: Set level value and trigger select2 to update display
+                $('#materialLevel').val(level).trigger('change.select2');
+                
+                // Step 5: NOW show the modal - all data is loaded and selected
+                $('#newMaterialModal').modal('show');
+              },
+              error: function() {
+                // On error, still show the modal with whatever data we have
+                $('#materialLevel').val(level).trigger('change.select2');
+                $('#newMaterialModal').modal('show');
+              }
+            });
           },
           error: function() {
-            // On error, still show the modal with whatever data we have
+            // On error, still show the modal with basic data
             $('#materialLevel').val(level).trigger('change.select2');
             $('#newMaterialModal').modal('show');
           }
         });
       },
       error: function() {
-        // On error, still show the modal with basic data
-        $('#materialLevel').val(level).trigger('change.select2');
-        $('#newMaterialModal').modal('show');
+        // On error, still show the modal without school name replacement
+        // Step 2: Fetch and populate faculties for this school
+        $.ajax({
+          url: 'model/materials.php',
+          method: 'GET',
+          data: { fetch: 'faculties', school: schoolId },
+          dataType: 'json',
+          success: function (res) {
+            var $hostFac = $('#materialHostFaculty');
+            var $fac = $('#materialFaculty');
+            
+            // Populate both host faculty and faculty dropdowns
+            $hostFac.empty();
+            $fac.empty();
+            
+            if (!res.restrict_faculty) {
+              $hostFac.append('<option value="">Select Faculty Host</option>');
+              $fac.append('<option value="">Select Faculty</option>');
+            }
+            if (res.status === 'success' && res.faculties) {
+              $.each(res.faculties, function (i, fac) {
+                $hostFac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
+                $fac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
+              });
+            }
+            
+            // Set the selected values and trigger select2 to update display
+            $hostFac.val(hostFacultyId).trigger('change.select2');
+            $fac.val(facultyId).trigger('change.select2');
+            
+            // Step 3: Fetch and populate departments
+            $.ajax({
+              url: 'model/materials.php',
+              method: 'GET',
+              data: { fetch: 'departments', school: schoolId, faculty: facultyId },
+              dataType: 'json',
+              success: function (res) {
+                var $dept = $('#materialDept');
+                $dept.empty();
+                $dept.append('<option value="0">All Departments</option>');
+                if (res.status === 'success' && res.departments) {
+                  $.each(res.departments, function (i, dept) {
+                    $dept.append('<option value="' + dept.id + '">' + dept.name + '</option>');
+                  });
+                }
+                
+                // Set the selected department value and trigger select2 to update display
+                $dept.val(deptId).trigger('change.select2');
+                
+                // Step 4: Set level value and trigger select2 to update display
+                $('#materialLevel').val(level).trigger('change.select2');
+                
+                // Step 5: NOW show the modal - all data is loaded and selected
+                $('#newMaterialModal').modal('show');
+              },
+              error: function() {
+                // On error, still show the modal with whatever data we have
+                $('#materialLevel').val(level).trigger('change.select2');
+                $('#newMaterialModal').modal('show');
+              }
+            });
+          },
+          error: function() {
+            // On error, still show the modal with basic data
+            $('#materialLevel').val(level).trigger('change.select2');
+            $('#newMaterialModal').modal('show');
+          }
+        });
       }
     });
   }
