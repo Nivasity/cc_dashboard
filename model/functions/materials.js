@@ -673,12 +673,20 @@ $(document).ready(function () {
   }
 
   $('#materialSchool').on('change', function () {
+    // Skip fetching if we're in edit mode - data is already being loaded by openEditModal
+    if ($('#newMaterialModal').data('isEditMode')) {
+      return;
+    }
     var schoolId = adminRole == 5 ? adminSchool : $(this).val();
     fetchModalFaculties(schoolId);
     fetchModalDepts(schoolId, 0);
   });
 
   $('#materialFaculty').on('change', function () {
+    // Skip fetching if we're in edit mode - data is already being loaded by openEditModal
+    if ($('#newMaterialModal').data('isEditMode')) {
+      return;
+    }
     var schoolId = adminRole == 5 ? adminSchool : $('#materialSchool').val();
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $(this).val();
     if (facultyId) {
