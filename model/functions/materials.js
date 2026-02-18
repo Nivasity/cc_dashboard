@@ -572,8 +572,18 @@ $(document).ready(function () {
             
             // Step 5: NOW show the modal - all data is loaded and selected
             $('#newMaterialModal').modal('show');
+          },
+          error: function() {
+            // On error, still show the modal with whatever data we have
+            $('#materialLevel').val(level);
+            $('#newMaterialModal').modal('show');
           }
         });
+      },
+      error: function() {
+        // On error, still show the modal with basic data
+        $('#materialLevel').val(level);
+        $('#newMaterialModal').modal('show');
       }
     });
   }
