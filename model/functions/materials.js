@@ -499,57 +499,83 @@ $(document).ready(function () {
     // Set material ID in hidden field
     $('#materialId').val(material.id);
     
-    // Populate EDITABLE fields (these remain interactive)
+    // Set a flag to prevent the shown.bs.modal event from overwriting our values
+    $('#newMaterialModal').data('isEditMode', true);
+    $('#newMaterialModal').data('editMaterial', material);
+    
+    // Populate all editable fields (now ALL fields are editable)
     $('#materialTitle').val(material.title);
     $('#materialCourseCode').val(material.course_code);
     $('#materialPrice').val(material.price);
     
-    // For NON-EDITABLE fields, we need to:
-    // 1. Fetch human-readable names (school, faculty, dept names)
-    // 2. Replace select2 dropdowns with disabled text inputs showing the values
-    // 3. Store the IDs in hidden attributes or hidden fields for backend submission
+    // Load dropdown data and set selections BEFORE showing modal
+    // This prevents select2 from reverting to defaults
+    var schoolId = material.school_id;
+    var hostFacultyId = material.host_faculty;
+    var facultyId = material.faculty_id;
+    var deptId = material.dept_id || 0;
+    var level = material.level || '';
     
-    // Fetch names for non-editable fields and populate them as disabled inputs
+    // Step 1: Set school value (already populated in HTML)
+    $('#materialSchool').val(schoolId);
+    
+    // Step 2: Fetch and populate faculties for this school
     $.ajax({
       url: 'model/materials.php',
       method: 'GET',
-      data: { 
-        fetch: 'material_names', 
-        school_id: material.school_id,
-        host_faculty_id: material.host_faculty,
-        faculty_id: material.faculty_id,
-        dept_id: material.dept_id || 0,
-        level: material.level || ''
-      },
+      data: { fetch: 'faculties', school: schoolId },
       dataType: 'json',
       success: function (res) {
-        if (res.status === 'success') {
-          // Destroy select2 instances for fields we're converting to disabled inputs
-          $('#materialSchool').select2('destroy');
-          $('#materialHostFaculty').select2('destroy');
-          $('#materialFaculty').select2('destroy');
-          $('#materialDept').select2('destroy');
-          $('#materialLevel').select2('destroy');
-          
-          // Replace with disabled text inputs showing names
-          $('#materialSchool').replaceWith('<input type="text" class="form-control" id="materialSchool" value="' + res.school_name + '" disabled>');
-          $('#materialHostFaculty').replaceWith('<input type="text" class="form-control" id="materialHostFaculty" value="' + res.host_faculty_name + '" disabled>');
-          $('#materialFaculty').replaceWith('<input type="text" class="form-control" id="materialFaculty" value="' + res.faculty_name + '" disabled>');
-          $('#materialDept').replaceWith('<input type="text" class="form-control" id="materialDept" value="' + res.dept_name + '" disabled>');
-          $('#materialLevel').replaceWith('<input type="text" class="form-control" id="materialLevel" value="' + res.level_text + '" disabled>');
-          
-          // Store IDs in hidden fields for backend submission
-          $('#newMaterialForm').append('<input type="hidden" name="school" value="' + material.school_id + '">');
-          $('#newMaterialForm').append('<input type="hidden" name="host_faculty" value="' + material.host_faculty + '">');
-          $('#newMaterialForm').append('<input type="hidden" name="faculty" value="' + material.faculty_id + '">');
-          $('#newMaterialForm').append('<input type="hidden" name="dept" value="' + (material.dept_id || 0) + '">');
-          $('#newMaterialForm').append('<input type="hidden" name="level" value="' + (material.level || '') + '">');
+        var $hostFac = $('#materialHostFaculty');
+        var $fac = $('#materialFaculty');
+        
+        // Populate both host faculty and faculty dropdowns
+        $hostFac.empty();
+        $fac.empty();
+        
+        if (!res.restrict_faculty) {
+          $hostFac.append('<option value="">Select Faculty Host</option>');
+          $fac.append('<option value="">Select Faculty</option>');
         }
+        if (res.status === 'success' && res.faculties) {
+          $.each(res.faculties, function (i, fac) {
+            $hostFac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
+            $fac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
+          });
+        }
+        
+        // Set the selected values BEFORE triggering select2
+        $hostFac.val(hostFacultyId);
+        $fac.val(facultyId);
+        
+        // Step 3: Fetch and populate departments
+        $.ajax({
+          url: 'model/materials.php',
+          method: 'GET',
+          data: { fetch: 'departments', school: schoolId, faculty: facultyId },
+          dataType: 'json',
+          success: function (res) {
+            var $dept = $('#materialDept');
+            $dept.empty();
+            $dept.append('<option value="0">All Departments</option>');
+            if (res.status === 'success' && res.departments) {
+              $.each(res.departments, function (i, dept) {
+                $dept.append('<option value="' + dept.id + '">' + dept.name + '</option>');
+              });
+            }
+            
+            // Set the selected department value
+            $dept.val(deptId);
+            
+            // Step 4: Set level value
+            $('#materialLevel').val(level);
+            
+            // Step 5: NOW show the modal - all data is loaded and selected
+            $('#newMaterialModal').modal('show');
+          }
+        });
       }
     });
-    
-    // Show the modal
-    $('#newMaterialModal').modal('show');
   }
 
   // Initialize dropdowns to match default selections
@@ -739,6 +765,10 @@ $(document).ready(function () {
     $('#newMaterialSubmit').text('Create Material');
     $('#materialId').val('');
     
+    // Clear edit mode flag
+    $(this).removeData('isEditMode');
+    $(this).removeData('editMaterial');
+    
     // Remove any hidden fields added during edit mode
     $('#newMaterialForm').find('input[type="hidden"][name="school"], input[type="hidden"][name="host_faculty"], input[type="hidden"][name="faculty"], input[type="hidden"][name="dept"], input[type="hidden"][name="level"]').remove();
     
@@ -789,6 +819,11 @@ $(document).ready(function () {
 
   // Initialize modal dropdowns on modal show
   $('#newMaterialModal').on('shown.bs.modal', function () {
+    // Skip fetching if we're in edit mode - data is already loaded
+    if ($(this).data('isEditMode')) {
+      return;
+    }
+    
     var schoolId = adminRole == 5 ? adminSchool : $('#materialSchool').val();
     if (schoolId) {
       fetchModalFaculties(schoolId);
