@@ -340,7 +340,7 @@ if ($admin_role == 5) {
       
       // Set video source when modal is shown
       // TODO: Replace this URL with the actual video URL
-      const videoURL = 'https://www.youtube.com/embed/dQw4w9WgXcQ'; // Placeholder - replace with actual video
+      const videoURL = 'https://www.youtube.com/embed/kji658wVds4'; // Placeholder - replace with actual video
       
       howtoModal.addEventListener('show.bs.modal', function() {
         howtoVideo.setAttribute('src', videoURL + '?autoplay=1');
