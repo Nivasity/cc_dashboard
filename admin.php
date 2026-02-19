@@ -66,7 +66,8 @@ $admins_query = mysqli_query($conn, "SELECT a.*, r.name AS role_name, s.name AS 
                                 data-gender="<?php echo $admin['gender']; ?>"
                                 data-role="<?php echo $admin['role']; ?>"
                                 data-school="<?php echo $admin['school'] ?? 0; ?>"
-                                data-faculty="<?php echo $admin['faculty'] ?? 0; ?>">
+                                data-faculty="<?php echo $admin['faculty'] ?? 0; ?>"
+                                data-departments="<?php echo htmlspecialchars((string)($admin['departments'] ?? ''), ENT_QUOTES); ?>">
                                 <i class="bx bx-edit-alt me-1"></i> Edit
                               </a>
                               <a class="dropdown-item toggleAdminStatus" href="javascript:void(0);"
@@ -153,6 +154,15 @@ $admins_query = mysqli_query($conn, "SELECT a.*, r.name AS role_name, s.name AS 
                 <select name="faculty" id="faculty" class="form-select">
                   <option value="0">All Faculties</option>
                 </select>
+              </div>
+              <div class="col-12 mb-3" id="departments_wrapper" style="display: none;">
+                <label for="departments" class="form-label">Departments</label>
+                <select name="departments[]" id="departments" class="form-select" multiple>
+                  <option value="__all__" selected>All Departments</option>
+                </select>
+                <div class="form-text">
+                  For Role 6 only. Keep <strong>All Departments</strong> selected to allow the entire faculty.
+                </div>
               </div>
               <div class="col-12 mb-3 form-password-toggle" id="password_field">
                 <label for="password" class="form-label">Password</label>

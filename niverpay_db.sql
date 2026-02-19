@@ -37,6 +37,7 @@ CREATE TABLE `admins` (
   `role` int(11) NOT NULL,
   `school` int(11) DEFAULT NULL,
   `faculty` int(11) DEFAULT NULL,
+  `departments` text DEFAULT NULL COMMENT 'JSON array of allowed department IDs for role 6; NULL = all departments',
   `password` varchar(255) NOT NULL,
   `status` varchar(20) DEFAULT 'active',
   `profile_pic` varchar(255) DEFAULT 'user.jpg',

@@ -215,6 +215,7 @@ $admin_scope_ready = ($admin_school > 0 && $admin_faculty > 0);
   <?php } ?>
 
   <script src="assets/vendor/libs/jquery/jquery.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
   <script src="assets/vendor/js/bootstrap.js"></script>
   <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
   <script src="assets/vendor/libs/popper/popper.js"></script>
@@ -226,6 +227,8 @@ $admin_scope_ready = ($admin_school > 0 && $admin_faculty > 0);
     <script>
       const deptSelect = document.getElementById('deptSelect');
       const materialSelect = document.getElementById('materialSelect');
+      const $deptSelect = $('#deptSelect');
+      const $materialSelect = $('#materialSelect');
       const lookupInput = document.getElementById('lookupInput');
       const lookupBtn = document.getElementById('lookupBtn');
       const resultBody = document.getElementById('resultBody');
@@ -246,6 +249,14 @@ $admin_scope_ready = ($admin_school > 0 && $admin_faculty > 0);
       const confirmGrantBtn = document.getElementById('confirmGrantBtn');
 
       let currentLookup = null;
+      $deptSelect.select2({
+        theme: 'bootstrap-5',
+        width: '100%'
+      });
+      $materialSelect.select2({
+        theme: 'bootstrap-5',
+        width: '100%'
+      });
 
       function fmtAmount(value) {
         return 'NGN ' + Number(value || 0).toLocaleString();
@@ -294,7 +305,10 @@ $admin_scope_ready = ($admin_school > 0 && $admin_faculty > 0);
         if (!data.success || !Array.isArray(data.departments) || data.departments.length === 0) {
           deptSelect.innerHTML = '<option value="">No departments available</option>';
           materialSelect.innerHTML = '<option value="">No materials available</option>';
+          $deptSelect.trigger('change.select2');
+          $materialSelect.trigger('change.select2');
           lookupBtn.disabled = true;
+          resetResults('No departments available for your scope.');
           return;
         }
 
@@ -304,6 +318,8 @@ $admin_scope_ready = ($admin_school > 0 && $admin_faculty > 0);
           opt.textContent = item.name;
           deptSelect.appendChild(opt);
         });
+        deptSelect.value = String(data.departments[0].id);
+        $deptSelect.trigger('change.select2');
 
         await loadMaterials();
       }
@@ -316,6 +332,7 @@ $admin_scope_ready = ($admin_school > 0 && $admin_faculty > 0);
         materialSelect.innerHTML = '';
         if (!data.success || !Array.isArray(data.materials) || data.materials.length === 0) {
           materialSelect.innerHTML = '<option value="">No materials available</option>';
+          $materialSelect.trigger('change.select2');
           lookupBtn.disabled = true;
           resetResults('No eligible materials available for this department.');
           return;
@@ -327,6 +344,8 @@ $admin_scope_ready = ($admin_school > 0 && $admin_faculty > 0);
           opt.textContent = (item.code || '') + ' - ' + (item.title || '');
           materialSelect.appendChild(opt);
         });
+        materialSelect.value = String(data.materials[0].id);
+        $materialSelect.trigger('change.select2');
 
         lookupBtn.disabled = false;
         resetResults('Ready for lookup.');

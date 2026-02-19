@@ -46,6 +46,46 @@ function normalize_student_row($row) {
   ];
 }
 
+function parse_admin_departments($raw_departments) {
+  if ($raw_departments === null || $raw_departments === '') {
+    return [];
+  }
+
+  $decoded = json_decode((string)$raw_departments, true);
+  if (!is_array($decoded)) {
+    return [];
+  }
+
+  $ids = [];
+  foreach ($decoded as $dept_id) {
+    $dept_id = (int)$dept_id;
+    if ($dept_id > 0) {
+      $ids[] = $dept_id;
+    }
+  }
+
+  return array_values(array_unique($ids));
+}
+
+function build_department_visibility_clause($dept_id, $admin_faculty, $admin_departments) {
+  $dept_id = (int)$dept_id;
+  $admin_faculty = (int)$admin_faculty;
+  $admin_departments = array_values(array_filter(array_map('intval', (array)$admin_departments), function ($id) {
+    return $id > 0;
+  }));
+
+  if ($dept_id > 0) {
+    return "(m.dept = $dept_id OR (m.dept = 0 AND m.faculty = $admin_faculty))";
+  }
+
+  if (count($admin_departments) > 0) {
+    $dept_csv = implode(',', $admin_departments);
+    return "(m.dept IN ($dept_csv) OR (m.dept = 0 AND m.faculty = $admin_faculty))";
+  }
+
+  return "(d.faculty_id = $admin_faculty OR (m.dept = 0 AND m.faculty = $admin_faculty))";
+}
+
 $admin_role = isset($_SESSION['nivas_adminRole']) ? (int) $_SESSION['nivas_adminRole'] : 0;
 $admin_id = isset($_SESSION['nivas_adminId']) ? (int) $_SESSION['nivas_adminId'] : 0;
 
@@ -53,10 +93,20 @@ if ($admin_role !== 6 || $admin_id <= 0) {
   respond_json(403, ['success' => false, 'message' => 'Unauthorized access']);
 }
 
-$admin_scope_query = mysqli_query($conn, "SELECT school, faculty FROM admins WHERE id = $admin_id LIMIT 1");
+$admins_has_departments_column = has_column($conn, 'admins', 'departments');
+$admin_scope_query = mysqli_query(
+  $conn,
+  $admins_has_departments_column
+    ? "SELECT school, faculty, departments FROM admins WHERE id = $admin_id LIMIT 1"
+    : "SELECT school, faculty FROM admins WHERE id = $admin_id LIMIT 1"
+);
 $admin_info = $admin_scope_query ? mysqli_fetch_assoc($admin_scope_query) : null;
 $admin_school = isset($admin_info['school']) ? (int) $admin_info['school'] : 0;
 $admin_faculty = isset($admin_info['faculty']) ? (int) $admin_info['faculty'] : 0;
+$admin_departments = $admins_has_departments_column
+  ? parse_admin_departments($admin_info['departments'] ?? null)
+  : [];
+$has_department_scope = count($admin_departments) > 0;
 
 if ($admin_school <= 0 || $admin_faculty <= 0) {
   respond_json(403, [
@@ -74,7 +124,13 @@ if ($action === 'departments') {
     FROM depts
     WHERE status = 'active'
       AND school_id = $admin_school
-      AND faculty_id = $admin_faculty
+      AND faculty_id = $admin_faculty";
+
+  if ($has_department_scope) {
+    $dept_sql .= " AND id IN (" . implode(',', $admin_departments) . ")";
+  }
+
+  $dept_sql .= "
     ORDER BY name ASC";
 
   $dept_result = mysqli_query($conn, $dept_sql);
@@ -82,7 +138,12 @@ if ($action === 'departments') {
     respond_json(500, ['success' => false, 'message' => 'Failed to load departments']);
   }
 
-  $departments = [];
+  $departments = [
+    [
+      'id' => 0,
+      'name' => 'All Departments'
+    ]
+  ];
   while ($row = mysqli_fetch_assoc($dept_result)) {
     $departments[] = [
       'id' => (int)$row['id'],
@@ -95,6 +156,15 @@ if ($action === 'departments') {
 
 if ($action === 'materials') {
   $dept_id = isset($_GET['dept_id']) ? (int)$_GET['dept_id'] : 0;
+  if ($dept_id < 0) {
+    $dept_id = 0;
+  }
+
+  if ($has_department_scope && $dept_id > 0 && !in_array($dept_id, $admin_departments, true)) {
+    respond_json(403, ['success' => false, 'message' => 'Selected department is outside your scope']);
+  }
+
+  $department_visibility_clause = build_department_visibility_clause($dept_id, $admin_faculty, $admin_departments);
 
   $materials_sql = "SELECT
       m.id,
@@ -109,11 +179,8 @@ if ($action === 'materials') {
     FROM manuals m
     LEFT JOIN depts d ON m.dept = d.id
     WHERE $scope_clause
-      AND $material_status_clause";
-
-  if ($dept_id > 0) {
-    $materials_sql .= " AND m.dept = $dept_id";
-  }
+      AND $material_status_clause
+      AND $department_visibility_clause";
 
   $materials_sql .= " ORDER BY (m.status = 'open') DESC, m.created_at DESC";
 
@@ -160,6 +227,9 @@ if ($action === 'lookup') {
 
   $manual_id = isset($_POST['manual_id']) ? (int)$_POST['manual_id'] : 0;
   $dept_id = isset($_POST['dept_id']) ? (int)$_POST['dept_id'] : 0;
+  if ($dept_id < 0) {
+    $dept_id = 0;
+  }
   $lookup_value = trim((string)($_POST['lookup_value'] ?? ''));
 
   if ($manual_id <= 0) {
@@ -167,6 +237,9 @@ if ($action === 'lookup') {
   }
   if ($lookup_value === '') {
     respond_json(400, ['success' => false, 'message' => 'Enter export code, student email, or matric number']);
+  }
+  if ($has_department_scope && $dept_id > 0 && !in_array($dept_id, $admin_departments, true)) {
+    respond_json(403, ['success' => false, 'message' => 'Selected department is outside your scope']);
   }
 
   if (!has_column($conn, 'manual_export_audits', 'from_bought_id') || !has_column($conn, 'manual_export_audits', 'to_bought_id')) {
@@ -176,6 +249,7 @@ if ($action === 'lookup') {
     ]);
   }
 
+  $department_visibility_clause = build_department_visibility_clause($dept_id, $admin_faculty, $admin_departments);
   $manual_sql = "SELECT
       m.id,
       m.code,
@@ -191,6 +265,7 @@ if ($action === 'lookup') {
     WHERE m.id = $manual_id
       AND $scope_clause
       AND $material_status_clause
+      AND $department_visibility_clause
     LIMIT 1";
 
   $manual_result = mysqli_query($conn, $manual_sql);
@@ -198,10 +273,6 @@ if ($action === 'lookup') {
 
   if (!$manual) {
     respond_json(404, ['success' => false, 'message' => 'Selected material is unavailable for your scope']);
-  }
-
-  if ($dept_id > 0 && (int)$manual['dept'] !== $dept_id) {
-    respond_json(400, ['success' => false, 'message' => 'Selected material does not belong to the selected department']);
   }
 
   $is_email_lookup = strpos($lookup_value, '@') !== false;
@@ -461,6 +532,7 @@ if ($action === 'grant') {
     LEFT JOIN depts d ON m.dept = d.id
     WHERE m.id = $manual_id
       AND $scope_clause
+      AND " . build_department_visibility_clause(0, $admin_faculty, $admin_departments) . "
     LIMIT 1";
   $manual_scope_result = mysqli_query($conn, $manual_scope_sql);
   if (!$manual_scope_result || mysqli_num_rows($manual_scope_result) === 0) {
