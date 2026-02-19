@@ -216,6 +216,31 @@ CREATE TABLE `manuals_bought` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `manual_export_audits`
+--
+
+CREATE TABLE `manual_export_audits` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `code` varchar(25) NOT NULL,
+  `manual_id` int(11) NOT NULL,
+  `hoc_user_id` int(11) NOT NULL,
+  `students_count` int(11) NOT NULL,
+  `total_amount` int(11) NOT NULL,
+  `downloaded_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `grant_status` varchar(20) NOT NULL DEFAULT 'pending',
+  `granted_by` int(11) DEFAULT NULL,
+  `granted_at` datetime DEFAULT NULL,
+  `last_student_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_manual_export_code` (`code`),
+  KEY `idx_manual_export_manual` (`manual_id`),
+  KEY `idx_manual_export_hoc` (`hoc_user_id`),
+  KEY `idx_manual_export_status` (`grant_status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `organisation`
 --
 
