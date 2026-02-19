@@ -13,6 +13,11 @@ if ($admin_role === null || $admin_role !== 6 || !$admin_id) {
   exit();
 }
 
+// Get admin's school and faculty for filtering
+$admin_info = mysqli_fetch_assoc(mysqli_query($conn, "SELECT school, faculty FROM admins WHERE id = $admin_id"));
+$admin_school = isset($admin_info['school']) ? (int) $admin_info['school'] : 0;
+$admin_faculty = isset($admin_info['faculty']) ? (int) $admin_info['faculty'] : 0;
+
 $action = $_GET['action'] ?? '';
 
 header('Content-Type: application/json');
@@ -35,6 +40,9 @@ if ($action === 'list') {
     e.last_student_id,
     m.title AS manual_title,
     m.course_code AS manual_code,
+    m.school_id,
+    m.faculty AS manual_faculty,
+    m.dept AS manual_dept,
     u.first_name AS hoc_first_name,
     u.last_name AS hoc_last_name,
     u.email AS hoc_email,
@@ -44,7 +52,19 @@ if ($action === 'list') {
   LEFT JOIN manuals m ON e.manual_id = m.id
   LEFT JOIN users u ON e.hoc_user_id = u.id
   LEFT JOIN admins a ON e.granted_by = a.id
+  LEFT JOIN depts d ON m.dept = d.id
   WHERE 1=1";
+  
+  // Filter by admin's school
+  if ($admin_school > 0) {
+    $sql .= " AND m.school_id = $admin_school";
+  }
+  
+  // Filter by admin's faculty if assigned
+  if ($admin_faculty != 0) {
+    // Similar to role 5: check manual faculty OR department's faculty
+    $sql .= " AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))";
+  }
   
   if (!empty($status)) {
     $status = mysqli_real_escape_string($conn, $status);
@@ -82,7 +102,13 @@ if ($action === 'list') {
   }
   
   // Check if export exists and is pending
-  $check_sql = "SELECT id, code, grant_status FROM manual_export_audits WHERE id = $export_id";
+  // Also verify it belongs to admin's school/faculty
+  $check_sql = "SELECT e.id, e.code, e.grant_status, e.manual_id, m.school_id, m.faculty AS manual_faculty, m.dept AS manual_dept, d.faculty_id AS dept_faculty
+    FROM manual_export_audits e
+    LEFT JOIN manuals m ON e.manual_id = m.id
+    LEFT JOIN depts d ON m.dept = d.id
+    WHERE e.id = $export_id";
+  
   $check_result = mysqli_query($conn, $check_sql);
   
   if (!$check_result || mysqli_num_rows($check_result) === 0) {
@@ -92,6 +118,29 @@ if ($action === 'list') {
   }
   
   $export = mysqli_fetch_assoc($check_result);
+  
+  // Verify the export belongs to admin's school
+  if ($admin_school > 0 && $export['school_id'] != $admin_school) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => 'You do not have permission to grant this export']);
+    exit();
+  }
+  
+  // Verify the export belongs to admin's faculty (if admin has faculty assigned)
+  if ($admin_faculty != 0) {
+    $manual_faculty = (int)$export['manual_faculty'];
+    $dept_faculty = (int)$export['dept_faculty'];
+    
+    // Check if manual's faculty matches OR department's faculty matches
+    $faculty_match = ($manual_faculty == $admin_faculty) || 
+                     (($manual_faculty == 0 || $manual_faculty === null) && $dept_faculty == $admin_faculty);
+    
+    if (!$faculty_match) {
+      http_response_code(403);
+      echo json_encode(['success' => false, 'message' => 'You do not have permission to grant this export']);
+      exit();
+    }
+  }
   
   if ($export['grant_status'] === 'granted') {
     http_response_code(400);

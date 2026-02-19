@@ -8,6 +8,10 @@ if ($admin_role === null || $admin_role !== 6) {
   header('Location: index.php');
   exit();
 }
+
+// Get admin's school and faculty for filtering
+$admin_school = $admin_['school'] ?? 0;
+$admin_faculty = $admin_['faculty'] ?? 0;
 ?>
 
 <!DOCTYPE html>
