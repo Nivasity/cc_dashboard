@@ -92,6 +92,13 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
                 </li>
                 <li><div class="dropdown-divider"></div></li>
                 <li>
+                  <a class="dropdown-item" href="profile.php">
+                    <i class="bx bx-user me-2"></i>
+                    <span class="align-middle">My Profile</span>
+                  </a>
+                </li>
+                <li><div class="dropdown-divider"></div></li>
+                <li>
                   <a class="dropdown-item" href="signin.html?logout=1">
                     <i class="bx bx-power-off me-2"></i>
                     <span class="align-middle">Log Out</span>
@@ -374,7 +381,7 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
         data.materials.forEach(function(item) {
           const opt = document.createElement('option');
           opt.value = String(item.id);
-          opt.textContent = (item.code || '') + ' - ' + (item.title || '');
+          opt.textContent = (item.title || '') + ' - ' + (item.course_code || '') + ' (#' + (item.code || '') + ')';
           materialSelect.appendChild(opt);
         });
         materialSelect.value = String(data.materials[0].id);
