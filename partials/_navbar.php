@@ -25,12 +25,12 @@ $role6_only = $admin_role === 6;
     <ul class="navbar-nav flex-row align-items-center ms-auto">
       <!-- User -->
       <li class="nav-item navbar-dropdown dropdown-user dropdown">
-        <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
+        <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown" data-bs-offset="0,8">
           <div class="avatar avatar-online">
             <img src="<?php echo $nav_pic; ?>" alt class="w-px-40 h-auto rounded-circle" />
           </div>
         </a>
-        <ul class="dropdown-menu dropdown-menu-end dropdown-user">
+        <ul class="dropdown-menu dropdown-menu-end dropdown-user popper-safe-dropdown">
           <li>
             <a class="dropdown-item" href="#">
               <div class="d-flex">

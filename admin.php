@@ -55,8 +55,8 @@ $admins_query = mysqli_query($conn, "SELECT a.*, r.name AS role_name, s.name AS 
                         <td><span class="fw-bold badge bg-label-<?php echo $admin['status'] == 'active' ? 'success' : 'danger'; ?>"><?php echo ucfirst($admin['status']); ?></span></td>
                         <td>
                           <div class="dropdown">
-                            <button type="button" class="btn p-0 dropdown-toggle hide-arrow" data-bs-toggle="dropdown"><i class="bx bx-dots-vertical-rounded"></i></button>
-                            <div class="dropdown-menu">
+                            <button type="button" class="btn p-0 dropdown-toggle hide-arrow" data-bs-toggle="dropdown" data-bs-offset="0,8"><i class="bx bx-dots-vertical-rounded"></i></button>
+                            <div class="dropdown-menu popper-safe-dropdown">
                               <a class="dropdown-item editAdmin" href="javascript:void(0);"
                                 data-id="<?php echo $admin['id']; ?>"
                                 data-first="<?php echo $admin['first_name']; ?>"
@@ -93,7 +93,7 @@ $admins_query = mysqli_query($conn, "SELECT a.*, r.name AS role_name, s.name AS 
     <div class="layout-overlay layout-menu-toggle"></div>
   </div>
 
-  <button type="button" class="btn btn-primary new_formBtn" data-bs-toggle="modal" data-bs-target="#newAdminModal">
+  <button type="button" class="btn btn-primary new_formBtn">
     <i class="bx bx-plus fs-3"></i>
   </button>
 

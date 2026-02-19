@@ -99,6 +99,11 @@
   z-index: 2050 !important; /* higher than .modal (1055) and backdrop (1050) */
 }
 
+/* Popper warning fix: use offset modifier (data-bs-offset), not CSS margins */
+.popper-safe-dropdown[data-bs-popper] {
+  margin: 0 !important;
+}
+
 /* Ensure the manual transaction modal content is scrollable */
 #manualTransactionModal .modal-dialog {
   max-height: 90vh !important;

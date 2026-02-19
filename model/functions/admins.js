@@ -2,6 +2,8 @@ $(document).ready(function () {
   InitiateDatatable('.table');
 
   let editing = false;
+  const adminModalEl = document.getElementById('newAdminModal');
+  const adminModal = bootstrap.Modal.getOrCreateInstance(adminModalEl);
 
   $('#role, #school, #faculty').select2({ theme: 'bootstrap-5', dropdownParent: $('#newAdminModal') });
 
@@ -75,9 +77,15 @@ $(document).ready(function () {
     $('#role').val($('#role option:first').val()).trigger('change');
     $('#school').val('0').trigger('change');
     $('#password_field').show();
+    adminModal.show();
   });
 
   $('.editAdmin').on('click', function () {
+    const dropdownToggle = $(this).closest('.dropdown').find('[data-bs-toggle="dropdown"]')[0];
+    if (dropdownToggle) {
+      bootstrap.Dropdown.getOrCreateInstance(dropdownToggle).hide();
+    }
+
     editing = true;
     $('#newAdminModalLabel').text('Edit Admin');
     $('#adminForm [name="admin_id"]').val($(this).data('id'));
@@ -97,9 +105,15 @@ $(document).ready(function () {
     $('#adminForm [name="password"]').val('');
     $('#password_field').hide();
 
-    const modal = new bootstrap.Modal(document.getElementById('newAdminModal'));
-    modal.show();
+    adminModal.show();
     editing = false;
+  });
+
+  adminModalEl.addEventListener('hide.bs.modal', function () {
+    $('#role, #school, #faculty').select2('close');
+    if (document.activeElement && adminModalEl.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
   });
 
   $('#role').on('change', function () {
