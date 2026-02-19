@@ -3,8 +3,8 @@ session_start();
 include('model/config.php');
 include('model/page_config.php');
 
-$admin_role = isset($_SESSION['nivas_adminRole']) ? (int) $_SESSION['nivas_adminRole'] : null;
-if ($admin_role === null || $admin_role !== 6) {
+$admin_role = isset($_SESSION['nivas_adminRole']) ? (int) $_SESSION['nivas_adminRole'] : 0;
+if ($admin_role !== 6) {
   header('Location: index.php');
   exit();
 }
@@ -23,6 +23,41 @@ $admin_scope_ready = ($admin_school > 0 && $admin_faculty > 0);
   <title>Material Grants | Nivasity Command Center</title>
   <meta name="description" content="" />
   <?php include('partials/_head.php') ?>
+  <style>
+    .grant-action-wrap {
+      position: sticky;
+      bottom: 1rem;
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.9);
+      backdrop-filter: blur(4px);
+      border: 1px solid #e7e7ef;
+      border-radius: 0.75rem;
+      padding: 0.75rem;
+      margin-top: 1rem;
+    }
+
+    .lookup-label {
+      font-size: 0.78rem;
+      color: #8592a3;
+      margin-bottom: 0.25rem;
+      display: block;
+    }
+
+    #grantButton {
+      font-size: 1rem;
+      font-weight: 700;
+      padding: 0.9rem 1rem;
+    }
+
+    .summary-card h3 {
+      margin-bottom: 0;
+      font-size: 1.35rem;
+    }
+
+    .summary-card small {
+      color: #8592a3;
+    }
+  </style>
 </head>
 
 <body>
@@ -42,42 +77,96 @@ $admin_scope_ready = ($admin_school > 0 && $admin_faculty > 0);
               </div>
             </div>
           <?php } else { ?>
+            <div class="card mb-4">
+              <div class="card-body">
+                <div class="row g-3 align-items-end">
+                  <div class="col-md-3">
+                    <label class="form-label" for="deptSelect">Department</label>
+                    <select id="deptSelect" class="form-select"></select>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label" for="materialSelect">Material (Code &amp; Course Title)</label>
+                    <select id="materialSelect" class="form-select"></select>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label" for="lookupInput">Export Code / Student Email / Matric Number</label>
+                    <input type="text" id="lookupInput" class="form-control" placeholder="e.g. GXCZEFPJVY or student@email.com or 20XX/XXXX" />
+                  </div>
+                  <div class="col-md-1 d-grid">
+                    <button class="btn btn-primary" id="lookupBtn">Lookup</button>
+                  </div>
+                </div>
+                <div class="mt-2 text-muted small">
+                  Materials are limited to open items and closed items posted within the last 30 days.
+                </div>
+              </div>
+            </div>
+
+            <div class="row g-3 mb-4 d-none" id="summaryRow">
+              <div class="col-md-4">
+                <div class="card summary-card">
+                  <div class="card-body">
+                    <small>Students Count</small>
+                    <h3 id="studentsCount">0</h3>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card summary-card">
+                  <div class="card-body">
+                    <small>Material Price</small>
+                    <h3 id="materialPrice">NGN 0</h3>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-4">
+                <div class="card summary-card">
+                  <div class="card-body">
+                    <small>Total Amount Paid</small>
+                    <h3 id="totalAmount">NGN 0</h3>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="card">
               <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center">
                 <div>
-                  <h5 class="mb-0">Downloaded Materials</h5>
-                  <small class="text-muted">Manage and grant downloaded material exports</small>
+                  <h5 class="mb-0">Lookup Results</h5>
+                  <small id="lookupMeta" class="text-muted">No lookup performed yet.</small>
                 </div>
-                <div class="mt-3 mt-md-0">
-                  <select id="statusFilter" class="form-select">
-                    <option value="">All Status</option>
-                    <option value="pending" selected>Pending</option>
-                    <option value="granted">Granted</option>
-                  </select>
-                </div>
+                <div class="mt-2 mt-md-0 small text-muted" id="pendingMeta"></div>
               </div>
               <div class="card-body">
-                <div class="table-responsive text-nowrap">
-                  <table class="table" id="grantsTable">
+                <div class="table-responsive">
+                  <table class="table table-striped align-middle" id="resultTable">
                     <thead class="table-secondary">
                       <tr>
-                        <th>Export Code</th>
-                        <th>Material</th>
-                        <th>HOC Name</th>
-                        <th>Students Count</th>
-                        <th>Total Amount</th>
-                        <th>Downloaded At</th>
-                        <th>Status</th>
-                        <th>Actions</th>
+                        <th>#</th>
+                        <th>Student Name</th>
+                        <th>Email</th>
+                        <th>Matric No</th>
+                        <th>Amount</th>
+                        <th>Bought At</th>
+                        <th>Grant Status</th>
                       </tr>
                     </thead>
-                    <tbody class="table-border-bottom-0"></tbody>
+                    <tbody id="resultBody">
+                      <tr>
+                        <td colspan="7" class="text-center text-muted py-4">Run a lookup to see student records.</td>
+                      </tr>
+                    </tbody>
                   </table>
+                </div>
+
+                <div class="grant-action-wrap d-none" id="grantActionWrap">
+                  <button class="btn btn-success w-100" id="grantButton">Grant</button>
                 </div>
               </div>
             </div>
           <?php } ?>
         </div>
+
         <?php include('partials/_footer.php') ?>
         <div class="content-backdrop fade"></div>
       </div>
@@ -85,140 +174,91 @@ $admin_scope_ready = ($admin_school > 0 && $admin_faculty > 0);
   </div>
 
   <?php if ($admin_scope_ready) { ?>
-  <div class="modal fade" id="grantModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title">Confirm Grant</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <p>Are you sure you want to grant this material export?</p>
-          <div id="grantDetails"></div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-primary" id="confirmGrant">Grant</button>
+    <div class="modal fade" id="grantConfirmModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Confirm Grant (Step 1 of 2)</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-2">You are about to grant all pending records in the current lookup.</p>
+            <div id="grantConfirmDetails" class="small text-muted"></div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-primary" id="toFinalConfirmBtn">Continue</button>
+          </div>
         </div>
       </div>
     </div>
-  </div>
+
+    <div class="modal fade" id="grantFinalModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Final Confirmation (Step 2 of 2)</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="mb-2">Type <strong>GRANT</strong> to finalize this action.</p>
+            <input type="text" id="finalGrantInput" class="form-control" placeholder="Type GRANT" />
+            <div class="form-text">This marks all pending records in the current selection as granted.</div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="button" class="btn btn-success" id="confirmGrantBtn">Grant Now</button>
+          </div>
+        </div>
+      </div>
+    </div>
   <?php } ?>
 
   <script src="assets/vendor/libs/jquery/jquery.js"></script>
   <script src="assets/vendor/js/bootstrap.js"></script>
-  <script src="https://cdn.datatables.net/2.1.8/js/dataTables.js"></script>
-  <script src="https://cdn.datatables.net/2.1.8/js/dataTables.bootstrap5.js"></script>
   <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
   <script src="assets/vendor/libs/popper/popper.js"></script>
   <script src="assets/vendor/js/menu.js"></script>
   <script src="assets/js/ui-toasts.js"></script>
   <script src="assets/js/main.js"></script>
-  <script>
-    let table;
-    let currentExportId = null;
-    const grantScopeReady = <?php echo $admin_scope_ready ? 'true' : 'false'; ?>;
 
-    $(document).ready(function() {
-      if (!grantScopeReady) {
-        return;
+  <?php if ($admin_scope_ready) { ?>
+    <script>
+      const deptSelect = document.getElementById('deptSelect');
+      const materialSelect = document.getElementById('materialSelect');
+      const lookupInput = document.getElementById('lookupInput');
+      const lookupBtn = document.getElementById('lookupBtn');
+      const resultBody = document.getElementById('resultBody');
+      const summaryRow = document.getElementById('summaryRow');
+      const studentsCountEl = document.getElementById('studentsCount');
+      const materialPriceEl = document.getElementById('materialPrice');
+      const totalAmountEl = document.getElementById('totalAmount');
+      const lookupMeta = document.getElementById('lookupMeta');
+      const pendingMeta = document.getElementById('pendingMeta');
+      const grantActionWrap = document.getElementById('grantActionWrap');
+      const grantButton = document.getElementById('grantButton');
+
+      const grantConfirmModal = new bootstrap.Modal(document.getElementById('grantConfirmModal'));
+      const grantFinalModal = new bootstrap.Modal(document.getElementById('grantFinalModal'));
+      const grantConfirmDetails = document.getElementById('grantConfirmDetails');
+      const finalGrantInput = document.getElementById('finalGrantInput');
+      const toFinalConfirmBtn = document.getElementById('toFinalConfirmBtn');
+      const confirmGrantBtn = document.getElementById('confirmGrantBtn');
+
+      let currentLookup = null;
+
+      function fmtAmount(value) {
+        return 'NGN ' + Number(value || 0).toLocaleString();
       }
 
-      table = $('#grantsTable').DataTable({
-        processing: true,
-        serverSide: false,
-        ajax: {
-          url: 'model/material_grants.php?action=list',
-          data: function(d) {
-            d.status = $('#statusFilter').val();
-          }
-        },
-        columns: [
-          { data: 'code' },
-          {
-            data: null,
-            render: function(data) {
-              return data.manual_title + ' (' + data.manual_code + ')';
-            }
-          },
-          {
-            data: null,
-            render: function(data) {
-              return data.hoc_first_name + ' ' + data.hoc_last_name;
-            }
-          },
-          { data: 'students_count' },
-          {
-            data: 'total_amount',
-            render: function(data) {
-              return 'NGN ' + parseInt(data, 10).toLocaleString();
-            }
-          },
-          {
-            data: 'downloaded_at',
-            render: function(data) {
-              const date = new Date(data);
-              return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-            }
-          },
-          {
-            data: 'grant_status',
-            render: function(data, type, row) {
-              if (data === 'granted') {
-                const grantedDate = row.granted_at ? new Date(row.granted_at).toLocaleDateString() : '';
-                return '<span class="badge bg-success">Granted</span><br><small class="text-muted">' + grantedDate + '</small>';
-              }
-              return '<span class="badge bg-warning">Pending</span>';
-            }
-          },
-          {
-            data: null,
-            orderable: false,
-            render: function(data) {
-              if (data.grant_status === 'pending') {
-                return '<button class="btn btn-sm btn-primary grant-btn" data-id="' + data.id + '" data-code="' + data.code + '">Grant</button>';
-              }
-              return '<span class="text-muted">Granted</span>';
-            }
-          }
-        ],
-        order: [[5, 'desc']]
-      });
-
-      $('#statusFilter').on('change', function() {
-        table.ajax.reload();
-      });
-
-      $('#grantsTable').on('click', '.grant-btn', function() {
-        currentExportId = $(this).data('id');
-        const code = $(this).data('code');
-        $('#grantDetails').html('<strong>Export Code:</strong> ' + code);
-        $('#grantModal').modal('show');
-      });
-
-      $('#confirmGrant').on('click', function() {
-        if (!currentExportId) return;
-
-        $.ajax({
-          url: 'model/material_grants.php?action=grant',
-          method: 'POST',
-          data: { export_id: currentExportId },
-          dataType: 'json',
-          success: function(response) {
-            if (response.success) {
-              $('#grantModal').modal('hide');
-              table.ajax.reload();
-              showGrantToast('Success', response.message || 'Material export granted successfully', 'success');
-            } else {
-              showGrantToast('Error', response.message || 'Failed to grant export', 'error');
-            }
-          },
-          error: function(xhr) {
-            const response = xhr.responseJSON || {};
-            showGrantToast('Error', response.message || 'An error occurred while granting the export', 'error');
-          }
-        });
-      });
+      function escapeHtml(value) {
+        return String(value || '')
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;')
+          .replace(/'/g, '&#039;');
+      }
 
       function showGrantToast(title, message, type) {
         const bgClass = type === 'success' ? 'bg-success' : 'bg-danger';
@@ -234,10 +274,273 @@ $admin_scope_ready = ($admin_school > 0 && $admin_faculty > 0);
         $('body').append(toast);
         setTimeout(function() {
           toast.remove();
-        }, 3000);
+        }, 3500);
       }
-    });
-  </script>
+
+      function resetResults(message) {
+        currentLookup = null;
+        summaryRow.classList.add('d-none');
+        grantActionWrap.classList.add('d-none');
+        pendingMeta.textContent = '';
+        lookupMeta.textContent = message || 'No lookup performed yet.';
+        resultBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">Run a lookup to see student records.</td></tr>';
+      }
+
+      async function loadDepartments() {
+        const res = await fetch('model/material_grants.php?action=departments');
+        const data = await res.json();
+
+        deptSelect.innerHTML = '';
+        if (!data.success || !Array.isArray(data.departments) || data.departments.length === 0) {
+          deptSelect.innerHTML = '<option value="">No departments available</option>';
+          materialSelect.innerHTML = '<option value="">No materials available</option>';
+          lookupBtn.disabled = true;
+          return;
+        }
+
+        data.departments.forEach(function(item) {
+          const opt = document.createElement('option');
+          opt.value = String(item.id);
+          opt.textContent = item.name;
+          deptSelect.appendChild(opt);
+        });
+
+        await loadMaterials();
+      }
+
+      async function loadMaterials() {
+        const deptId = deptSelect.value;
+        const res = await fetch('model/material_grants.php?action=materials&dept_id=' + encodeURIComponent(deptId || '0'));
+        const data = await res.json();
+
+        materialSelect.innerHTML = '';
+        if (!data.success || !Array.isArray(data.materials) || data.materials.length === 0) {
+          materialSelect.innerHTML = '<option value="">No materials available</option>';
+          lookupBtn.disabled = true;
+          resetResults('No eligible materials available for this department.');
+          return;
+        }
+
+        data.materials.forEach(function(item) {
+          const opt = document.createElement('option');
+          opt.value = String(item.id);
+          opt.textContent = (item.code || '') + ' - ' + (item.title || '');
+          materialSelect.appendChild(opt);
+        });
+
+        lookupBtn.disabled = false;
+        resetResults('Ready for lookup.');
+      }
+
+      function renderLookupResult(data) {
+        const records = Array.isArray(data.records) ? data.records : [];
+        if (records.length === 0) {
+          resetResults('No records returned.');
+          return;
+        }
+
+        const summary = data.summary || {};
+        studentsCountEl.textContent = Number(summary.students_count || 0).toLocaleString();
+        materialPriceEl.textContent = fmtAmount(summary.price || 0);
+        totalAmountEl.textContent = fmtAmount(summary.total_amount || 0);
+        summaryRow.classList.remove('d-none');
+
+        const pendingCount = Number(summary.pending_count || 0);
+        const grantedCount = Number(summary.granted_count || 0);
+        pendingMeta.textContent = 'Pending: ' + pendingCount.toLocaleString() + ' | Granted: ' + grantedCount.toLocaleString();
+
+        const manual = data.manual || {};
+        const lookup = data.lookup || {};
+        lookupMeta.textContent = (data.message || 'Lookup completed') + ' | Material: ' + (manual.code || '') + ' - ' + (manual.title || '');
+
+        const rowsHtml = records.map(function(row, index) {
+          const badgeClass = row.is_granted ? 'bg-success' : 'bg-warning';
+          const statusText = row.is_granted ? 'Granted' : 'Pending';
+          return '<tr>' +
+            '<td>' + (index + 1) + '</td>' +
+            '<td>' + escapeHtml(row.full_name) + '</td>' +
+            '<td>' + escapeHtml(row.email) + '</td>' +
+            '<td>' + escapeHtml(row.matric_no) + '</td>' +
+            '<td>' + fmtAmount(row.price || 0) + '</td>' +
+            '<td>' + escapeHtml(row.bought_at) + '</td>' +
+            '<td><span class="badge ' + badgeClass + '">' + statusText + '</span></td>' +
+          '</tr>';
+        }).join('');
+
+        resultBody.innerHTML = rowsHtml;
+
+        currentLookup = {
+          dept_id: deptSelect.value,
+          manual_id: materialSelect.value,
+          lookup_value: lookupInput.value.trim(),
+          mode: lookup.mode,
+          payload: lookup,
+          summary: summary,
+          records: records
+        };
+
+        if (pendingCount > 0) {
+          grantActionWrap.classList.remove('d-none');
+        } else {
+          grantActionWrap.classList.add('d-none');
+        }
+      }
+
+      async function runLookup() {
+        const deptId = deptSelect.value;
+        const manualId = materialSelect.value;
+        const lookupValue = lookupInput.value.trim();
+
+        if (!deptId) {
+          showGrantToast('Error', 'Select a department.', 'error');
+          return;
+        }
+        if (!manualId) {
+          showGrantToast('Error', 'Select a material.', 'error');
+          return;
+        }
+        if (!lookupValue) {
+          showGrantToast('Error', 'Enter export code, email, or matric number.', 'error');
+          return;
+        }
+
+        lookupBtn.disabled = true;
+        lookupBtn.textContent = '...';
+
+        try {
+          const params = new URLSearchParams();
+          params.set('dept_id', deptId);
+          params.set('manual_id', manualId);
+          params.set('lookup_value', lookupValue);
+
+          const res = await fetch('model/material_grants.php?action=lookup', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params.toString()
+          });
+
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            resetResults(data.message || 'Lookup failed.');
+            showGrantToast('Error', data.message || 'Lookup failed.', 'error');
+            return;
+          }
+
+          renderLookupResult(data);
+          showGrantToast('Success', data.message || 'Lookup completed.', 'success');
+        } catch (error) {
+          resetResults('Lookup failed.');
+          showGrantToast('Error', 'Network error during lookup.', 'error');
+        } finally {
+          lookupBtn.disabled = false;
+          lookupBtn.textContent = 'Lookup';
+        }
+      }
+
+      function openGrantConfirmation() {
+        if (!currentLookup) {
+          showGrantToast('Error', 'Run lookup first.', 'error');
+          return;
+        }
+
+        const pendingCount = Number(currentLookup.summary.pending_count || 0);
+        if (pendingCount <= 0) {
+          showGrantToast('Info', 'All records are already granted.', 'error');
+          return;
+        }
+
+        const modeText = currentLookup.mode === 'export' ? 'Export lookup' : 'Single student lookup';
+        grantConfirmDetails.textContent = modeText + ' | Pending records: ' + pendingCount.toLocaleString();
+        finalGrantInput.value = '';
+        grantConfirmModal.show();
+      }
+
+      async function performGrant() {
+        if (!currentLookup || !currentLookup.payload) {
+          showGrantToast('Error', 'Lookup context is missing.', 'error');
+          return;
+        }
+
+        if (finalGrantInput.value.trim().toUpperCase() !== 'GRANT') {
+          showGrantToast('Error', 'Type GRANT to continue.', 'error');
+          return;
+        }
+
+        const payload = currentLookup.payload || {};
+        const params = new URLSearchParams();
+        params.set('mode', currentLookup.mode || '');
+        params.set('manual_id', String(currentLookup.manual_id || ''));
+
+        if (currentLookup.mode === 'export') {
+          params.set('export_id', String(payload.export_id || '0'));
+        } else {
+          params.set('student_id', String(payload.student_id || '0'));
+          params.set('bought_id', String(payload.bought_id || '0'));
+        }
+
+        confirmGrantBtn.disabled = true;
+        confirmGrantBtn.textContent = 'Granting...';
+
+        try {
+          const res = await fetch('model/material_grants.php?action=grant', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params.toString()
+          });
+
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            showGrantToast('Error', data.message || 'Grant failed.', 'error');
+            return;
+          }
+
+          grantFinalModal.hide();
+          showGrantToast('Success', data.message || 'Grant completed.', 'success');
+          await runLookup();
+        } catch (error) {
+          showGrantToast('Error', 'Network error during grant action.', 'error');
+        } finally {
+          confirmGrantBtn.disabled = false;
+          confirmGrantBtn.textContent = 'Grant Now';
+        }
+      }
+
+      deptSelect.addEventListener('change', function() {
+        loadMaterials();
+      });
+
+      lookupBtn.addEventListener('click', function() {
+        runLookup();
+      });
+
+      lookupInput.addEventListener('keydown', function(event) {
+        if (event.key === 'Enter') {
+          event.preventDefault();
+          runLookup();
+        }
+      });
+
+      grantButton.addEventListener('click', function() {
+        openGrantConfirmation();
+      });
+
+      toFinalConfirmBtn.addEventListener('click', function() {
+        grantConfirmModal.hide();
+        setTimeout(function() {
+          grantFinalModal.show();
+        }, 180);
+      });
+
+      confirmGrantBtn.addEventListener('click', function() {
+        performGrant();
+      });
+
+      loadDepartments().catch(function() {
+        showGrantToast('Error', 'Failed to initialize page data.', 'error');
+        resetResults('Failed to initialize page data.');
+      });
+    </script>
+  <?php } ?>
 </body>
 
 </html>
