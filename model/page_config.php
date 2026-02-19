@@ -12,7 +12,7 @@ $url = substr($_SERVER["SCRIPT_NAME"], strrpos($_SERVER["SCRIPT_NAME"], "/") + 1
 $admin_id = $_SESSION['nivas_adminId'];
 $session_admin_role = isset($_SESSION['nivas_adminRole']) ? (int) $_SESSION['nivas_adminRole'] : 0;
 
-if ($session_admin_role === 6 && $url !== 'material_grants.php') {
+if ($session_admin_role === 6 && !in_array($url, ['material_grants.php', 'profile.php'], true)) {
   header('Location: material_grants.php');
   exit();
 }
