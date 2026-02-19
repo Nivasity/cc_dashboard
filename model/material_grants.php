@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once(__DIR__ . '/config.php');
+require_once(__DIR__ . '/functions.php');
 
 // Check if user is logged in and has role 6
 $admin_role = isset($_SESSION['nivas_adminRole']) ? (int) $_SESSION['nivas_adminRole'] : null;
@@ -107,17 +108,15 @@ if ($action === 'list') {
     WHERE id = $export_id";
   
   if (mysqli_query($conn, $update_sql)) {
-    // Log the grant action in audit logs if the function exists
-    if (function_exists('log_audit_event')) {
-      log_audit_event(
-        $conn,
-        $admin_id,
-        'grant',
-        'manual_export',
-        $export_id,
-        'Granted material export: ' . $export['code']
-      );
-    }
+    // Log the grant action in audit logs
+    log_audit_event(
+      $conn,
+      $admin_id,
+      'grant',
+      'manual_export',
+      $export_id,
+      'Granted material export: ' . $export['code']
+    );
     
     echo json_encode([
       'success' => true, 
