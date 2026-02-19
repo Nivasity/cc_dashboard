@@ -9,13 +9,13 @@ if ($admin_role === null || $admin_role !== 6) {
   exit();
 }
 
-// Get admin's school and faculty for filtering
-$admin_school = $admin_['school'] ?? 0;
-$admin_faculty = $admin_['faculty'] ?? 0;
+$admin_school = isset($admin_['school']) ? (int) $admin_['school'] : 0;
+$admin_faculty = isset($admin_['faculty']) ? (int) $admin_['faculty'] : 0;
+$admin_scope_ready = ($admin_school > 0 && $admin_faculty > 0);
 ?>
 
 <!DOCTYPE html>
-<html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/" data-template="vertical-menu-template-free">
+<html lang="en" class="light-style layout-navbar-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/" data-template="vertical-menu-template-free">
 
 <head>
   <meta charset="utf-8" />
@@ -27,14 +27,21 @@ $admin_faculty = $admin_['faculty'] ?? 0;
 
 <body>
   <div class="layout-wrapper layout-content-navbar">
-    <div class="layout-container">
-      <?php include('partials/_sidebar.php') ?>
-      <div class="layout-page">
-        <?php include('partials/_navbar.php') ?>
-        <div class="content-wrapper">
-          <div class="container-xxl flex-grow-1 container-p-y">
-            <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Grant Management /</span> Material Grants</h4>
+    <div class="layout-page">
+      <?php include('partials/_navbar.php') ?>
+      <div class="content-wrapper">
+        <div class="container-xxl flex-grow-1 container-p-y">
+          <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Grant Management /</span> Material Grants</h4>
 
+          <?php if (!$admin_scope_ready) { ?>
+            <div class="card">
+              <div class="card-body">
+                <div class="alert alert-warning mb-0">
+                  This account is missing school/faculty assignment. Contact a super admin to assign both fields for Role 6.
+                </div>
+              </div>
+            </div>
+          <?php } else { ?>
             <div class="card">
               <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center">
                 <div>
@@ -69,16 +76,15 @@ $admin_faculty = $admin_['faculty'] ?? 0;
                 </div>
               </div>
             </div>
-          </div>
-          <?php include('partials/_footer.php') ?>
-          <div class="content-backdrop fade"></div>
+          <?php } ?>
         </div>
+        <?php include('partials/_footer.php') ?>
+        <div class="content-backdrop fade"></div>
       </div>
     </div>
-    <div class="layout-overlay layout-menu-toggle"></div>
   </div>
 
-  <!-- Grant Confirmation Modal -->
+  <?php if ($admin_scope_ready) { ?>
   <div class="modal fade" id="grantModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
       <div class="modal-content">
@@ -97,6 +103,7 @@ $admin_faculty = $admin_['faculty'] ?? 0;
       </div>
     </div>
   </div>
+  <?php } ?>
 
   <script src="assets/vendor/libs/jquery/jquery.js"></script>
   <script src="assets/vendor/js/bootstrap.js"></script>
@@ -110,9 +117,13 @@ $admin_faculty = $admin_['faculty'] ?? 0;
   <script>
     let table;
     let currentExportId = null;
+    const grantScopeReady = <?php echo $admin_scope_ready ? 'true' : 'false'; ?>;
 
     $(document).ready(function() {
-      // Initialize DataTable
+      if (!grantScopeReady) {
+        return;
+      }
+
       table = $('#grantsTable').DataTable({
         processing: true,
         serverSide: false,
@@ -124,64 +135,60 @@ $admin_faculty = $admin_['faculty'] ?? 0;
         },
         columns: [
           { data: 'code' },
-          { 
+          {
             data: null,
             render: function(data) {
               return data.manual_title + ' (' + data.manual_code + ')';
             }
           },
-          { 
+          {
             data: null,
             render: function(data) {
               return data.hoc_first_name + ' ' + data.hoc_last_name;
             }
           },
           { data: 'students_count' },
-          { 
+          {
             data: 'total_amount',
             render: function(data) {
-              return '₦' + parseInt(data).toLocaleString();
+              return 'NGN ' + parseInt(data, 10).toLocaleString();
             }
           },
-          { 
+          {
             data: 'downloaded_at',
             render: function(data) {
               const date = new Date(data);
               return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
             }
           },
-          { 
+          {
             data: 'grant_status',
             render: function(data, type, row) {
               if (data === 'granted') {
                 const grantedDate = row.granted_at ? new Date(row.granted_at).toLocaleDateString() : '';
                 return '<span class="badge bg-success">Granted</span><br><small class="text-muted">' + grantedDate + '</small>';
-              } else {
-                return '<span class="badge bg-warning">Pending</span>';
               }
+              return '<span class="badge bg-warning">Pending</span>';
             }
           },
-          { 
+          {
             data: null,
             orderable: false,
             render: function(data) {
               if (data.grant_status === 'pending') {
                 return '<button class="btn btn-sm btn-primary grant-btn" data-id="' + data.id + '" data-code="' + data.code + '">Grant</button>';
-              } else {
-                return '<span class="text-muted">Granted</span>';
               }
+              return '<span class="text-muted">Granted</span>';
             }
           }
         ],
-        order: [[5, 'desc']] // Order by downloaded_at desc
+        order: [[5, 'desc']]
       });
 
-      // Status filter change
       $('#statusFilter').on('change', function() {
         table.ajax.reload();
       });
 
-      // Grant button click
       $('#grantsTable').on('click', '.grant-btn', function() {
         currentExportId = $(this).data('id');
         const code = $(this).data('code');
@@ -189,7 +196,6 @@ $admin_faculty = $admin_['faculty'] ?? 0;
         $('#grantModal').modal('show');
       });
 
-      // Confirm grant
       $('#confirmGrant').on('click', function() {
         if (!currentExportId) return;
 
@@ -202,20 +208,19 @@ $admin_faculty = $admin_['faculty'] ?? 0;
             if (response.success) {
               $('#grantModal').modal('hide');
               table.ajax.reload();
-              showToast('Success', response.message || 'Material export granted successfully', 'success');
+              showGrantToast('Success', response.message || 'Material export granted successfully', 'success');
             } else {
-              showToast('Error', response.message || 'Failed to grant export', 'error');
+              showGrantToast('Error', response.message || 'Failed to grant export', 'error');
             }
           },
-          error: function() {
-            showToast('Error', 'An error occurred while granting the export', 'error');
+          error: function(xhr) {
+            const response = xhr.responseJSON || {};
+            showGrantToast('Error', response.message || 'An error occurred while granting the export', 'error');
           }
         });
       });
 
-      // Toast notification function
-      function showToast(title, message, type) {
-        // Simple toast notification (you can enhance this with a proper toast library)
+      function showGrantToast(title, message, type) {
         const bgClass = type === 'success' ? 'bg-success' : 'bg-danger';
         const toast = $('<div class="bs-toast toast fade show ' + bgClass + '" role="alert" aria-live="assertive" aria-atomic="true">' +
           '<div class="toast-header">' +
@@ -225,7 +230,7 @@ $admin_faculty = $admin_['faculty'] ?? 0;
           '</div>' +
           '<div class="toast-body">' + message + '</div>' +
           '</div>');
-        
+
         $('body').append(toast);
         setTimeout(function() {
           toast.remove();

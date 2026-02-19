@@ -10,6 +10,12 @@ if (!isset($_SESSION['nivas_adminId'])) {
 $url = substr($_SERVER["SCRIPT_NAME"], strrpos($_SERVER["SCRIPT_NAME"], "/") + 1);
 
 $admin_id = $_SESSION['nivas_adminId'];
+$session_admin_role = isset($_SESSION['nivas_adminRole']) ? (int) $_SESSION['nivas_adminRole'] : 0;
+
+if ($session_admin_role === 6 && $url !== 'material_grants.php') {
+  header('Location: material_grants.php');
+  exit();
+}
 
 $admin_ = mysqli_fetch_array(mysqli_query($conn, "SELECT * FROM admins WHERE id = $admin_id"));
 

@@ -19,7 +19,29 @@ if (isset($_POST['admin_manage'])) {
   $role = intval($_POST['role']);
   $school = intval($_POST['school']);
   $faculty = intval($_POST['faculty']);
+  $can_manage_admin = true;
+
   if ($role == 5) {
+    $school_sql = $school > 0 ? $school : 'NULL';
+    $faculty_sql = $faculty > 0 ? $faculty : 'NULL';
+  } elseif ($role == 6) {
+    if ($school <= 0 || $faculty <= 0) {
+      $can_manage_admin = false;
+      $statusRes = 'denied';
+      $messageRes = 'Grant Manager (Role 6) must be assigned to a school and faculty.';
+    } else {
+      $faculty_check = mysqli_query(
+        $conn,
+        "SELECT id FROM faculties WHERE id = $faculty AND school_id = $school AND status = 'active' LIMIT 1"
+      );
+
+      if (!$faculty_check || mysqli_num_rows($faculty_check) !== 1) {
+        $can_manage_admin = false;
+        $statusRes = 'denied';
+        $messageRes = 'Selected faculty does not belong to the selected school.';
+      }
+    }
+
     $school_sql = $school > 0 ? $school : 'NULL';
     $faculty_sql = $faculty > 0 ? $faculty : 'NULL';
   } else {
@@ -27,7 +49,9 @@ if (isset($_POST['admin_manage'])) {
     $faculty_sql = 'NULL';
   }
 
-  if ($admin_id == 0) {
+  if (!$can_manage_admin) {
+    // Validation response has already been set.
+  } else if ($admin_id == 0) {
     $password = md5($_POST['password']);
     $user_query = mysqli_query($conn, "SELECT id FROM admins WHERE email = '$email'");
     if (mysqli_num_rows($user_query) >= 1) {
@@ -126,49 +150,54 @@ if (isset($_POST['signup'])) {
     $role = mysqli_real_escape_string($conn, $_POST['role']);
     $school = mysqli_real_escape_string($conn, $_POST['school']);
 
-    mysqli_query($conn, "INSERT INTO admins (first_name, last_name, email, phone, password, role, school, gender) 
-      VALUES ('$first_name', '$last_name', '$email', '$phone', '$password', '$role', $school, '$gender')");
-
-    $user_id = mysqli_insert_id($conn);
-
-    if (mysqli_affected_rows($conn) < 1) {
-      $statusRes = "error";
-      $messageRes = "Internal Server Error. Please try again later!";
+    if ((int)$role === 6) {
+      $statusRes = "denied";
+      $messageRes = "Role 6 must be created from Admin Management with both school and faculty assigned.";
     } else {
+      mysqli_query($conn, "INSERT INTO admins (first_name, last_name, email, phone, password, role, school, gender) 
+        VALUES ('$first_name', '$last_name', '$email', '$phone', '$password', '$role', $school, '$gender')");
 
-      // Generate a unique verification code
-      $verificationCode = generateVerificationCode(12);
+      $user_id = mysqli_insert_id($conn);
 
-      // Check if the code already exists, regenerate if needed
-      while (!isCodeUnique($verificationCode, $conn, 'verification_code')) {
-        $verificationCode = generateVerificationCode(12);
-      }
-
-      mysqli_query($conn, "INSERT INTO verification_code (user_id, code) VALUES ($user_id, '$verificationCode')");
-
-      $subject = "Verify Your Account on NIVASITY";
-      $body = "Hello $first_name,
-      <br><br>
-      Welcome to Nivasity! We're excited to have you on board. To ensure the security of your account and to provide you with the best experience, we kindly ask you to verify your email address.
-      <br><br>
-      Click on the following link to verify your account: <a href='https://nivasity.com/setup.html?verify=$verificationCode'>Verify Account</a>
-      <br>If you are unable to click on the link, please copy and paste the following URL into your browser: https://nivasity.com/setup.html?verify=$verificationCode
-      <br><br>
-      Thank you for choosing Nivasity. We look forward to serving you!
-      <br><br>
-      Best regards,
-      <br>The Nivasity Team";
-
-      // Call the sendMail function and capture the status
-      $mailStatus = sendMail($subject, $body, $email);
-
-      // Check the status
-      if ($mailStatus === "success") {
-        $statusRes = "success";
-        $messageRes = "Great news! You're one step away from completing your signup.We've sent an account verification link to your email address. <br><br>Please check your inbox (and your spam folder, just in case) for an email from us. Click on the verification link to confirm your account and gain full access.";
-      } else {
+      if (mysqli_affected_rows($conn) < 1) {
         $statusRes = "error";
         $messageRes = "Internal Server Error. Please try again later!";
+      } else {
+
+        // Generate a unique verification code
+        $verificationCode = generateVerificationCode(12);
+
+        // Check if the code already exists, regenerate if needed
+        while (!isCodeUnique($verificationCode, $conn, 'verification_code')) {
+          $verificationCode = generateVerificationCode(12);
+        }
+
+        mysqli_query($conn, "INSERT INTO verification_code (user_id, code) VALUES ($user_id, '$verificationCode')");
+
+        $subject = "Verify Your Account on NIVASITY";
+        $body = "Hello $first_name,
+        <br><br>
+        Welcome to Nivasity! We're excited to have you on board. To ensure the security of your account and to provide you with the best experience, we kindly ask you to verify your email address.
+        <br><br>
+        Click on the following link to verify your account: <a href='https://nivasity.com/setup.html?verify=$verificationCode'>Verify Account</a>
+        <br>If you are unable to click on the link, please copy and paste the following URL into your browser: https://nivasity.com/setup.html?verify=$verificationCode
+        <br><br>
+        Thank you for choosing Nivasity. We look forward to serving you!
+        <br><br>
+        Best regards,
+        <br>The Nivasity Team";
+
+        // Call the sendMail function and capture the status
+        $mailStatus = sendMail($subject, $body, $email);
+
+        // Check the status
+        if ($mailStatus === "success") {
+          $statusRes = "success";
+          $messageRes = "Great news! You're one step away from completing your signup.We've sent an account verification link to your email address. <br><br>Please check your inbox (and your spam folder, just in case) for an email from us. Click on the verification link to confirm your account and gain full access.";
+        } else {
+          $statusRes = "error";
+          $messageRes = "Internal Server Error. Please try again later!";
+        }
       }
     }
   }

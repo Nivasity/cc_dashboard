@@ -8,10 +8,31 @@ $(document).ready(function () {
   const $schoolWrap = $('#school_wrapper');
   const $facultyWrap = $('#faculty_wrapper');
 
+  function isScopedRole(roleVal) {
+    const role = parseInt(roleVal, 10);
+    return role === 5 || role === 6;
+  }
+
+  function isGrantManagerRole(roleVal) {
+    return parseInt(roleVal, 10) === 6;
+  }
+
+  function setSchoolOptionLabel(roleVal) {
+    const label = isGrantManagerRole(roleVal) ? 'Select School' : 'All Schools';
+    const $school = $('#school');
+    let $firstOption = $school.find('option[value="0"]');
+    if ($firstOption.length === 0) {
+      $firstOption = $('<option value="0"></option>');
+      $school.prepend($firstOption);
+    }
+    $firstOption.text(label);
+  }
+
   function toggleRoleFields(roleVal) {
-    if (parseInt(roleVal) === 5) {
+    if (isScopedRole(roleVal)) {
       $schoolWrap.show();
       $facultyWrap.show();
+      setSchoolOptionLabel(roleVal);
       $('#school').trigger('change');
     } else {
       $schoolWrap.hide();
@@ -21,10 +42,11 @@ $(document).ready(function () {
     }
   }
 
-  function loadFaculties(schoolId, selected = 0) {
+  function loadFaculties(schoolId, selected = 0, roleVal = $('#role').val()) {
     const $fac = $('#faculty');
     $fac.empty();
-    $fac.append('<option value="0">All Faculties</option>');
+    const defaultFacultyLabel = isGrantManagerRole(roleVal) ? 'Select Faculty' : 'All Faculties';
+    $fac.append('<option value="0">' + defaultFacultyLabel + '</option>');
     if (schoolId == 0) {
       $fac.val(selected).trigger('change');
       return;
@@ -66,11 +88,11 @@ $(document).ready(function () {
     $('#adminForm [name="gender"]').val($(this).data('gender'));
     const role = $(this).data('role');
     $('#role').val(role).trigger('change');
-    if (parseInt(role) === 5) {
+    if (isScopedRole(role)) {
       const school = $(this).data('school') || 0;
       const faculty = $(this).data('faculty') || 0;
       $('#school').val(school).trigger('change');
-      loadFaculties(school, faculty);
+      loadFaculties(school, faculty, role);
     }
     $('#adminForm [name="password"]').val('');
     $('#password_field').hide();
@@ -86,11 +108,23 @@ $(document).ready(function () {
 
   $('#school').on('change', function () {
     if (editing) return;
-    loadFaculties($(this).val(), 0);
+    loadFaculties($(this).val(), 0, $('#role').val());
   });
 
   $('#adminForm').on('submit', function (e) {
     e.preventDefault();
+    const role = parseInt($('#role').val(), 10);
+    if (role === 6) {
+      if (parseInt($('#school').val(), 10) <= 0) {
+        showToast('bg-danger', 'Select a school for Grant Manager (Role 6).');
+        return;
+      }
+      if (parseInt($('#faculty').val(), 10) <= 0) {
+        showToast('bg-danger', 'Select a faculty for Grant Manager (Role 6).');
+        return;
+      }
+    }
+
     var formData = $(this).serialize() + '&admin_manage=1';
     $.ajax({
       url: 'model/admin.php',
