@@ -524,9 +524,11 @@ $admin_scope_ready = ($admin_school > 0 && $admin_faculty > 0);
         }
       }
 
-      deptSelect.addEventListener('change', function() {
+      function onDepartmentChanged() {
         loadMaterials();
-      });
+      }
+
+      $deptSelect.on('change select2:select', onDepartmentChanged);
 
       lookupBtn.addEventListener('click', function() {
         runLookup();
