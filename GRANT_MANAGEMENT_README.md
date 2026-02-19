@@ -25,8 +25,9 @@ Tracks all material downloads by HOCs with grant status tracking.
 **Role 6 - Grant Manager**
 - Can only access the Material Grants page
 - Cannot access any other dashboard pages
-- Can view all material exports
-- Can grant pending exports
+- **Restricted to specific school and faculty**
+- Can view material exports from their assigned school/faculty only
+- Can grant pending exports within their scope
 
 ## Installation
 
@@ -57,23 +58,34 @@ Run these SQL scripts in order:
 1. Log in as a super admin (Role 1)
 2. Go to Admin Management → Admins → Profiles
 3. Create a new admin and assign Role 6 (Grant Manager)
+4. **Important:** Assign the admin to a specific school and faculty
+   - Set the `school` field to the appropriate school ID
+   - Set the `faculty` field to the appropriate faculty ID (or 0 for all faculties in the school)
 
 ### Grant Manager Workflow
 1. Grant Manager logs in
 2. Sees only "Material Grants" in the sidebar
-3. Views list of all material downloads
+3. Views list of material downloads **from their assigned school/faculty only**
 4. Can filter by status (Pending/Granted/All)
 5. Clicks "Grant" button for pending items
 6. Confirms the grant action
 7. Export is marked as granted with timestamp and admin ID
 
+### School/Faculty Filtering
+- **School-based:** Grant Manager only sees exports for materials from their assigned school
+- **Faculty-based:** If assigned to a specific faculty, only sees exports for materials in that faculty
+- **Security:** Cannot grant exports outside their school/faculty scope (403 error)
+- Filtering logic matches Role 5 behavior (checks both manual.faculty and dept.faculty_id)
+
 ### Features
 - **DataTables Integration**: Searchable, sortable table
 - **Status Filtering**: Filter by pending, granted, or all
+- **School/Faculty Filtering**: Automatic based on admin assignment
 - **Real-time Updates**: Table refreshes after grant action
 - **Audit Trail**: Tracks who granted and when
 - **Responsive Design**: Works on all devices
 - **Toast Notifications**: User feedback on actions
+- **Security Validation**: Prevents granting exports outside admin's scope
 
 ## Files Modified/Created
 
@@ -98,6 +110,11 @@ Run these SQL scripts in order:
 **Parameters:**
 - `status` (optional): Filter by 'pending', 'granted', or empty for all
 
+**Filtering:**
+- Automatically filters by admin's assigned school
+- Automatically filters by admin's assigned faculty (if set)
+- Only returns exports for materials within admin's scope
+
 **Response:**
 ```json
 {
@@ -108,6 +125,8 @@ Run these SQL scripts in order:
       "manual_id": 19,
       "manual_title": "Introduction to Computer Science",
       "manual_code": "CSC101",
+      "school_id": 1,
+      "manual_faculty": 2,
       "hoc_user_id": 1,
       "hoc_first_name": "John",
       "hoc_last_name": "Doe",
@@ -128,7 +147,12 @@ Run these SQL scripts in order:
 **Parameters:**
 - `export_id`: ID of the export to grant
 
-**Response:**
+**Security Checks:**
+- Validates export belongs to admin's school
+- Validates export belongs to admin's faculty (if admin has faculty assigned)
+- Returns 403 error if admin tries to grant export outside their scope
+
+**Success Response:**
 ```json
 {
   "success": true,
@@ -136,11 +160,21 @@ Run these SQL scripts in order:
 }
 ```
 
+**Error Response (Outside Scope):**
+```json
+{
+  "success": false,
+  "message": "You do not have permission to grant this export"
+}
+```
+
 ## Security Features
 - Role-based access control (only Role 6 can access)
+- **School/Faculty-based filtering**: Admins can only see/grant exports within their scope
 - Session validation
 - SQL injection prevention
 - XSS protection via JSON encoding
+- **Permission validation**: Prevents granting exports outside admin's school/faculty
 - CSRF protection (recommended to add tokens)
 
 ## Future Enhancements
@@ -155,15 +189,19 @@ Run these SQL scripts in order:
 ### Grant Manager cannot see the page
 - Verify the admin has role = 6 in the `admins` table
 - Check if `grant_mgt_menu` is set correctly in `page_config.php`
+- Ensure admin has school and faculty assigned in `admins` table
 
 ### No data showing in the table
 - Verify `manual_export_audits` table exists
 - Check if there are records in the table
-- Verify database connection in `model/config.php`
+- **Verify admin's school/faculty assignment matches available exports**
+- Check database connection in `model/config.php`
+- Verify exports exist for materials in admin's school/faculty
 
 ### Grant action fails
 - Check admin session is valid
 - Verify export exists and is in 'pending' status
+- **Verify export belongs to admin's school/faculty**
 - Check database permissions for UPDATE operations
 
 ## Support
