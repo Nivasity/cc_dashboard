@@ -143,15 +143,23 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
             </div>
 
             <div class="row g-3 mb-4 d-none" id="summaryRow">
-              <div class="col-md-4">
+              <div class="col-md-3">
                 <div class="card summary-card">
                   <div class="card-body">
-                    <small>Students Count</small>
-                    <h3 id="studentsCount">0</h3>
+                    <small>Students Pending Collection</small>
+                    <h3 id="studentsPending">0</h3>
                   </div>
                 </div>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-3">
+                <div class="card summary-card">
+                  <div class="card-body">
+                    <small>Students Granted</small>
+                    <h3 id="studentsGranted">0</h3>
+                  </div>
+                </div>
+              </div>
+              <div class="col-md-3">
                 <div class="card summary-card">
                   <div class="card-body">
                     <small>Material Price</small>
@@ -159,7 +167,7 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
                   </div>
                 </div>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-3">
                 <div class="card summary-card">
                   <div class="card-body">
                     <small>Total Amount Paid</small>
@@ -273,7 +281,8 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
       const lookupBtn = document.getElementById('lookupBtn');
       const resultBody = document.getElementById('resultBody');
       const summaryRow = document.getElementById('summaryRow');
-      const studentsCountEl = document.getElementById('studentsCount');
+      const studentsPendingEl = document.getElementById('studentsPending');
+      const studentsGrantedEl = document.getElementById('studentsGranted');
       const materialPriceEl = document.getElementById('materialPrice');
       const totalAmountEl = document.getElementById('totalAmount');
       const lookupMeta = document.getElementById('lookupMeta');
@@ -399,7 +408,8 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
         }
 
         const summary = data.summary || {};
-        studentsCountEl.textContent = Number(summary.students_count || 0).toLocaleString();
+        studentsPendingEl.textContent = Number(summary.pending_count || 0).toLocaleString();
+        studentsGrantedEl.textContent = Number(summary.granted_count || 0).toLocaleString();
         materialPriceEl.textContent = fmtAmount(summary.price || 0);
         totalAmountEl.textContent = fmtAmount(summary.total_amount || 0);
         summaryRow.classList.remove('d-none');
