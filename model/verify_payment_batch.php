@@ -143,6 +143,7 @@ try {
   $up_item = $conn->prepare('UPDATE manual_payment_batch_items SET status = "paid" WHERE id = ?');
   $up_tx = $conn->prepare('UPDATE transactions SET status = "successful" WHERE ref_id = ?');
   $ins_mb = $conn->prepare('INSERT INTO manuals_bought (manual_id, price, seller, buyer, school_id, ref_id, status) VALUES (?, ?, ?, ?, ?, ?, "successful")');
+  $ins_grant = $conn->prepare('INSERT INTO material_grants (manual_bought_ref_id, manual_id, buyer_id, seller_id, school_id, status) VALUES (?, ?, ?, ?, ?, "pending")');
 
   foreach ($items as $it) {
     $iid = (int)$it['id'];
@@ -159,11 +160,16 @@ try {
 
     $ins_mb->bind_param('iiiiis', $manual_id, $price, $seller, $student_id, $school_id, $ref_id);
     if (!$ins_mb->execute()) { throw new Exception('mb-insert'); }
+    
+    // Create material grant record
+    $ins_grant->bind_param('siiii', $ref_id, $manual_id, $student_id, $seller, $school_id);
+    $ins_grant->execute();
   }
 
   $up_item->close();
   $up_tx->close();
   $ins_mb->close();
+  $ins_grant->close();
 
   mysqli_commit($conn);
   log_audit_event($conn, (int)$batch['hoc_id'], 'verify', 'manual_payment_batch', $bid, [

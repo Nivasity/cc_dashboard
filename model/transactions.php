@@ -202,6 +202,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if (!$manual_stmt->execute()) {
                           throw new Exception('Failed to attach material #' . $manual_id . ' to the transaction.');
                         }
+                        
+                        // Create material grant record for tracking
+                        $grant_stmt = $conn->prepare('INSERT INTO material_grants (manual_bought_ref_id, manual_id, buyer_id, seller_id, school_id, status) VALUES (?, ?, ?, ?, ?, ?)');
+                        $grant_status = 'pending';
+                        $grant_stmt->bind_param('siiiiis', $transaction_ref, $manual_id, $user_id, $seller, $school_id, $grant_status);
+                        $grant_stmt->execute();
+                        $grant_stmt->close();
                       }
                       $manual_stmt->close();
 
