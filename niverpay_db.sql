@@ -903,6 +903,40 @@ ALTER TABLE `notification_devices`
 ALTER TABLE `notifications`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `material_grants`
+-- Tracks grant status for bought materials (Admin Role 6)
+--
+
+CREATE TABLE IF NOT EXISTS `material_grants` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `manual_bought_ref_id` varchar(50) NOT NULL,
+  `manual_id` int(11) NOT NULL,
+  `buyer_id` int(11) NOT NULL,
+  `seller_id` int(11) NOT NULL,
+  `school_id` int(11) NOT NULL DEFAULT 1,
+  `admin_id` int(11) DEFAULT NULL COMMENT 'Admin who granted',
+  `status` enum('pending','granted') NOT NULL DEFAULT 'pending',
+  `last_student_id` int(11) DEFAULT NULL COMMENT 'Track last student granted for batch tracking',
+  `granted_at` datetime DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_ref_id` (`manual_bought_ref_id`),
+  KEY `idx_manual_id` (`manual_id`),
+  KEY `idx_buyer_id` (`buyer_id`),
+  KEY `idx_status` (`status`),
+  KEY `idx_school_id` (`school_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- AUTO_INCREMENT for table `material_grants`
+--
+
+ALTER TABLE `material_grants`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

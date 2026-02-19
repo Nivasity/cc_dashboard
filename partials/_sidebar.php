@@ -226,6 +226,17 @@ $admin_faculty = $admin_['faculty'] ?? 0;
       <?php } ?>
     <?php } ?>
 
+    <?php if ($grant_mgt_menu){ ?>
+      <!-- Material Grant Management (Role 6 Only) -->
+      <li class="menu-header small text-uppercase"><span class="menu-header-text">Material Grants</span></li>
+      <li class="menu-item <?php echo $current_page == 'material_grants.php' ? 'active' : ''; ?>">
+        <a href="material_grants.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-check-shield"></i>
+          <div data-i18n="Material Grants">Grant Management</div>
+        </a>
+      </li>
+    <?php } ?>
+
     <?php if ($admin_mgt_menu){ ?>
       <!-- Admin Management -->
       <li class="menu-header small text-uppercase"><span class="menu-header-text">Admin Management</span></li>

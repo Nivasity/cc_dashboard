@@ -36,7 +36,8 @@ if ($admin_role == 5) {
 $tran_sql = "SELECT t.ref_id, u.first_name, u.last_name, u.matric_no, u.adm_year, " .
   "COALESCE(s.name, '') AS school_name, COALESCE(f.name, '') AS faculty_name, COALESCE(d.name, '') AS dept_name, " .
   "GROUP_CONCAT(CONCAT(m.title, ' - ', m.course_code, ' (', b.price, ')') SEPARATOR ' | ') AS materials, " .
-  "SUM(b.price) AS material_amount, t.amount AS transaction_amount, t.status, t.created_at " .
+  "SUM(b.price) AS material_amount, t.amount AS transaction_amount, t.status, t.created_at, " .
+  "MAX(CASE WHEN mg.status IS NULL THEN 'N/A' ELSE mg.status END) AS grant_status " .
   "FROM transactions t " .
   "JOIN users u ON t.user_id = u.id " .
   "JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
@@ -44,6 +45,7 @@ $tran_sql = "SELECT t.ref_id, u.first_name, u.last_name, u.matric_no, u.adm_year
   "LEFT JOIN depts d ON m.dept = d.id " .
   "LEFT JOIN faculties f ON m.faculty = f.id " .
   "LEFT JOIN schools s ON b.school_id = s.id " .
+  "LEFT JOIN material_grants mg ON mg.manual_bought_ref_id = b.ref_id " .
   "WHERE 1=1";
 if ($school > 0) {
   $tran_sql .= " AND b.school_id = $school";
@@ -75,12 +77,13 @@ header('Content-Disposition: attachment; filename="' . $filename . '"');
 $out = fopen('php://output', 'w');
 // Always treat "Total Paid" as the sum of material prices from manuals_bought,
 // both for the course materials export and the main transactions table export.
-fputcsv($out, ['Ref Id', 'Student Name', 'Matric No', 'Admission Year', 'School', 'Faculty/College', 'Department', 'Materials', 'Total Paid', 'Date', 'Time', 'Status']);
+fputcsv($out, ['Ref Id', 'Student Name', 'Matric No', 'Admission Year', 'School', 'Faculty/College', 'Department', 'Materials', 'Total Paid', 'Date', 'Time', 'Status', 'Grant Status']);
 if ($tran_query) {
   while ($row = mysqli_fetch_assoc($tran_query)) {
     $dateStr = date('M j, Y', strtotime($row['created_at']));
     $timeStr = date('h:i a', strtotime($row['created_at']));
     $statusStr = $row['status'];
+    $grantStatus = $row['grant_status'] ?? 'N/A';
     // Use the summed material prices; fall back to transaction amount only if needed.
     $amountValue = isset($row['material_amount'])
       ? (int)$row['material_amount']
@@ -97,7 +100,8 @@ if ($tran_query) {
       $amountValue,
       $dateStr,
       $timeStr,
-      $statusStr
+      $statusStr,
+      $grantStatus
     ]);
   }
 }
