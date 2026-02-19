@@ -12,6 +12,7 @@ if ($admin_role !== 6) {
 $admin_school = isset($admin_['school']) ? (int) $admin_['school'] : 0;
 $admin_faculty = isset($admin_['faculty']) ? (int) $admin_['faculty'] : 0;
 $admin_scope_ready = ($admin_school > 0 && $admin_faculty > 0);
+$nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/users/$admin_image" : "assets/img/avatars/user.png";
 ?>
 
 <!DOCTYPE html>
@@ -63,10 +64,42 @@ $admin_scope_ready = ($admin_school > 0 && $admin_faculty > 0);
 <body>
   <div class="layout-wrapper layout-content-navbar">
     <div class="layout-page">
-      <?php include('partials/_navbar.php') ?>
       <div class="content-wrapper">
         <div class="container-xxl flex-grow-1 container-p-y">
-          <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Grant Management /</span> Material Grants</h4>
+          <div class="d-flex align-items-center justify-content-between py-3 mb-4">
+            <h4 class="fw-bold mb-0"><span class="text-muted fw-light">Grant Management /</span> Material Grants</h4>
+            <div class="dropdown">
+              <a class="nav-link dropdown-toggle hide-arrow p-0" href="javascript:void(0);" data-bs-toggle="dropdown" data-bs-offset="0,8">
+                <div class="avatar avatar-online">
+                  <img src="<?php echo $nav_pic; ?>" alt class="w-px-40 h-auto rounded-circle" />
+                </div>
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end dropdown-user popper-safe-dropdown">
+                <li>
+                  <a class="dropdown-item" href="#">
+                    <div class="d-flex">
+                      <div class="flex-shrink-0 me-3">
+                        <div class="avatar avatar-online">
+                          <img src="<?php echo $nav_pic; ?>" alt class="w-px-40 h-auto rounded-circle" />
+                        </div>
+                      </div>
+                      <div class="flex-grow-1">
+                        <span class="fw-semibold d-block"><?php echo htmlspecialchars($admin_name); ?></span>
+                        <small class="text-muted">Admin</small>
+                      </div>
+                    </div>
+                  </a>
+                </li>
+                <li><div class="dropdown-divider"></div></li>
+                <li>
+                  <a class="dropdown-item" href="signin.html?logout=1">
+                    <i class="bx bx-power-off me-2"></i>
+                    <span class="align-middle">Log Out</span>
+                  </a>
+                </li>
+              </ul>
+            </div>
+          </div>
 
           <?php if (!$admin_scope_ready) { ?>
             <div class="card">
