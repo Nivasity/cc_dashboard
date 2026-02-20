@@ -240,13 +240,6 @@ if ($action === 'lookup' || $action === 'grant') {
       ]);
     }
   }
-
-  if (!$export_has_bought_ids_json) {
-    respond_json(500, [
-      'success' => false,
-      'message' => 'manual_export_audits schema is missing bought_ids_json column'
-    ]);
-  }
 }
 
 if ($action === 'lookup') {
@@ -355,7 +348,7 @@ if ($action === 'lookup') {
     if (count($export_bought_ids) === 0) {
       respond_json(422, [
         'success' => false,
-        'message' => 'This export is invalid (missing bought_ids_json). Ask HOC to re-download/export again.'
+        'message' => 'Old export detected, please HOC/Students manager should re-download from Hoc portal.'
       ]);
     }
 
@@ -560,6 +553,13 @@ if ($action === 'grant') {
   }
 
   if ($mode === 'export') {
+    if (!$export_has_bought_ids_json) {
+      respond_json(500, [
+        'success' => false,
+        'message' => 'manual_export_audits schema is missing bought_ids_json column'
+      ]);
+    }
+
     $export_id = isset($_POST['export_id']) ? (int)$_POST['export_id'] : 0;
     if ($export_id <= 0) {
       respond_json(400, ['success' => false, 'message' => 'Invalid export']);
@@ -593,7 +593,7 @@ if ($action === 'grant') {
     $export_bought_ids = parse_bought_ids_json($export['bought_ids_json'] ?? null);
 
     if (count($export_bought_ids) === 0) {
-      respond_json(422, ['success' => false, 'message' => 'This export is invalid (missing bought_ids_json). Ask HOC to re-download/export again.']);
+      respond_json(422, ['success' => false, 'message' => 'Old export detected, please re-download from student side.']);
     }
 
     $bought_ids_csv = implode(',', array_map('intval', $export_bought_ids));
