@@ -86,6 +86,27 @@ function build_department_visibility_clause($dept_id, $admin_faculty, $admin_dep
   return "(d.faculty_id = $admin_faculty OR (m.dept = 0 AND m.faculty = $admin_faculty))";
 }
 
+function parse_bought_ids_json($raw_json) {
+  if ($raw_json === null) {
+    return [];
+  }
+
+  $decoded = json_decode((string)$raw_json, true);
+  if (!is_array($decoded)) {
+    return [];
+  }
+
+  $ids = [];
+  foreach ($decoded as $id) {
+    $id = (int)$id;
+    if ($id > 0) {
+      $ids[] = $id;
+    }
+  }
+
+  return array_values(array_unique($ids));
+}
+
 $admin_role = isset($_SESSION['nivas_adminRole']) ? (int) $_SESSION['nivas_adminRole'] : 0;
 $admin_id = isset($_SESSION['nivas_adminId']) ? (int) $_SESSION['nivas_adminId'] : 0;
 
@@ -118,6 +139,7 @@ if ($admin_school <= 0 || $admin_faculty <= 0) {
 $action = $_GET['action'] ?? '';
 $scope_clause = "m.school_id = $admin_school AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))";
 $material_status_clause = "(m.status = 'open' OR (m.status = 'closed' AND m.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)))";
+$export_has_bought_ids_json = has_column($conn, 'manual_export_audits', 'bought_ids_json');
 
 if ($action === 'departments') {
   $dept_sql = "SELECT id, name
@@ -218,6 +240,13 @@ if ($action === 'lookup' || $action === 'grant') {
       ]);
     }
   }
+
+  if (!$export_has_bought_ids_json) {
+    respond_json(500, [
+      'success' => false,
+      'message' => 'manual_export_audits schema is missing bought_ids_json column'
+    ]);
+  }
 }
 
 if ($action === 'lookup') {
@@ -240,13 +269,6 @@ if ($action === 'lookup') {
   }
   if ($has_department_scope && $dept_id > 0 && !in_array($dept_id, $admin_departments, true)) {
     respond_json(403, ['success' => false, 'message' => 'Selected department is outside your scope']);
-  }
-
-  if (!has_column($conn, 'manual_export_audits', 'from_bought_id') || !has_column($conn, 'manual_export_audits', 'to_bought_id')) {
-    respond_json(500, [
-      'success' => false,
-      'message' => 'manual_export_audits schema is missing from_bought_id/to_bought_id columns'
-    ]);
   }
 
   $department_visibility_clause = build_department_visibility_clause($dept_id, $admin_faculty, $admin_departments);
@@ -286,23 +308,27 @@ if ($action === 'lookup') {
 
   $export_row = null;
   if (!$is_email_lookup) {
+    $export_select_columns = [
+      "e.id",
+      "e.code",
+      "e.manual_id",
+      "e.hoc_user_id",
+      "e.students_count",
+      "e.total_amount",
+      "e.bought_ids_json"
+    ];
+    $export_select_columns[] = "e.grant_status";
+    $export_select_columns[] = "e.downloaded_at";
+    $export_select_columns[] = "e.granted_at";
+    $export_select_columns[] = "e.granted_by";
+    $export_select_columns[] = "COALESCE(u.first_name, '') AS hoc_first_name";
+    $export_select_columns[] = "COALESCE(u.last_name, '') AS hoc_last_name";
+
     $export_stmt = mysqli_prepare(
       $conn,
       "SELECT
-          e.id,
-          e.code,
-          e.manual_id,
-          e.hoc_user_id,
-          e.students_count,
-          e.total_amount,
-          e.from_bought_id,
-          e.to_bought_id,
-          e.grant_status,
-          e.downloaded_at,
-          e.granted_at,
-          e.granted_by,
-          COALESCE(u.first_name, '') AS hoc_first_name,
-          COALESCE(u.last_name, '') AS hoc_last_name
+          " . implode(",
+          ", $export_select_columns) . "
         FROM manual_export_audits e
         LEFT JOIN manuals m ON e.manual_id = m.id
         LEFT JOIN depts d ON m.dept = d.id
@@ -324,15 +350,16 @@ if ($action === 'lookup') {
 
   if ($export_row) {
     $lookup_mode = 'export';
-    $from_bought_id = isset($export_row['from_bought_id']) ? (int)$export_row['from_bought_id'] : 0;
-    $to_bought_id = isset($export_row['to_bought_id']) ? (int)$export_row['to_bought_id'] : 0;
+    $export_bought_ids = parse_bought_ids_json($export_row['bought_ids_json'] ?? null);
 
-    if ($from_bought_id <= 0 || $to_bought_id <= 0 || $to_bought_id < $from_bought_id) {
+    if (count($export_bought_ids) === 0) {
       respond_json(422, [
         'success' => false,
-        'message' => 'Export range is invalid. Ensure from_bought_id/to_bought_id are stored for this export.'
+        'message' => 'This export is invalid (missing bought_ids_json). Ask HOC to re-download/export again.'
       ]);
     }
+
+    $bought_ids_csv = implode(',', array_map('intval', $export_bought_ids));
 
     $rows_sql = "SELECT
         mb.id AS bought_id,
@@ -351,7 +378,7 @@ if ($action === 'lookup') {
       LEFT JOIN depts dp ON u.dept = dp.id
       WHERE mb.status = 'successful'
         AND mb.manual_id = $manual_id
-        AND mb.id BETWEEN $from_bought_id AND $to_bought_id
+        AND mb.id IN ($bought_ids_csv)
       ORDER BY mb.grant_status DESC, mb.id ASC";
 
     $rows_result = mysqli_query($conn, $rows_sql);
@@ -364,7 +391,7 @@ if ($action === 'lookup') {
     }
 
     if (count($records) === 0) {
-      respond_json(404, ['success' => false, 'message' => 'No purchase rows found within export range']);
+      respond_json(404, ['success' => false, 'message' => 'No purchase rows found within export scope']);
     }
 
     $lookup_context = [
@@ -372,8 +399,8 @@ if ($action === 'lookup') {
       'manual_id' => $manual_id,
       'export_id' => (int)$export_row['id'],
       'export_code' => (string)$export_row['code'],
-      'from_bought_id' => $from_bought_id,
-      'to_bought_id' => $to_bought_id,
+      'bought_ids_count' => count($export_bought_ids),
+      'bought_ids_source' => 'json',
       'export_grant_status' => (string)$export_row['grant_status']
     ];
 
@@ -520,13 +547,6 @@ if ($action === 'grant') {
     respond_json(400, ['success' => false, 'message' => 'Invalid material']);
   }
 
-  if (!has_column($conn, 'manual_export_audits', 'from_bought_id') || !has_column($conn, 'manual_export_audits', 'to_bought_id')) {
-    respond_json(500, [
-      'success' => false,
-      'message' => 'manual_export_audits schema is missing from_bought_id/to_bought_id columns'
-    ]);
-  }
-
   $manual_scope_sql = "SELECT m.id
     FROM manuals m
     LEFT JOIN depts d ON m.dept = d.id
@@ -545,12 +565,16 @@ if ($action === 'grant') {
       respond_json(400, ['success' => false, 'message' => 'Invalid export']);
     }
 
+    $export_select_columns = [
+      "e.id",
+      "e.code",
+      "e.grant_status",
+      "e.bought_ids_json"
+    ];
+
     $export_sql = "SELECT
-        e.id,
-        e.code,
-        e.from_bought_id,
-        e.to_bought_id,
-        e.grant_status
+        " . implode(",
+        ", $export_select_columns) . "
       FROM manual_export_audits e
       LEFT JOIN manuals m ON e.manual_id = m.id
       LEFT JOIN depts d ON m.dept = d.id
@@ -566,12 +590,13 @@ if ($action === 'grant') {
       respond_json(403, ['success' => false, 'message' => 'Export not found or outside your scope']);
     }
 
-    $from_bought_id = (int)($export['from_bought_id'] ?? 0);
-    $to_bought_id = (int)($export['to_bought_id'] ?? 0);
+    $export_bought_ids = parse_bought_ids_json($export['bought_ids_json'] ?? null);
 
-    if ($from_bought_id <= 0 || $to_bought_id <= 0 || $to_bought_id < $from_bought_id) {
-      respond_json(422, ['success' => false, 'message' => 'Export range is invalid']);
+    if (count($export_bought_ids) === 0) {
+      respond_json(422, ['success' => false, 'message' => 'This export is invalid (missing bought_ids_json). Ask HOC to re-download/export again.']);
     }
+
+    $bought_ids_csv = implode(',', array_map('intval', $export_bought_ids));
 
     $count_sql = "SELECT
         COUNT(*) AS total_rows,
@@ -579,7 +604,7 @@ if ($action === 'grant') {
       FROM manuals_bought
       WHERE status = 'successful'
         AND manual_id = $manual_id
-        AND id BETWEEN $from_bought_id AND $to_bought_id";
+        AND id IN ($bought_ids_csv)";
 
     $count_result = mysqli_query($conn, $count_sql);
     $count_row = $count_result ? mysqli_fetch_assoc($count_result) : null;
@@ -587,7 +612,7 @@ if ($action === 'grant') {
     $pending_rows = (int)($count_row['pending_rows'] ?? 0);
 
     if ($total_rows <= 0) {
-      respond_json(404, ['success' => false, 'message' => 'No purchase rows found for this export range']);
+      respond_json(404, ['success' => false, 'message' => 'No purchase rows found for this export scope']);
     }
 
     $granted_now = 0;
@@ -597,7 +622,7 @@ if ($action === 'grant') {
             export_id = $export_id
         WHERE status = 'successful'
           AND manual_id = $manual_id
-          AND id BETWEEN $from_bought_id AND $to_bought_id
+          AND id IN ($bought_ids_csv)
           AND grant_status = 0";
 
       if (!mysqli_query($conn, $grant_sql)) {
@@ -610,7 +635,7 @@ if ($action === 'grant') {
       SET export_id = $export_id
       WHERE status = 'successful'
         AND manual_id = $manual_id
-        AND id BETWEEN $from_bought_id AND $to_bought_id
+        AND id IN ($bought_ids_csv)
         AND (export_id IS NULL OR export_id = 0)";
     mysqli_query($conn, $bind_export_sql);
 
@@ -634,8 +659,8 @@ if ($action === 'grant') {
       [
         'mode' => 'export',
         'manual_id' => $manual_id,
-        'from_bought_id' => $from_bought_id,
-        'to_bought_id' => $to_bought_id,
+        'bought_ids_count' => count($export_bought_ids),
+        'bought_ids_source' => 'json',
         'total_rows' => $total_rows,
         'granted_now' => $granted_now
       ]

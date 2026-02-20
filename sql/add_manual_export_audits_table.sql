@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS `manual_export_audits` (
   `total_amount` int(11) NOT NULL,
   `from_bought_id` int(11) DEFAULT NULL COMMENT 'Start manuals_bought.id used for this export',
   `to_bought_id` int(11) DEFAULT NULL COMMENT 'End manuals_bought.id used for this export',
+  `bought_ids_json` longtext DEFAULT NULL COMMENT 'JSON array of manuals_bought.id included in this export',
   `downloaded_at` datetime NOT NULL DEFAULT current_timestamp(),
   `grant_status` varchar(20) NOT NULL DEFAULT 'pending',
   `granted_by` int(11) DEFAULT NULL COMMENT 'Admin ID who granted the export',
