@@ -37,6 +37,7 @@ CREATE TABLE `admins` (
   `role` int(11) NOT NULL,
   `school` int(11) DEFAULT NULL,
   `faculty` int(11) DEFAULT NULL,
+  `departments` text DEFAULT NULL COMMENT 'JSON array of allowed department IDs for role 6; NULL = all departments',
   `password` varchar(255) NOT NULL,
   `status` varchar(20) DEFAULT 'active',
   `profile_pic` varchar(255) DEFAULT 'user.jpg',
@@ -203,15 +204,47 @@ CREATE TABLE `manuals` (
 --
 
 CREATE TABLE `manuals_bought` (
+  `id` int(11) NOT NULL,
   `manual_id` int(11) NOT NULL,
   `price` int(11) NOT NULL,
   `seller` int(11) NOT NULL,
   `buyer` int(11) NOT NULL,
   `school_id` int(11) NOT NULL DEFAULT 1,
   `ref_id` varchar(50) NOT NULL,
+  `grant_status` tinyint(1) NOT NULL DEFAULT 0 COMMENT '0 = pending, 1 = granted',
+  `export_id` int(11) DEFAULT NULL COMMENT 'manual_export_audits.id used to grant this row; NULL for single grant',
   `status` varchar(15) NOT NULL DEFAULT 'successful',
   `created_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `manual_export_audits`
+--
+
+CREATE TABLE `manual_export_audits` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `code` varchar(25) NOT NULL,
+  `manual_id` int(11) NOT NULL,
+  `hoc_user_id` int(11) NOT NULL,
+  `students_count` int(11) NOT NULL,
+  `total_amount` int(11) NOT NULL,
+  `from_bought_id` int(11) DEFAULT NULL COMMENT 'Start manuals_bought.id used for this export',
+  `to_bought_id` int(11) DEFAULT NULL COMMENT 'End manuals_bought.id used for this export',
+  `bought_ids_json` longtext DEFAULT NULL COMMENT 'JSON array of manuals_bought.id included in this export',
+  `downloaded_at` datetime NOT NULL DEFAULT current_timestamp(),
+  `grant_status` varchar(20) NOT NULL DEFAULT 'pending',
+  `granted_by` int(11) DEFAULT NULL,
+  `granted_at` datetime DEFAULT NULL,
+  `last_student_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `ux_manual_export_code` (`code`),
+  KEY `idx_manual_export_manual` (`manual_id`),
+  KEY `idx_manual_export_hoc` (`hoc_user_id`),
+  KEY `idx_manual_export_status` (`grant_status`),
+  KEY `idx_manual_export_bought_range` (`from_bought_id`,`to_bought_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -634,6 +667,16 @@ ALTER TABLE `manuals`
   ADD PRIMARY KEY (`id`);
 
 --
+-- Indexes for table `manuals_bought`
+--
+ALTER TABLE `manuals_bought`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_manuals_bought_grant_status` (`grant_status`),
+  ADD KEY `idx_manuals_bought_export_id` (`export_id`),
+  ADD KEY `idx_manuals_bought_manual_buyer_grant` (`manual_id`,`buyer`,`grant_status`),
+  ADD KEY `idx_manuals_bought_manual_id_range` (`manual_id`,`id`);
+
+--
 -- Indexes for table `organisation`
 --
 ALTER TABLE `organisation`
@@ -763,6 +806,12 @@ ALTER TABLE `event_tickets`
 -- AUTO_INCREMENT for table `manuals`
 --
 ALTER TABLE `manuals`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `manuals_bought`
+--
+ALTER TABLE `manuals_bought`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --

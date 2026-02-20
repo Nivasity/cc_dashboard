@@ -10,6 +10,12 @@ $acting_admin_id = $_SESSION['nivas_adminId'] ?? null;
 $acting_admin_role = $_SESSION['nivas_adminRole'] ?? null;
 
 if (isset($_POST['admin_manage'])) {
+  $has_departments_column = false;
+  $departments_column_query = mysqli_query($conn, "SHOW COLUMNS FROM admins LIKE 'departments'");
+  if ($departments_column_query && mysqli_num_rows($departments_column_query) > 0) {
+    $has_departments_column = true;
+  }
+
   $admin_id = intval($_POST['admin_id']);
   $first_name = mysqli_real_escape_string($conn, $_POST['first_name']);
   $last_name = mysqli_real_escape_string($conn, $_POST['last_name']);
@@ -19,22 +25,103 @@ if (isset($_POST['admin_manage'])) {
   $role = intval($_POST['role']);
   $school = intval($_POST['school']);
   $faculty = intval($_POST['faculty']);
+  $raw_departments = $_POST['departments'] ?? [];
+  if (!is_array($raw_departments)) {
+    $raw_departments = [];
+  }
+  $all_departments_selected = false;
+  $department_ids = [];
+  foreach ($raw_departments as $dept_value) {
+    $dept_value = trim((string)$dept_value);
+    if ($dept_value === '' || $dept_value === '0') {
+      continue;
+    }
+    if ($dept_value === '__all__') {
+      $all_departments_selected = true;
+      continue;
+    }
+    $dept_id = (int)$dept_value;
+    if ($dept_id > 0) {
+      $department_ids[] = $dept_id;
+    }
+  }
+  $department_ids = array_values(array_unique($department_ids));
+  $can_manage_admin = true;
+  $departments_sql = 'NULL';
+  $departments_for_log = null;
+
   if ($role == 5) {
     $school_sql = $school > 0 ? $school : 'NULL';
     $faculty_sql = $faculty > 0 ? $faculty : 'NULL';
+  } elseif ($role == 6) {
+    if (!$has_departments_column) {
+      $can_manage_admin = false;
+      $statusRes = 'denied';
+      $messageRes = 'Database migration required: add admins.departments column before creating/updating Role 6.';
+    }
+
+    if ($can_manage_admin && ($school <= 0 || $faculty <= 0)) {
+      $can_manage_admin = false;
+      $statusRes = 'denied';
+      $messageRes = 'Grant Manager (Role 6) must be assigned to a school and faculty.';
+    } elseif ($can_manage_admin) {
+      $faculty_check = mysqli_query(
+        $conn,
+        "SELECT id FROM faculties WHERE id = $faculty AND school_id = $school AND status = 'active' LIMIT 1"
+      );
+
+      if (!$faculty_check || mysqli_num_rows($faculty_check) !== 1) {
+        $can_manage_admin = false;
+        $statusRes = 'denied';
+        $messageRes = 'Selected faculty does not belong to the selected school.';
+      }
+
+      if ($can_manage_admin && !$all_departments_selected && count($department_ids) > 0) {
+        $dept_ids_csv = implode(',', array_map('intval', $department_ids));
+        $dept_check = mysqli_query(
+          $conn,
+          "SELECT COUNT(*) AS total FROM depts WHERE id IN ($dept_ids_csv) AND school_id = $school AND faculty_id = $faculty AND status = 'active'"
+        );
+        $dept_total = (int)(mysqli_fetch_assoc($dept_check)['total'] ?? 0);
+        if ($dept_total !== count($department_ids)) {
+          $can_manage_admin = false;
+          $statusRes = 'denied';
+          $messageRes = 'One or more selected departments are invalid for the selected school/faculty.';
+        }
+      }
+    }
+
+    $school_sql = $school > 0 ? $school : 'NULL';
+    $faculty_sql = $faculty > 0 ? $faculty : 'NULL';
+    if (!$all_departments_selected && count($department_ids) > 0) {
+      $departments_json = mysqli_real_escape_string($conn, json_encode($department_ids));
+      $departments_sql = "'$departments_json'";
+      $departments_for_log = $department_ids;
+    } else {
+      $departments_sql = 'NULL';
+      $departments_for_log = null;
+    }
   } else {
     $school_sql = 'NULL';
     $faculty_sql = 'NULL';
+    $departments_sql = 'NULL';
+    $departments_for_log = null;
   }
 
-  if ($admin_id == 0) {
+  if (!$can_manage_admin) {
+    // Validation response has already been set.
+  } else if ($admin_id == 0) {
     $password = md5($_POST['password']);
     $user_query = mysqli_query($conn, "SELECT id FROM admins WHERE email = '$email'");
     if (mysqli_num_rows($user_query) >= 1) {
       $statusRes = "denied";
       $messageRes = "A user has been associated with this email. <br> Please try again with another email!";
     } else {
-      mysqli_query($conn, "INSERT INTO admins (first_name, last_name, email, phone, gender, role, school, faculty, password) VALUES ('$first_name', '$last_name', '$email', '$phone', '$gender', $role, $school_sql, $faculty_sql, '$password')");
+      if ($has_departments_column) {
+        mysqli_query($conn, "INSERT INTO admins (first_name, last_name, email, phone, gender, role, school, faculty, departments, password) VALUES ('$first_name', '$last_name', '$email', '$phone', '$gender', $role, $school_sql, $faculty_sql, $departments_sql, '$password')");
+      } else {
+        mysqli_query($conn, "INSERT INTO admins (first_name, last_name, email, phone, gender, role, school, faculty, password) VALUES ('$first_name', '$last_name', '$email', '$phone', '$gender', $role, $school_sql, $faculty_sql, '$password')");
+      }
       if (mysqli_affected_rows($conn) >= 1) {
         $statusRes = "success";
         $messageRes = "Admin successfully added!";
@@ -47,7 +134,8 @@ if (isset($_POST['admin_manage'])) {
             'phone' => $phone,
             'role' => $role,
             'school' => $school > 0 ? $school : null,
-            'faculty' => $faculty > 0 ? $faculty : null
+            'faculty' => $faculty > 0 ? $faculty : null,
+            'departments' => $departments_for_log
           ]);
         }
       } else {
@@ -61,7 +149,11 @@ if (isset($_POST['admin_manage'])) {
       $password = md5($_POST['password']);
       $password_sql = ", password = '$password'";
     }
-    mysqli_query($conn, "UPDATE admins SET first_name = '$first_name', last_name = '$last_name', email = '$email', phone = '$phone', gender = '$gender', role = $role, school = $school_sql, faculty = $faculty_sql" . $password_sql . " WHERE id = $admin_id");
+    if ($has_departments_column) {
+      mysqli_query($conn, "UPDATE admins SET first_name = '$first_name', last_name = '$last_name', email = '$email', phone = '$phone', gender = '$gender', role = $role, school = $school_sql, faculty = $faculty_sql, departments = $departments_sql" . $password_sql . " WHERE id = $admin_id");
+    } else {
+      mysqli_query($conn, "UPDATE admins SET first_name = '$first_name', last_name = '$last_name', email = '$email', phone = '$phone', gender = '$gender', role = $role, school = $school_sql, faculty = $faculty_sql" . $password_sql . " WHERE id = $admin_id");
+    }
     if (mysqli_affected_rows($conn) >= 1) {
       $statusRes = "success";
       $messageRes = "Admin successfully updated!";
@@ -70,11 +162,12 @@ if (isset($_POST['admin_manage'])) {
           'first_name' => $first_name,
           'last_name' => $last_name,
           'email' => $email,
-          'phone' => $phone,
-          'role' => $role,
-          'school' => $school > 0 ? $school : null,
-          'faculty' => $faculty > 0 ? $faculty : null,
-          'password_changed' => !empty($password_sql)
+            'phone' => $phone,
+            'role' => $role,
+            'school' => $school > 0 ? $school : null,
+            'faculty' => $faculty > 0 ? $faculty : null,
+            'departments' => $departments_for_log,
+            'password_changed' => !empty($password_sql)
         ]);
       }
     } else {
@@ -126,49 +219,54 @@ if (isset($_POST['signup'])) {
     $role = mysqli_real_escape_string($conn, $_POST['role']);
     $school = mysqli_real_escape_string($conn, $_POST['school']);
 
-    mysqli_query($conn, "INSERT INTO admins (first_name, last_name, email, phone, password, role, school, gender) 
-      VALUES ('$first_name', '$last_name', '$email', '$phone', '$password', '$role', $school, '$gender')");
-
-    $user_id = mysqli_insert_id($conn);
-
-    if (mysqli_affected_rows($conn) < 1) {
-      $statusRes = "error";
-      $messageRes = "Internal Server Error. Please try again later!";
+    if ((int)$role === 6) {
+      $statusRes = "denied";
+      $messageRes = "Role 6 must be created from Admin Management with both school and faculty assigned.";
     } else {
+      mysqli_query($conn, "INSERT INTO admins (first_name, last_name, email, phone, password, role, school, gender) 
+        VALUES ('$first_name', '$last_name', '$email', '$phone', '$password', '$role', $school, '$gender')");
 
-      // Generate a unique verification code
-      $verificationCode = generateVerificationCode(12);
+      $user_id = mysqli_insert_id($conn);
 
-      // Check if the code already exists, regenerate if needed
-      while (!isCodeUnique($verificationCode, $conn, 'verification_code')) {
-        $verificationCode = generateVerificationCode(12);
-      }
-
-      mysqli_query($conn, "INSERT INTO verification_code (user_id, code) VALUES ($user_id, '$verificationCode')");
-
-      $subject = "Verify Your Account on NIVASITY";
-      $body = "Hello $first_name,
-      <br><br>
-      Welcome to Nivasity! We're excited to have you on board. To ensure the security of your account and to provide you with the best experience, we kindly ask you to verify your email address.
-      <br><br>
-      Click on the following link to verify your account: <a href='https://nivasity.com/setup.html?verify=$verificationCode'>Verify Account</a>
-      <br>If you are unable to click on the link, please copy and paste the following URL into your browser: https://nivasity.com/setup.html?verify=$verificationCode
-      <br><br>
-      Thank you for choosing Nivasity. We look forward to serving you!
-      <br><br>
-      Best regards,
-      <br>The Nivasity Team";
-
-      // Call the sendMail function and capture the status
-      $mailStatus = sendMail($subject, $body, $email);
-
-      // Check the status
-      if ($mailStatus === "success") {
-        $statusRes = "success";
-        $messageRes = "Great news! You're one step away from completing your signup.We've sent an account verification link to your email address. <br><br>Please check your inbox (and your spam folder, just in case) for an email from us. Click on the verification link to confirm your account and gain full access.";
-      } else {
+      if (mysqli_affected_rows($conn) < 1) {
         $statusRes = "error";
         $messageRes = "Internal Server Error. Please try again later!";
+      } else {
+
+        // Generate a unique verification code
+        $verificationCode = generateVerificationCode(12);
+
+        // Check if the code already exists, regenerate if needed
+        while (!isCodeUnique($verificationCode, $conn, 'verification_code')) {
+          $verificationCode = generateVerificationCode(12);
+        }
+
+        mysqli_query($conn, "INSERT INTO verification_code (user_id, code) VALUES ($user_id, '$verificationCode')");
+
+        $subject = "Verify Your Account on NIVASITY";
+        $body = "Hello $first_name,
+        <br><br>
+        Welcome to Nivasity! We're excited to have you on board. To ensure the security of your account and to provide you with the best experience, we kindly ask you to verify your email address.
+        <br><br>
+        Click on the following link to verify your account: <a href='https://nivasity.com/setup.html?verify=$verificationCode'>Verify Account</a>
+        <br>If you are unable to click on the link, please copy and paste the following URL into your browser: https://nivasity.com/setup.html?verify=$verificationCode
+        <br><br>
+        Thank you for choosing Nivasity. We look forward to serving you!
+        <br><br>
+        Best regards,
+        <br>The Nivasity Team";
+
+        // Call the sendMail function and capture the status
+        $mailStatus = sendMail($subject, $body, $email);
+
+        // Check the status
+        if ($mailStatus === "success") {
+          $statusRes = "success";
+          $messageRes = "Great news! You're one step away from completing your signup.We've sent an account verification link to your email address. <br><br>Please check your inbox (and your spam folder, just in case) for an email from us. Click on the verification link to confirm your account and gain full access.";
+        } else {
+          $statusRes = "error";
+          $messageRes = "Internal Server Error. Please try again later!";
+        }
       }
     }
   }

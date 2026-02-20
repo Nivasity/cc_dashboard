@@ -10,6 +10,12 @@ if (!isset($_SESSION['nivas_adminId'])) {
 $url = substr($_SERVER["SCRIPT_NAME"], strrpos($_SERVER["SCRIPT_NAME"], "/") + 1);
 
 $admin_id = $_SESSION['nivas_adminId'];
+$session_admin_role = isset($_SESSION['nivas_adminRole']) ? (int) $_SESSION['nivas_adminRole'] : 0;
+
+if ($session_admin_role === 6 && !in_array($url, ['material_grants.php', 'profile.php'], true)) {
+  header('Location: material_grants.php');
+  exit();
+}
 
 $admin_ = mysqli_fetch_array(mysqli_query($conn, "SELECT * FROM admins WHERE id = $admin_id"));
 
@@ -21,7 +27,7 @@ $f_name = $admin_['first_name'];
 $l_name = $admin_['last_name'];
 $admin_name = $f_name .' '. $l_name;
 
-$admin_mgt_menu = $customer_mgt_menu = $sch_mgt_menu = $student_mgt_menu = $public_mgt_menu = $support_mgt_menu = $finance_mgt_menu = $resource_mgt_menu = False;
+$admin_mgt_menu = $customer_mgt_menu = $sch_mgt_menu = $student_mgt_menu = $public_mgt_menu = $support_mgt_menu = $finance_mgt_menu = $resource_mgt_menu = $grant_mgt_menu = False;
 
 $date = date('Y-m-d');
 $_day = date('w');
@@ -70,6 +76,8 @@ if ($_SESSION['nivas_adminRole'] == 1) {
   $finance_mgt_menu = True;
   $support_mgt_menu = True;
   $resource_mgt_menu = True;
+} else if ($_SESSION['nivas_adminRole'] == 6) {
+  $grant_mgt_menu = True;
 } else {
   $customer_mgt_menu = True;
   $student_mgt_menu = True;

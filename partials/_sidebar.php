@@ -255,6 +255,17 @@ $admin_faculty = $admin_['faculty'] ?? 0;
       </li>
     <?php } ?>
 
+    <?php if ($grant_mgt_menu){ ?>
+      <!-- Grant Management -->
+      <li class="menu-header small text-uppercase"><span class="menu-header-text">Grant Management</span></li>
+      <li class="menu-item <?php echo $current_page == 'material_grants.php' ? 'active' : ''; ?>">
+        <a href="material_grants.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-check-shield"></i>
+          <div data-i18n="Material Grants">Material Grants</div>
+        </a>
+      </li>
+    <?php } ?>
+
     <?php if (in_array($_SESSION['nivas_adminRole'], [1, 2])) { ?>
       <li class="menu-header small text-uppercase"><span class="menu-header-text">System</span></li>
       <li class="menu-item <?php echo $current_page == 'audit_logs.php' ? 'active' : ''; ?>">
