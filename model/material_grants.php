@@ -3,6 +3,16 @@ session_start();
 require_once(__DIR__ . '/config.php');
 require_once(__DIR__ . '/functions.php');
 
+$notification_helper_file = __DIR__ . '/notification_helpers.php';
+if (file_exists($notification_helper_file)) {
+  require_once($notification_helper_file);
+}
+
+$mail_helper_file = __DIR__ . '/mail.php';
+if (file_exists($mail_helper_file)) {
+  require_once($mail_helper_file);
+}
+
 header('Content-Type: application/json');
 
 function respond_json($code, $payload) {
@@ -105,6 +115,87 @@ function parse_bought_ids_json($raw_json) {
   }
 
   return array_values(array_unique($ids));
+}
+
+function try_send_notification($conn, $admin_id, $user_ids, $title, $body, $type = 'material', $data = []) {
+  if (!function_exists('sendNotification')) {
+    return ['success' => false, 'message' => 'Notification helper unavailable'];
+  }
+
+  try {
+    $result = sendNotification($conn, $admin_id, $user_ids, $title, $body, $type, $data);
+    if (!is_array($result)) {
+      return ['success' => false, 'message' => 'Unexpected notification response'];
+    }
+    return $result;
+  } catch (Throwable $e) {
+    error_log('Grant notification error: ' . $e->getMessage());
+    return ['success' => false, 'message' => 'Notification dispatch failed'];
+  }
+}
+
+function try_send_email($subject, $body, $to_email) {
+  $to_email = trim((string)$to_email);
+  if ($to_email === '' || !filter_var($to_email, FILTER_VALIDATE_EMAIL)) {
+    return ['success' => false, 'message' => 'Invalid recipient email'];
+  }
+
+  if (!function_exists('sendMail')) {
+    return ['success' => false, 'message' => 'Email helper unavailable'];
+  }
+
+  try {
+    $status = sendMail($subject, $body, $to_email);
+    return ['success' => $status === 'success', 'message' => $status];
+  } catch (Throwable $e) {
+    error_log('Grant email error: ' . $e->getMessage());
+    return ['success' => false, 'message' => 'Email dispatch failed'];
+  }
+}
+
+function try_send_email_batch($subject, $body, $emails) {
+  $emails = array_values(array_unique(array_filter(array_map('trim', (array)$emails), function ($email) {
+    return $email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL);
+  })));
+
+  if (count($emails) === 0) {
+    return ['success' => false, 'message' => 'No valid recipient emails', 'success_count' => 0, 'fail_count' => 0];
+  }
+
+  if (function_exists('sendMailBatch')) {
+    try {
+      $batch = sendMailBatch($subject, $body, $emails);
+      $success_count = (int)($batch['success_count'] ?? 0);
+      $fail_count = (int)($batch['fail_count'] ?? 0);
+      return [
+        'success' => $success_count > 0 && $fail_count === 0,
+        'message' => 'batch',
+        'success_count' => $success_count,
+        'fail_count' => $fail_count
+      ];
+    } catch (Throwable $e) {
+      error_log('Grant batch email error: ' . $e->getMessage());
+      return ['success' => false, 'message' => 'Batch email dispatch failed', 'success_count' => 0, 'fail_count' => count($emails)];
+    }
+  }
+
+  $success_count = 0;
+  $fail_count = 0;
+  foreach ($emails as $email) {
+    $single = try_send_email($subject, $body, $email);
+    if (!empty($single['success'])) {
+      $success_count++;
+    } else {
+      $fail_count++;
+    }
+  }
+
+  return [
+    'success' => $success_count > 0 && $fail_count === 0,
+    'message' => 'loop',
+    'success_count' => $success_count,
+    'fail_count' => $fail_count
+  ];
 }
 
 $admin_role = isset($_SESSION['nivas_adminRole']) ? (int) $_SESSION['nivas_adminRole'] : 0;
@@ -348,7 +439,7 @@ if ($action === 'lookup') {
     if (count($export_bought_ids) === 0) {
       respond_json(422, [
         'success' => false,
-        'message' => 'Old export detected, please HOC/Students manager should re-download from Hoc portal.'
+        'message' => 'Old export detected, please re-download from student side.'
       ]);
     }
 
@@ -569,7 +660,11 @@ if ($action === 'grant') {
       "e.id",
       "e.code",
       "e.grant_status",
-      "e.bought_ids_json"
+      "e.bought_ids_json",
+      "e.hoc_user_id",
+      "COALESCE(hoc.email, '') AS hoc_email",
+      "COALESCE(hoc.first_name, '') AS hoc_first_name",
+      "COALESCE(hoc.last_name, '') AS hoc_last_name"
     ];
 
     $export_sql = "SELECT
@@ -578,6 +673,7 @@ if ($action === 'grant') {
       FROM manual_export_audits e
       LEFT JOIN manuals m ON e.manual_id = m.id
       LEFT JOIN depts d ON m.dept = d.id
+      LEFT JOIN users hoc ON e.hoc_user_id = hoc.id
       WHERE e.id = $export_id
         AND e.manual_id = $manual_id
         AND $scope_clause
@@ -597,6 +693,41 @@ if ($action === 'grant') {
     }
 
     $bought_ids_csv = implode(',', array_map('intval', $export_bought_ids));
+    $student_ids = [];
+    $student_emails = [];
+    $student_ids_sql = "SELECT DISTINCT buyer AS student_id
+      FROM manuals_bought
+      WHERE status = 'successful'
+        AND manual_id = $manual_id
+        AND id IN ($bought_ids_csv)";
+    $student_ids_result = mysqli_query($conn, $student_ids_sql);
+    if ($student_ids_result) {
+      while ($student_row = mysqli_fetch_assoc($student_ids_result)) {
+        $sid = (int)($student_row['student_id'] ?? 0);
+        if ($sid > 0) {
+          $student_ids[] = $sid;
+        }
+      }
+    }
+    $student_ids = array_values(array_unique($student_ids));
+    if (count($student_ids) > 0) {
+      $student_ids_csv = implode(',', array_map('intval', $student_ids));
+      $student_emails_sql = "SELECT email
+        FROM users
+        WHERE id IN ($student_ids_csv)
+          AND email IS NOT NULL
+          AND email <> ''";
+      $student_emails_result = mysqli_query($conn, $student_emails_sql);
+      if ($student_emails_result) {
+        while ($student_email_row = mysqli_fetch_assoc($student_emails_result)) {
+          $email = trim((string)($student_email_row['email'] ?? ''));
+          if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $student_emails[] = $email;
+          }
+        }
+      }
+      $student_emails = array_values(array_unique($student_emails));
+    }
 
     $count_sql = "SELECT
         COUNT(*) AS total_rows,
@@ -650,6 +781,67 @@ if ($action === 'grant') {
       respond_json(500, ['success' => false, 'message' => 'Failed to update export grant status']);
     }
 
+    $hoc_user_id = (int)($export['hoc_user_id'] ?? 0);
+    $hoc_name = trim((string)($export['hoc_first_name'] ?? '') . ' ' . (string)($export['hoc_last_name'] ?? ''));
+    if ($hoc_name === '') {
+      $hoc_name = 'HOC';
+    }
+    $hoc_email = trim((string)($export['hoc_email'] ?? ''));
+
+    $student_notification = ['success' => false, 'message' => 'No new grants to notify'];
+    $hoc_notification = ['success' => false, 'message' => 'No new grants to notify'];
+    $student_email_result = ['success' => false, 'message' => 'No new grants to email', 'success_count' => 0, 'fail_count' => 0];
+    $hoc_email_result = ['success' => false, 'message' => 'No new grants to email'];
+    if ($granted_now > 0 && count($student_ids) > 0) {
+      $student_notification = try_send_notification(
+        $conn,
+        $admin_id,
+        $student_ids,
+        'Material Collection Grant Approved',
+        "Your payment has been granted for collection at the material collection center by $hoc_name. If you have issues, please reach out to the HOC/Collection center.",
+        'material',
+        [
+          'action' => 'material_collection_grant',
+          'mode' => 'export',
+          'manual_id' => $manual_id,
+          'export_id' => $export_id,
+          'hoc_name' => $hoc_name
+        ]
+      );
+    }
+    if ($granted_now > 0 && count($student_emails) > 0) {
+      $student_email_result = try_send_email_batch(
+        'Material Collection Grant Approved',
+        "Your payment has been granted for collection at the material collection center by $hoc_name.<br><br>If you have issues, please reach out to the HOC/Collection center.",
+        $student_emails
+      );
+    }
+
+    if ($granted_now > 0 && $hoc_user_id > 0) {
+      $hoc_notification = try_send_notification(
+        $conn,
+        $admin_id,
+        $hoc_user_id,
+        'Material Export Grant Confirmed',
+        "Export code {$export['code']} has been granted for material collection. If you did not initiate this request, please complain to our help desk immediately.",
+        'material',
+        [
+          'action' => 'material_collection_grant',
+          'mode' => 'export',
+          'manual_id' => $manual_id,
+          'export_id' => $export_id,
+          'export_code' => (string)$export['code']
+        ]
+      );
+    }
+    if ($granted_now > 0 && $hoc_email !== '') {
+      $hoc_email_result = try_send_email(
+        'Material Export Grant Confirmed',
+        "Export code {$export['code']} has been granted for material collection.<br><br>If you did not initiate this request, please complain to our help desk immediately.",
+        $hoc_email
+      );
+    }
+
     log_audit_event(
       $conn,
       $admin_id,
@@ -661,6 +853,12 @@ if ($action === 'grant') {
         'manual_id' => $manual_id,
         'bought_ids_count' => count($export_bought_ids),
         'bought_ids_source' => 'json',
+        'student_notified_count' => count($student_ids),
+        'student_notification_sent' => !empty($student_notification['success']),
+        'hoc_notification_sent' => !empty($hoc_notification['success']),
+        'student_emailed_count' => (int)($student_email_result['success_count'] ?? 0),
+        'student_email_failed_count' => (int)($student_email_result['fail_count'] ?? 0),
+        'hoc_email_sent' => !empty($hoc_email_result['success']),
         'total_rows' => $total_rows,
         'granted_now' => $granted_now
       ]
@@ -675,7 +873,13 @@ if ($action === 'grant') {
         'export_id' => $export_id,
         'total_rows' => $total_rows,
         'granted_now' => $granted_now,
-        'already_granted' => max($total_rows - $granted_now, 0)
+        'already_granted' => max($total_rows - $granted_now, 0),
+        'students_notified' => count($student_ids),
+        'student_notification_sent' => !empty($student_notification['success']),
+        'hoc_notification_sent' => !empty($hoc_notification['success']),
+        'students_emailed' => (int)($student_email_result['success_count'] ?? 0),
+        'student_email_failed_count' => (int)($student_email_result['fail_count'] ?? 0),
+        'hoc_email_sent' => !empty($hoc_email_result['success'])
       ]
     ]);
   }
@@ -689,8 +893,10 @@ if ($action === 'grant') {
 
   $row_sql = "SELECT
       mb.id AS bought_id,
-      mb.grant_status
+      mb.grant_status,
+      COALESCE(u.email, '') AS student_email
     FROM manuals_bought mb
+    LEFT JOIN users u ON mb.buyer = u.id
     WHERE mb.status = 'successful'
       AND mb.manual_id = $manual_id
       AND mb.buyer = $student_id";
@@ -726,6 +932,32 @@ if ($action === 'grant') {
     $granted_now = mysqli_affected_rows($conn);
   }
 
+  $single_notification = ['success' => false, 'message' => 'No new grants to notify'];
+  if ($granted_now > 0) {
+    $single_notification = try_send_notification(
+      $conn,
+      $admin_id,
+      $student_id,
+      'Material Collection Grant Approved',
+      'Your payment has been granted for collection at the material collection center. If you did not initiate this request, please complain to our help desk immediately.',
+      'material',
+      [
+        'action' => 'material_collection_grant',
+        'mode' => 'single',
+        'manual_id' => $manual_id,
+        'bought_id' => $target_bought_id
+      ]
+    );
+  }
+  $single_email_result = ['success' => false, 'message' => 'No new grants to email'];
+  if ($granted_now > 0) {
+    $single_email_result = try_send_email(
+      'Material Collection Grant Approved',
+      'Your payment has been granted for collection at the material collection center.<br><br>If you did not initiate this request, please complain to our help desk immediately.',
+      (string)($target_row['student_email'] ?? '')
+    );
+  }
+
   log_audit_event(
     $conn,
     $admin_id,
@@ -736,7 +968,9 @@ if ($action === 'grant') {
       'mode' => 'single',
       'manual_id' => $manual_id,
       'student_id' => $student_id,
-      'granted_now' => $granted_now
+      'granted_now' => $granted_now,
+      'student_notification_sent' => !empty($single_notification['success']),
+      'student_email_sent' => !empty($single_email_result['success'])
     ]
   );
 
@@ -748,7 +982,9 @@ if ($action === 'grant') {
       'manual_id' => $manual_id,
       'student_id' => $student_id,
       'bought_id' => $target_bought_id,
-      'granted_now' => $granted_now
+      'granted_now' => $granted_now,
+      'student_notification_sent' => !empty($single_notification['success']),
+      'student_email_sent' => !empty($single_email_result['success'])
     ]
   ]);
 }
