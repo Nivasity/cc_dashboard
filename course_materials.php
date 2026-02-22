@@ -101,6 +101,7 @@ if ($admin_role == 5) {
                       <tr>
                         <th>#Code</th>
                         <th>Title (Course Code)</th>
+                        <th>Coverage</th>
                         <th>Posted By</th>
                         <th>Unit Price</th>
                         <th>Revenue</th>
@@ -228,16 +229,17 @@ if ($admin_role == 5) {
             <!-- Department and Level (2-column grid on desktop) -->
             <div class="row g-3 mb-3">
               <div class="col-md-6">
-                <label for="materialDept" class="form-label">Department</label>
-                <select id="materialDept" name="dept" class="form-select">
-                  <option value="0">All Departments</option>
+                <label for="materialDept" class="form-label">Departments Coverage <span class="text-danger">*</span></label>
+                <select id="materialDept" name="depts[]" class="form-select" multiple required>
+                  <option value="__all_school__">All Departments in School</option>
+                  <option value="__all_faculty__">All Departments in Faculty</option>
                   <?php 
                   mysqli_data_seek($depts_query, 0);
                   while($dept = mysqli_fetch_array($depts_query)) { ?>
                     <option value="<?php echo $dept['id']; ?>"><?php echo $dept['name']; ?></option>
                   <?php } ?>
                 </select>
-                <div class="form-text">Select specific or "All Departments"</div>
+                <div class="form-text">Pick specific departments, or use all-in-school/all-in-faculty</div>
               </div>
               <div class="col-md-6">
                 <label for="materialLevel" class="form-label">Level</label>

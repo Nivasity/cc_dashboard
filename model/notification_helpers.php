@@ -195,15 +195,40 @@ function notifyStudentProfileUpdate($conn, $admin_id, $user_id, $update_type = '
  * @param int $manual_id Manual/material ID
  * @param string $title Material title
  * @param string $course_code Course code
- * @param int $dept_id Department ID (0 for all departments in faculty)
+ * @param int|array $dept_scope Department ID or array of department IDs
  * @param int $faculty_id Faculty ID
  * @param int $school_id School ID
  */
-function notifyCourseMaterialCreated($conn, $admin_id, $manual_id, $title, $course_code, $dept_id, $faculty_id, $school_id) {
+function notifyCourseMaterialCreated($conn, $admin_id, $manual_id, $title, $course_code, $dept_scope, $faculty_id, $school_id) {
   // Get students based on department setting
   $student_ids = array();
-  
-  if ($dept_id == 0) {
+
+  if (is_array($dept_scope)) {
+    $dept_ids = array();
+    foreach ($dept_scope as $dept_id) {
+      $dept_id = (int)$dept_id;
+      if ($dept_id > 0) {
+        $dept_ids[$dept_id] = $dept_id;
+      }
+    }
+    $dept_ids = array_values($dept_ids);
+
+    if (!empty($dept_ids)) {
+      $dept_csv = implode(',', $dept_ids);
+      $students_result = $conn->query('
+        SELECT id
+        FROM users
+        WHERE school = ' . (int)$school_id . '
+          AND status = "verified"
+          AND dept IN (' . $dept_csv . ')
+      ');
+      if ($students_result) {
+        while ($row = $students_result->fetch_assoc()) {
+          $student_ids[] = (int)$row['id'];
+        }
+      }
+    }
+  } elseif ((int)$dept_scope == 0) {
     // Material is for all departments in the faculty
     // Get all students in the same faculty and school
     $students_stmt = $conn->prepare('
@@ -225,16 +250,18 @@ function notifyCourseMaterialCreated($conn, $admin_id, $manual_id, $title, $cour
         AND school = ? 
         AND status = "verified" 
     ');
+    $dept_id = (int)$dept_scope;
     $students_stmt->bind_param('ii', $dept_id, $school_id);
   }
-  
-  $students_stmt->execute();
-  $students_result = $students_stmt->get_result();
-  
-  while ($row = $students_result->fetch_assoc()) {
-    $student_ids[] = (int)$row['id'];
+
+  if (isset($students_stmt) && $students_stmt) {
+    $students_stmt->execute();
+    $students_result = $students_stmt->get_result();
+    while ($row = $students_result->fetch_assoc()) {
+      $student_ids[] = (int)$row['id'];
+    }
+    $students_stmt->close();
   }
-  $students_stmt->close();
   
   if (empty($student_ids)) {
     return array('success' => false, 'message' => 'No students found to notify');
@@ -260,24 +287,51 @@ function notifyCourseMaterialCreated($conn, $admin_id, $manual_id, $title, $cour
  * @param int $manual_id Manual/material ID
  * @param string $title Material title
  * @param string $course_code Course code
- * @param int $dept_id Department ID
+ * @param int|array $dept_scope Department ID or array of department IDs
  * @param int $school_id School ID
  */
-function notifyCourseMaterialClosed($conn, $admin_id, $manual_id, $title, $course_code, $dept_id, $school_id) {
-  // Get all students in the same department and school
-  $students_stmt = $conn->prepare('SELECT id FROM users WHERE dept = ? AND school = ? AND status = "verified"');
-  $students_stmt->bind_param('ii', $dept_id, $school_id);
-  $students_stmt->execute();
-  $students_result = $students_stmt->get_result();
-  
+function notifyCourseMaterialClosed($conn, $admin_id, $manual_id, $title, $course_code, $dept_scope, $school_id) {
   $student_ids = array();
-  while ($row = $students_result->fetch_assoc()) {
-    $student_ids[] = (int)$row['id'];
+
+  if (is_array($dept_scope)) {
+    $dept_ids = array();
+    foreach ($dept_scope as $dept_id) {
+      $dept_id = (int)$dept_id;
+      if ($dept_id > 0) {
+        $dept_ids[$dept_id] = $dept_id;
+      }
+    }
+    $dept_ids = array_values($dept_ids);
+    if (!empty($dept_ids)) {
+      $dept_csv = implode(',', $dept_ids);
+      $students_result = $conn->query('
+        SELECT id
+        FROM users
+        WHERE school = ' . (int)$school_id . '
+          AND status = "verified"
+          AND dept IN (' . $dept_csv . ')
+      ');
+      if ($students_result) {
+        while ($row = $students_result->fetch_assoc()) {
+          $student_ids[] = (int)$row['id'];
+        }
+      }
+    }
+  } else {
+    // Backward-compatible single department flow
+    $dept_id = (int)$dept_scope;
+    $students_stmt = $conn->prepare('SELECT id FROM users WHERE dept = ? AND school = ? AND status = "verified"');
+    $students_stmt->bind_param('ii', $dept_id, $school_id);
+    $students_stmt->execute();
+    $students_result = $students_stmt->get_result();
+    while ($row = $students_result->fetch_assoc()) {
+      $student_ids[] = (int)$row['id'];
+    }
+    $students_stmt->close();
   }
-  $students_stmt->close();
   
   if (empty($student_ids)) {
-    return array('success' => false, 'message' => 'No students found in department');
+    return array('success' => false, 'message' => 'No students found in the selected coverage');
   }
   
   $notif_title = 'Course Material Closed';

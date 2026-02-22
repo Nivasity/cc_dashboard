@@ -7,6 +7,11 @@ include('functions.php');
 define('UNSELECTED_VALUE', 0);
 define('MAX_CODE_GENERATION_ATTEMPTS', 10);
 define('CODE_LENGTH', 8);
+define('COVERAGE_SCHOOL', 'School');
+define('COVERAGE_FACULTY', 'Faculty');
+define('COVERAGE_CUSTOM', 'Custom');
+define('DEPT_OPTION_ALL_SCHOOL', '__all_school__');
+define('DEPT_OPTION_ALL_FACULTY', '__all_faculty__');
 
 /**
  * Build date filter SQL clause based on date range parameters for materials
@@ -38,6 +43,236 @@ function buildMaterialDateFilter($conn, $date_range, $start_date, $end_date) {
   }
   
   return $date_filter;
+}
+
+/**
+ * Parse comma-separated department IDs into unique integer array.
+ *
+ * @param string|null $csv
+ * @return array<int>
+ */
+function parseDeptCsv($csv) {
+  if ($csv === null) {
+    return array();
+  }
+
+  $parts = explode(',', (string)$csv);
+  $ids = array();
+  foreach ($parts as $part) {
+    $id = intval(trim($part));
+    if ($id > 0) {
+      $ids[$id] = $id;
+    }
+  }
+  return array_values($ids);
+}
+
+/**
+ * Convert array of department IDs to normalized CSV string.
+ *
+ * @param array<int> $dept_ids
+ * @return string
+ */
+function toDeptCsv($dept_ids) {
+  $normalized = array();
+  foreach ($dept_ids as $id) {
+    $int_id = intval($id);
+    if ($int_id > 0) {
+      $normalized[$int_id] = $int_id;
+    }
+  }
+  ksort($normalized);
+  return implode(',', array_values($normalized));
+}
+
+/**
+ * Get active department IDs by school.
+ *
+ * @param mysqli $conn
+ * @param int $school_id
+ * @return array<int>
+ */
+function getActiveDeptIdsBySchool($conn, $school_id) {
+  static $cache = array();
+  $cache_key = 'school_' . intval($school_id);
+  if (isset($cache[$cache_key])) {
+    return $cache[$cache_key];
+  }
+
+  $school_id = intval($school_id);
+  if ($school_id <= 0) {
+    return array();
+  }
+
+  $ids = array();
+  $query = mysqli_query($conn, "SELECT id FROM depts WHERE status = 'active' AND school_id = $school_id");
+  if ($query) {
+    while ($row = mysqli_fetch_assoc($query)) {
+      $id = intval($row['id'] ?? 0);
+      if ($id > 0) {
+        $ids[] = $id;
+      }
+    }
+  }
+
+  $cache[$cache_key] = $ids;
+  return $ids;
+}
+
+/**
+ * Get active department IDs by faculty within a school.
+ *
+ * @param mysqli $conn
+ * @param int $school_id
+ * @param int $faculty_id
+ * @return array<int>
+ */
+function getActiveDeptIdsByFaculty($conn, $school_id, $faculty_id) {
+  static $cache = array();
+  $cache_key = 'school_' . intval($school_id) . '_faculty_' . intval($faculty_id);
+  if (isset($cache[$cache_key])) {
+    return $cache[$cache_key];
+  }
+
+  $school_id = intval($school_id);
+  $faculty_id = intval($faculty_id);
+  if ($school_id <= 0 || $faculty_id <= 0) {
+    return array();
+  }
+
+  $ids = array();
+  $query = mysqli_query($conn, "SELECT id FROM depts WHERE status = 'active' AND school_id = $school_id AND faculty_id = $faculty_id");
+  if ($query) {
+    while ($row = mysqli_fetch_assoc($query)) {
+      $id = intval($row['id'] ?? 0);
+      if ($id > 0) {
+        $ids[] = $id;
+      }
+    }
+  }
+
+  $cache[$cache_key] = $ids;
+  return $ids;
+}
+
+/**
+ * Resolve coverage and concrete department IDs from posted department selections.
+ *
+ * @param mysqli $conn
+ * @param int $school_id
+ * @param int $faculty_id
+ * @param array $raw_selected
+ * @return array{success:bool,message:string,coverage:string,dept_ids:array<int>,dept_csv:string}
+ */
+function resolveCoverageFromPostedDepartments($conn, $school_id, $faculty_id, $raw_selected) {
+  $selected = array();
+  if (!is_array($raw_selected)) {
+    $raw_selected = array($raw_selected);
+  }
+  foreach ($raw_selected as $value) {
+    $selected[] = trim((string)$value);
+  }
+
+  $has_all_school = in_array(DEPT_OPTION_ALL_SCHOOL, $selected, true);
+  $has_all_faculty = in_array(DEPT_OPTION_ALL_FACULTY, $selected, true);
+
+  $coverage = COVERAGE_CUSTOM;
+  $dept_ids = array();
+
+  if ($has_all_school) {
+    $coverage = COVERAGE_SCHOOL;
+    $dept_ids = getActiveDeptIdsBySchool($conn, $school_id);
+  } elseif ($has_all_faculty) {
+    if (intval($faculty_id) <= 0) {
+      return array(
+        'success' => false,
+        'message' => 'Select a faculty before choosing all faculty departments',
+        'coverage' => COVERAGE_CUSTOM,
+        'dept_ids' => array(),
+        'dept_csv' => ''
+      );
+    }
+    $coverage = COVERAGE_FACULTY;
+    $dept_ids = getActiveDeptIdsByFaculty($conn, $school_id, $faculty_id);
+  } else {
+    foreach ($selected as $value) {
+      $id = intval($value);
+      if ($id > 0) {
+        $dept_ids[$id] = $id;
+      }
+    }
+    $dept_ids = array_values($dept_ids);
+  }
+
+  if (count($dept_ids) === 0) {
+    return array(
+      'success' => false,
+      'message' => 'Select at least one department scope',
+      'coverage' => COVERAGE_CUSTOM,
+      'dept_ids' => array(),
+      'dept_csv' => ''
+    );
+  }
+
+  return array(
+    'success' => true,
+    'message' => '',
+    'coverage' => $coverage,
+    'dept_ids' => $dept_ids,
+    'dept_csv' => toDeptCsv($dept_ids)
+  );
+}
+
+/**
+ * Resolve effective coverage/departments for listing and editing (supports legacy rows).
+ *
+ * @param mysqli $conn
+ * @param array $row
+ * @return array{coverage:string,coverage_label:string,dept_ids:array<int>,dept_count:int}
+ */
+function resolveMaterialCoverage($conn, $row) {
+  $dept_ids = parseDeptCsv($row['depts'] ?? null);
+  $coverage = trim((string)($row['coverage'] ?? ''));
+  if ($coverage === '') {
+    $coverage = COVERAGE_CUSTOM;
+  }
+
+  $legacy_school = intval($row['school_id'] ?? 0);
+  $legacy_faculty = intval($row['faculty'] ?? 0);
+  $legacy_dept = intval($row['dept'] ?? 0);
+
+  if (count($dept_ids) === 0) {
+    if ($legacy_dept > 0) {
+      $dept_ids = array($legacy_dept);
+      $coverage = COVERAGE_CUSTOM;
+    } elseif ($legacy_faculty > 0) {
+      $dept_ids = getActiveDeptIdsByFaculty($conn, $legacy_school, $legacy_faculty);
+      $coverage = COVERAGE_FACULTY;
+    } else {
+      $dept_ids = getActiveDeptIdsBySchool($conn, $legacy_school);
+      $coverage = COVERAGE_SCHOOL;
+    }
+  }
+
+  if ($coverage !== COVERAGE_SCHOOL && $coverage !== COVERAGE_FACULTY && $coverage !== COVERAGE_CUSTOM) {
+    $coverage = COVERAGE_CUSTOM;
+  }
+
+  $dept_count = count($dept_ids);
+  if ($coverage === COVERAGE_CUSTOM) {
+    $coverage_label = $dept_count . ' Department' . ($dept_count === 1 ? '' : 's');
+  } elseif ($coverage === COVERAGE_FACULTY) {
+    $coverage_label = 'Faculty';
+  } else {
+    $coverage_label = 'School';
+  }
+
+  return array(
+    'coverage' => $coverage,
+    'coverage_label' => $coverage_label,
+    'dept_ids' => $dept_ids,
+    'dept_count' => $dept_count
+  );
 }
 
 $statusRes = 'failed';
@@ -73,15 +308,25 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
     if ($admin_faculty != 0) { $faculty = $admin_faculty; }
   }
 
-  $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.due_date, m.level, m.user_id, m.admin_id, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, m.status AS status, m.status AS db_status, u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name, d.name AS dept_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
+  $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.level, m.user_id, m.admin_id, m.school_id, m.faculty, m.dept, m.depts, m.coverage, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, m.status AS status, m.status AS db_status, u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
   if ($school > 0) {
     $material_sql .= " AND m.school_id = $school";
   }
   if ($faculty != 0) {
-    $material_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
+    $material_sql .= " AND (
+      (m.depts IS NOT NULL AND m.depts <> '' AND EXISTS (
+        SELECT 1 FROM depts df WHERE df.school_id = m.school_id AND df.faculty_id = $faculty AND FIND_IN_SET(df.id, m.depts)
+      ))
+      OR
+      ((m.depts IS NULL OR m.depts = '') AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty)))
+    )";
   }
   if ($dept > 0) {
-    $material_sql .= " AND m.dept = $dept";
+    $material_sql .= " AND (
+      (m.depts IS NOT NULL AND m.depts <> '' AND FIND_IN_SET($dept, m.depts))
+      OR
+      ((m.depts IS NULL OR m.depts = '') AND m.dept = $dept)
+    )";
   }
   // Add date filter
   $material_sql .= buildMaterialDateFilter($conn, $date_range, $start_date, $end_date);
@@ -91,8 +336,9 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
   header('Content-Type: text/csv; charset=utf-8');
   header('Content-Disposition: attachment; filename="materials_' . date('Ymd_His') . '.csv"');
   $out = fopen('php://output', 'w');
-  fputcsv($out, ['Title (Course Code)', 'Posted By', 'Role/Matric No', 'Unit Price', 'Revenue', 'Qty Sold', 'Availability']);
+  fputcsv($out, ['Title (Course Code)', 'Posted By', 'Role/Matric No', 'Unit Price', 'Revenue', 'Qty Sold', 'Coverage', 'Availability']);
   while ($row = mysqli_fetch_assoc($mat_query)) {
+    $coverage_info = resolveMaterialCoverage($conn, $row);
     // Use admin data if admin_id exists and is not 0, otherwise use user data
     if (!empty($row['admin_id']) && $row['admin_id'] != 0) {
       $posted_by = trim(($row['admin_first_name'] ?? '') . ' ' . ($row['admin_last_name'] ?? ''));
@@ -108,6 +354,7 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
       $row['price'],
       $row['revenue'],
       $row['qty_sold'],
+      $coverage_info['coverage_label'],
       $row['status']
     ]);
   }
@@ -148,21 +395,40 @@ if(isset($_GET['fetch'])){
   }
 
   if($fetch == 'departments'){
-    if($admin_role == 5){
-      if($admin_faculty != 0){
-        $dept_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' AND faculty_id = $admin_faculty ORDER BY name");
-      } elseif($faculty != 0){
-        $dept_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' AND faculty_id = $faculty AND school_id = $admin_school ORDER BY name");
+    $for_material = intval($_GET['for_material'] ?? 0);
+    if ($for_material === 1) {
+      // Material form: always return school departments, but prioritize selected faculty at the top.
+      if ($admin_role == 5) {
+        $school = $admin_school;
+        if ($admin_faculty != 0) {
+          $faculty = $admin_faculty;
+        }
+      }
+
+      if ($school > 0) {
+        if ($faculty > 0) {
+          $dept_query = mysqli_query($conn, "SELECT id, name, faculty_id FROM depts WHERE status = 'active' AND school_id = $school ORDER BY (faculty_id = $faculty) DESC, name ASC");
+        } else {
+          $dept_query = mysqli_query($conn, "SELECT id, name, faculty_id FROM depts WHERE status = 'active' AND school_id = $school ORDER BY name ASC");
+        }
       } else {
-        $dept_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' AND school_id = $admin_school ORDER BY name");
+        $dept_query = mysqli_query($conn, "SELECT id, name, faculty_id FROM depts WHERE status = 'active' ORDER BY name ASC");
+      }
+    } else if($admin_role == 5){
+      if($admin_faculty != 0){
+        $dept_query = mysqli_query($conn, "SELECT id, name, faculty_id FROM depts WHERE status = 'active' AND faculty_id = $admin_faculty ORDER BY name");
+      } elseif($faculty != 0){
+        $dept_query = mysqli_query($conn, "SELECT id, name, faculty_id FROM depts WHERE status = 'active' AND faculty_id = $faculty AND school_id = $admin_school ORDER BY name");
+      } else {
+        $dept_query = mysqli_query($conn, "SELECT id, name, faculty_id FROM depts WHERE status = 'active' AND school_id = $admin_school ORDER BY name");
       }
     } else {
       if($faculty != 0){
-        $dept_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' AND faculty_id = $faculty ORDER BY name");
+        $dept_query = mysqli_query($conn, "SELECT id, name, faculty_id FROM depts WHERE status = 'active' AND faculty_id = $faculty ORDER BY name");
       } elseif($school > 0){
-        $dept_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' AND school_id = $school ORDER BY name");
+        $dept_query = mysqli_query($conn, "SELECT id, name, faculty_id FROM depts WHERE status = 'active' AND school_id = $school ORDER BY name");
       } else {
-        $dept_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' ORDER BY name");
+        $dept_query = mysqli_query($conn, "SELECT id, name, faculty_id FROM depts WHERE status = 'active' ORDER BY name");
       }
     }
     $departments = array();
@@ -177,22 +443,38 @@ if(isset($_GET['fetch'])){
     $start_date = $_GET['start_date'] ?? '';
     $end_date = $_GET['end_date'] ?? '';
     
-    $material_sql = "SELECT m.id, m.code, m.title, m.course_code, m.price, m.due_date, m.level, m.user_id, m.admin_id, m.school_id, m.faculty, m.host_faculty, m.dept, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, COUNT(DISTINCT b.ref_id) AS purchase_count, m.status AS status, m.status AS db_status, u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name, d.name AS dept_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
+    $material_sql = "SELECT m.id, m.code, m.title, m.course_code, m.price, m.level, m.user_id, m.admin_id, m.school_id, m.faculty, m.host_faculty, m.dept, m.depts, m.coverage, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, COUNT(DISTINCT b.ref_id) AS purchase_count, m.status AS status, m.status AS db_status, u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name, d.name AS dept_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
     if($admin_role == 5){
       $material_sql .= " AND m.school_id = $admin_school";
       if($admin_faculty != 0){
-        $material_sql .= " AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))";
+        $material_sql .= " AND (
+          (m.depts IS NOT NULL AND m.depts <> '' AND EXISTS (
+            SELECT 1 FROM depts df WHERE df.school_id = m.school_id AND df.faculty_id = $admin_faculty AND FIND_IN_SET(df.id, m.depts)
+          ))
+          OR
+          ((m.depts IS NULL OR m.depts = '') AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty)))
+        )";
       }
     } else {
       if($school > 0){
         $material_sql .= " AND m.school_id = $school";
       }
       if($faculty != 0){
-        $material_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
+        $material_sql .= " AND (
+          (m.depts IS NOT NULL AND m.depts <> '' AND EXISTS (
+            SELECT 1 FROM depts df WHERE df.school_id = m.school_id AND df.faculty_id = $faculty AND FIND_IN_SET(df.id, m.depts)
+          ))
+          OR
+          ((m.depts IS NULL OR m.depts = '') AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty)))
+        )";
       }
     }
     if($dept > 0){
-      $material_sql .= " AND m.dept = $dept";
+      $material_sql .= " AND (
+        (m.depts IS NOT NULL AND m.depts <> '' AND FIND_IN_SET($dept, m.depts))
+        OR
+        ((m.depts IS NULL OR m.depts = '') AND m.dept = $dept)
+      )";
     }
     // Add date filter
     $material_sql .= buildMaterialDateFilter($conn, $date_range, $start_date, $end_date);
@@ -208,39 +490,46 @@ if(isset($_GET['fetch'])){
     } else {
       $materials = array();
       while($row = mysqli_fetch_assoc($mat_query)){
-      // Use admin data if admin_id exists and is not 0, otherwise use user data
-      if (!empty($row['admin_id']) && $row['admin_id'] != 0) {
-        $posted_by = trim(($row['admin_first_name'] ?? '') . ' ' . ($row['admin_last_name'] ?? ''));
-        $role_or_matric = $row['admin_role'] ?? '';
-        $is_admin = true;
-      } else {
-        $posted_by = trim(($row['user_first_name'] ?? '') . ' ' . ($row['user_last_name'] ?? ''));
-        $role_or_matric = $row['matric_no'] ?? '';
-        $is_admin = false;
-      }
-      
-      $materials[] = array(
-        'id' => $row['id'],
-        'code' => $row['code'],
-        'title' => $row['title'],
-        'course_code' => $row['course_code'],
-        'price' => $row['price'],
-        'revenue' => $row['revenue'],
-        'qty_sold' => $row['qty_sold'],
-        'purchase_count' => $row['purchase_count'] ?? 0,
-        'status' => $row['status'],
-        'db_status' => $row['db_status'],
-        'posted_by' => $posted_by,
-        'role_or_matric' => $role_or_matric,
-        'is_admin' => $is_admin,
-        'faculty_name' => $row['faculty_name'] ?? '',
-        'dept_name' => $row['dept_name'] ?? '',
-        'level' => $row['level'] ?? null,
-        'school_id' => $row['school_id'] ?? null,
-        'faculty_id' => $row['faculty'] ?? null,
-        'host_faculty' => $row['host_faculty'] ?? null,
-        'dept_id' => $row['dept'] ?? null
-      );
+        $coverage_info = resolveMaterialCoverage($conn, $row);
+
+        // Use admin data if admin_id exists and is not 0, otherwise use user data
+        if (!empty($row['admin_id']) && $row['admin_id'] != 0) {
+          $posted_by = trim(($row['admin_first_name'] ?? '') . ' ' . ($row['admin_last_name'] ?? ''));
+          $role_or_matric = $row['admin_role'] ?? '';
+          $is_admin = true;
+        } else {
+          $posted_by = trim(($row['user_first_name'] ?? '') . ' ' . ($row['user_last_name'] ?? ''));
+          $role_or_matric = $row['matric_no'] ?? '';
+          $is_admin = false;
+        }
+        
+        $materials[] = array(
+          'id' => $row['id'],
+          'code' => $row['code'],
+          'title' => $row['title'],
+          'course_code' => $row['course_code'],
+          'price' => $row['price'],
+          'revenue' => $row['revenue'],
+          'qty_sold' => $row['qty_sold'],
+          'purchase_count' => $row['purchase_count'] ?? 0,
+          'status' => $row['status'],
+          'db_status' => $row['db_status'],
+          'posted_by' => $posted_by,
+          'role_or_matric' => $role_or_matric,
+          'is_admin' => $is_admin,
+          'faculty_name' => $row['faculty_name'] ?? '',
+          'dept_name' => $row['dept_name'] ?? '',
+          'level' => $row['level'] ?? null,
+          'school_id' => $row['school_id'] ?? null,
+          'faculty_id' => $row['faculty'] ?? null,
+          'host_faculty' => $row['host_faculty'] ?? null,
+          'dept_id' => $row['dept'] ?? null,
+          'dept_ids' => $coverage_info['dept_ids'],
+          'depts_csv' => toDeptCsv($coverage_info['dept_ids']),
+          'coverage' => $coverage_info['coverage'],
+          'coverage_label' => $coverage_info['coverage_label'],
+          'dept_count' => $coverage_info['dept_count']
+        );
       }
       $statusRes = 'success';
     }
@@ -311,7 +600,7 @@ if(isset($_GET['fetch'])){
 
 if(isset($_POST['toggle_id'])){
   $id = intval($_POST['toggle_id']);
-  $manual_res = mysqli_fetch_assoc(mysqli_query($conn, "SELECT m.status, m.school_id, m.faculty, m.dept, m.title, m.course_code FROM manuals m WHERE m.id = $id"));
+  $manual_res = mysqli_fetch_assoc(mysqli_query($conn, "SELECT m.status, m.school_id, m.faculty, m.dept, m.depts, m.coverage, m.title, m.course_code FROM manuals m WHERE m.id = $id"));
   if($manual_res){
     if($admin_role == 5 && ($manual_res['school_id'] != $admin_school || ($admin_faculty != 0 && $manual_res['faculty'] != $admin_faculty))){
       $statusRes = 'error';
@@ -325,6 +614,7 @@ if(isset($_POST['toggle_id'])){
         
         // Send notification when material is closed
         if ($new_status === 'closed' && $admin_id) {
+          $coverage_info = resolveMaterialCoverage($conn, $manual_res);
           require_once __DIR__ . '/notification_helpers.php';
           notifyCourseMaterialClosed(
             $conn, 
@@ -332,7 +622,7 @@ if(isset($_POST['toggle_id'])){
             $id, 
             $manual_res['title'], 
             $manual_res['course_code'], 
-            $manual_res['dept'], 
+            $coverage_info['dept_ids'], 
             $manual_res['school_id']
           );
           
@@ -358,7 +648,15 @@ if(isset($_POST['create_material'])){
   $school = intval($_POST['school'] ?? UNSELECTED_VALUE);
   $host_faculty = intval($_POST['host_faculty'] ?? UNSELECTED_VALUE);
   $faculty = intval($_POST['faculty'] ?? UNSELECTED_VALUE);
-  $dept = intval($_POST['dept'] ?? UNSELECTED_VALUE);
+  $selected_depts = $_POST['depts'] ?? array();
+  if (!is_array($selected_depts)) {
+    $selected_depts = array($selected_depts);
+  }
+  // Backward compatibility for older clients posting a single "dept" field.
+  $legacy_posted_dept = intval($_POST['dept'] ?? 0);
+  if (count($selected_depts) === 0 && $legacy_posted_dept > 0) {
+    $selected_depts = array($legacy_posted_dept);
+  }
   $level = !empty($_POST['level']) ? intval($_POST['level']) : null;
   $title = trim($_POST['title'] ?? '');
   $course_code = trim($_POST['course_code'] ?? '');
@@ -396,6 +694,23 @@ if(isset($_POST['create_material'])){
       }
       
       if(!isset($statusRes) || $statusRes !== 'error'){
+        $coverage_res = resolveCoverageFromPostedDepartments($conn, $school, $faculty, $selected_depts);
+        if (!$coverage_res['success']) {
+          $statusRes = 'error';
+          $messageRes = $coverage_res['message'];
+        } elseif ($admin_role == 5 && $admin_faculty != UNSELECTED_VALUE && $coverage_res['coverage'] === COVERAGE_SCHOOL) {
+          $statusRes = 'error';
+          $messageRes = 'Unauthorized: Faculty admins cannot set school-wide coverage';
+        }
+      }
+
+      if(!isset($statusRes) || $statusRes !== 'error'){
+        $dept_ids = $coverage_res['dept_ids'];
+        $dept_csv = $coverage_res['dept_csv'];
+        $coverage = $coverage_res['coverage'];
+        $legacy_dept = ($coverage === COVERAGE_CUSTOM && count($dept_ids) === 1) ? intval($dept_ids[0]) : 0;
+        $legacy_faculty = ($coverage === COVERAGE_SCHOOL) ? 0 : $faculty;
+
         // Set a default far-future due date since the field is required in DB but no longer used
         $due_date_mysql = '2099-12-31 23:59:59';
         
@@ -435,20 +750,20 @@ if(isset($_POST['create_material'])){
           // Note: host_faculty is the faculty hosting the material, faculty is who can buy it
           if($level !== null){
             $insert_stmt = mysqli_prepare($conn, 
-              "INSERT INTO manuals (title, course_code, price, code, due_date, quantity, dept, faculty, host_faculty, level, user_id, admin_id, school_id, status, created_at) 
-               VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, 0, ?, ?, 'open', NOW())");
+              "INSERT INTO manuals (title, course_code, price, code, due_date, quantity, dept, depts, coverage, faculty, host_faculty, level, user_id, admin_id, school_id, status, created_at) 
+               VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'open', NOW())");
             
-            mysqli_stmt_bind_param($insert_stmt, 'ssissiiiiii', 
+            mysqli_stmt_bind_param($insert_stmt, 'ssississiiiii', 
               $title, $course_code, $price, $code, $due_date_mysql, 
-              $dept, $faculty, $host_faculty, $level, $admin_id, $school);
+              $legacy_dept, $dept_csv, $coverage, $legacy_faculty, $host_faculty, $level, $admin_id, $school);
           } else {
             $insert_stmt = mysqli_prepare($conn, 
-              "INSERT INTO manuals (title, course_code, price, code, due_date, quantity, dept, faculty, host_faculty, user_id, admin_id, school_id, status, created_at) 
-               VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, 0, ?, ?, 'open', NOW())");
+              "INSERT INTO manuals (title, course_code, price, code, due_date, quantity, dept, depts, coverage, faculty, host_faculty, user_id, admin_id, school_id, status, created_at) 
+               VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, 0, ?, ?, 'open', NOW())");
             
-            mysqli_stmt_bind_param($insert_stmt, 'ssissiiiii', 
+            mysqli_stmt_bind_param($insert_stmt, 'ssississiiii', 
               $title, $course_code, $price, $code, $due_date_mysql, 
-              $dept, $faculty, $host_faculty, $admin_id, $school);
+              $legacy_dept, $dept_csv, $coverage, $legacy_faculty, $host_faculty, $admin_id, $school);
           }
           
           if(mysqli_stmt_execute($insert_stmt)){
@@ -473,7 +788,7 @@ if(isset($_POST['create_material'])){
               $material_id,
               $title,
               $course_code,
-              $dept,
+              $dept_ids,
               $faculty,
               $school
             );
@@ -494,7 +809,15 @@ if(isset($_POST['update_material'])){
   $school = intval($_POST['school'] ?? UNSELECTED_VALUE);
   $host_faculty = intval($_POST['host_faculty'] ?? UNSELECTED_VALUE);
   $faculty = intval($_POST['faculty'] ?? UNSELECTED_VALUE);
-  $dept = intval($_POST['dept'] ?? UNSELECTED_VALUE);
+  $selected_depts = $_POST['depts'] ?? array();
+  if (!is_array($selected_depts)) {
+    $selected_depts = array($selected_depts);
+  }
+  // Backward compatibility for older clients posting a single "dept" field.
+  $legacy_posted_dept = intval($_POST['dept'] ?? 0);
+  if (count($selected_depts) === 0 && $legacy_posted_dept > 0) {
+    $selected_depts = array($legacy_posted_dept);
+  }
   $level = !empty($_POST['level']) ? intval($_POST['level']) : null;
   $title = trim($_POST['title'] ?? '');
   $course_code = trim($_POST['course_code'] ?? '');
@@ -550,21 +873,38 @@ if(isset($_POST['update_material'])){
         }
         
         if(!isset($statusRes) || $statusRes !== 'error'){
+          $coverage_res = resolveCoverageFromPostedDepartments($conn, $school, $faculty, $selected_depts);
+          if (!$coverage_res['success']) {
+            $statusRes = 'error';
+            $messageRes = $coverage_res['message'];
+          } elseif ($admin_role == 5 && $admin_faculty != UNSELECTED_VALUE && $coverage_res['coverage'] === COVERAGE_SCHOOL) {
+            $statusRes = 'error';
+            $messageRes = 'Unauthorized: Faculty admins cannot set school-wide coverage';
+          }
+        }
+
+        if(!isset($statusRes) || $statusRes !== 'error'){
+          $dept_ids = $coverage_res['dept_ids'];
+          $dept_csv = $coverage_res['dept_csv'];
+          $coverage = $coverage_res['coverage'];
+          $legacy_dept = ($coverage === COVERAGE_CUSTOM && count($dept_ids) === 1) ? intval($dept_ids[0]) : 0;
+          $legacy_faculty = ($coverage === COVERAGE_SCHOOL) ? 0 : $faculty;
+
           // Update material using prepared statement (no due_date update needed)
           if($level !== null){
             $update_stmt = mysqli_prepare($conn, 
-              "UPDATE manuals SET title = ?, course_code = ?, price = ?, dept = ?, faculty = ?, host_faculty = ?, level = ?, school_id = ? WHERE id = ?");
+              "UPDATE manuals SET title = ?, course_code = ?, price = ?, dept = ?, depts = ?, coverage = ?, faculty = ?, host_faculty = ?, level = ?, school_id = ? WHERE id = ?");
             
-            mysqli_stmt_bind_param($update_stmt, 'ssiiiiiii', 
+            mysqli_stmt_bind_param($update_stmt, 'ssiissiiiii', 
               $title, $course_code, $price, 
-              $dept, $faculty, $host_faculty, $level, $school, $material_id);
+              $legacy_dept, $dept_csv, $coverage, $legacy_faculty, $host_faculty, $level, $school, $material_id);
           } else {
             $update_stmt = mysqli_prepare($conn, 
-              "UPDATE manuals SET title = ?, course_code = ?, price = ?, dept = ?, faculty = ?, host_faculty = ?, school_id = ? WHERE id = ?");
+              "UPDATE manuals SET title = ?, course_code = ?, price = ?, dept = ?, depts = ?, coverage = ?, faculty = ?, host_faculty = ?, school_id = ? WHERE id = ?");
             
-            mysqli_stmt_bind_param($update_stmt, 'ssiiiiii', 
+            mysqli_stmt_bind_param($update_stmt, 'ssiissiiii', 
               $title, $course_code, $price, 
-              $dept, $faculty, $host_faculty, $school, $material_id);
+              $legacy_dept, $dept_csv, $coverage, $legacy_faculty, $host_faculty, $school, $material_id);
           }
           
           if(mysqli_stmt_execute($update_stmt)){

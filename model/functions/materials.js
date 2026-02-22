@@ -7,6 +7,30 @@ $(document).ready(function () {
   var adminRole = window.adminRole || 0;
   var adminSchool = window.adminSchool || 0;
   var adminFaculty = window.adminFaculty || 0;
+  var DEPT_ALL_SCHOOL = '__all_school__';
+  var DEPT_ALL_FACULTY = '__all_faculty__';
+
+  function normalizeDepartmentSelection(selectedValues) {
+    var values = Array.isArray(selectedValues) ? selectedValues.slice() : [];
+    values = values.map(function (v) { return String(v); });
+
+    if (values.indexOf(DEPT_ALL_SCHOOL) !== -1) {
+      return [DEPT_ALL_SCHOOL];
+    }
+    if (values.indexOf(DEPT_ALL_FACULTY) !== -1) {
+      return [DEPT_ALL_FACULTY];
+    }
+
+    var numericValues = [];
+    var seen = {};
+    values.forEach(function (v) {
+      if (/^\d+$/.test(v) && Number(v) > 0 && !seen[v]) {
+        seen[v] = true;
+        numericValues.push(v);
+      }
+    });
+    return numericValues;
+  }
 
   InitiateDatatable('.table');
   $('#school, #faculty, #dept, #dateRange').select2({ theme: 'bootstrap-5', width: '100%' });
@@ -154,19 +178,28 @@ $(document).ready(function () {
             if (mat.faculty_name && String(mat.faculty_name).trim()) {
               metaInfo.push('<small class="text-muted">Faculty: ' + mat.faculty_name + '</small>');
             }
-            if (mat.dept_name && String(mat.dept_name).trim()) {
-              metaInfo.push('<small class="text-muted">Dept: ' + mat.dept_name + '</small>');
-            }
             if (mat.level) {
               metaInfo.push('<small><span class="badge bg-label-info">Level: ' + mat.level + '</span></small>');
             }
             if (metaInfo.length > 0) {
               titleHtml += '<br>' + metaInfo.join(' | ');
             }
+
+            var coverageHtml = '';
+            if (mat.coverage === 'Custom') {
+              coverageHtml = '<span class="badge bg-label-primary">' + (mat.coverage_label || ((mat.dept_count || 0) + ' Departments')) + '</span>';
+            } else if (mat.coverage === 'Faculty') {
+              coverageHtml = '<span class="badge bg-label-warning">Faculty</span>';
+            } else if (mat.coverage === 'School') {
+              coverageHtml = '<span class="badge bg-label-success">School</span>';
+            } else {
+              coverageHtml = '<span class="badge bg-label-primary">' + (mat.coverage_label || 'Custom') + '</span>';
+            }
             
             var row = '<tr>' +
               '<td class="text-uppercase">' + (mat.code || '') + '</td>' +
               '<td class="text-uppercase">' + titleHtml + '</td>' +
+              '<td>' + coverageHtml + '</td>' +
               '<td>' + postedHtml + '</td>' +
               '<td>₦ ' + Number(mat.price).toLocaleString() + '</td>' +
               '<td>₦ ' + Number(mat.revenue).toLocaleString() + '</td>' +
@@ -513,7 +546,16 @@ $(document).ready(function () {
     var schoolId = material.school_id;
     var hostFacultyId = material.host_faculty;
     var facultyId = material.faculty_id;
-    var deptId = material.dept_id || 0;
+    var deptSelections = [];
+    if (material.coverage === 'School') {
+      deptSelections = [DEPT_ALL_SCHOOL];
+    } else if (material.coverage === 'Faculty') {
+      deptSelections = [DEPT_ALL_FACULTY];
+    } else if (Array.isArray(material.dept_ids) && material.dept_ids.length > 0) {
+      deptSelections = material.dept_ids.map(function (id) { return String(id); });
+    } else if (material.dept_id && Number(material.dept_id) > 0) {
+      deptSelections = [String(material.dept_id)];
+    }
     var level = material.level || '';
     
     // Step 1: Fetch school name and make it read-only
@@ -539,7 +581,7 @@ $(document).ready(function () {
           $('#materialSchool').replaceWith('<input type="text" class="form-control" id="materialSchool" value="' + res.school_name + '" disabled>');
           
           // Add hidden input with school ID for form submission
-          $('#newMaterialForm').append('<input type="hidden" name="school" value="' + schoolId + '">');
+          $('#newMaterialForm').append('<input type="hidden" class="dynamic-hidden" name="school" value="' + schoolId + '">');
         }
         
         // Step 2: Fetch and populate faculties for this school
@@ -575,20 +617,13 @@ $(document).ready(function () {
             $.ajax({
               url: 'model/materials.php',
               method: 'GET',
-              data: { fetch: 'departments', school: schoolId, faculty: facultyId },
+              data: { fetch: 'departments', school: schoolId, faculty: facultyId, for_material: 1 },
               dataType: 'json',
               success: function (res) {
                 var $dept = $('#materialDept');
-                $dept.empty();
-                $dept.append('<option value="0">All Departments</option>');
-                if (res.status === 'success' && res.departments) {
-                  $.each(res.departments, function (i, dept) {
-                    $dept.append('<option value="' + dept.id + '">' + dept.name + '</option>');
-                  });
-                }
-                
-                // Set the selected department value and trigger select2 to update display
-                $dept.val(deptId).trigger('change.select2');
+                var deptList = (res.status === 'success' && res.departments) ? res.departments : [];
+                populateModalDeptOptions($dept, deptList, facultyId);
+                $dept.val(normalizeDepartmentSelection(deptSelections)).trigger('change.select2');
                 
                 // Step 4: Set level value and trigger select2 to update display
                 $('#materialLevel').val(level).trigger('change.select2');
@@ -645,20 +680,13 @@ $(document).ready(function () {
             $.ajax({
               url: 'model/materials.php',
               method: 'GET',
-              data: { fetch: 'departments', school: schoolId, faculty: facultyId },
+              data: { fetch: 'departments', school: schoolId, faculty: facultyId, for_material: 1 },
               dataType: 'json',
               success: function (res) {
                 var $dept = $('#materialDept');
-                $dept.empty();
-                $dept.append('<option value="0">All Departments</option>');
-                if (res.status === 'success' && res.departments) {
-                  $.each(res.departments, function (i, dept) {
-                    $dept.append('<option value="' + dept.id + '">' + dept.name + '</option>');
-                  });
-                }
-                
-                // Set the selected department value and trigger select2 to update display
-                $dept.val(deptId).trigger('change.select2');
+                var deptList = (res.status === 'success' && res.departments) ? res.departments : [];
+                populateModalDeptOptions($dept, deptList, facultyId);
+                $dept.val(normalizeDepartmentSelection(deptSelections)).trigger('change.select2');
                 
                 // Step 4: Set level value and trigger select2 to update display
                 $('#materialLevel').val(level).trigger('change.select2');
@@ -688,7 +716,8 @@ $(document).ready(function () {
   fetchDepts(adminRole == 5 ? adminSchool : $('#school').val(), (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val());
 
   // New Material Modal functionality
-  $('#materialSchool, #materialHostFaculty, #materialFaculty, #materialDept, #materialLevel').select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal') });
+  $('#materialSchool, #materialHostFaculty, #materialFaculty, #materialLevel').select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal') });
+  $('#materialDept').select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal'), closeOnSelect: false, placeholder: 'Select departments coverage' });
 
   function fetchModalFaculties(schoolId) {
     if (adminRole == 5) {
@@ -737,7 +766,20 @@ $(document).ready(function () {
     });
   }
 
-  function fetchModalDepts(schoolId, facultyId) {
+  function populateModalDeptOptions($dept, departments, facultyId) {
+    $dept.empty();
+    if (!(adminRole == 5 && adminFaculty !== 0)) {
+      $dept.append('<option value="' + DEPT_ALL_SCHOOL + '">All Departments in School</option>');
+    }
+    if (facultyId && Number(facultyId) > 0) {
+      $dept.append('<option value="' + DEPT_ALL_FACULTY + '">All Departments in Faculty</option>');
+    }
+    $.each(departments || [], function (i, dept) {
+      $dept.append('<option value="' + dept.id + '">' + dept.name + '</option>');
+    });
+  }
+
+  function fetchModalDepts(schoolId, facultyId, selectedValues) {
     if (adminRole == 5) {
       schoolId = adminSchool;
       if (adminFaculty !== 0) {
@@ -751,18 +793,14 @@ $(document).ready(function () {
     $.ajax({
       url: 'model/materials.php',
       method: 'GET',
-      data: { fetch: 'departments', school: schoolId, faculty: facultyId },
+      data: { fetch: 'departments', school: schoolId, faculty: facultyId, for_material: 1 },
       dataType: 'json',
       success: function (res) {
         var $dept = $('#materialDept');
-        $dept.empty();
-        $dept.append('<option value="0">All Departments</option>');
-        if (res.status === 'success' && res.departments) {
-          $.each(res.departments, function (i, dept) {
-            $dept.append('<option value="' + dept.id + '">' + dept.name + '</option>');
-          });
-        }
-        $dept.val('0').trigger('change.select2');
+        var deptList = (res.status === 'success' && res.departments) ? res.departments : [];
+        populateModalDeptOptions($dept, deptList, facultyId);
+        var finalSelection = normalizeDepartmentSelection(Array.isArray(selectedValues) ? selectedValues : []);
+        $dept.val(finalSelection).trigger('change.select2');
       }
     });
   }
@@ -774,7 +812,7 @@ $(document).ready(function () {
     }
     var schoolId = adminRole == 5 ? adminSchool : $(this).val();
     fetchModalFaculties(schoolId);
-    fetchModalDepts(schoolId, 0);
+    fetchModalDepts(schoolId, 0, []);
   });
 
   $('#materialFaculty').on('change', function () {
@@ -784,8 +822,14 @@ $(document).ready(function () {
     }
     var schoolId = adminRole == 5 ? adminSchool : $('#materialSchool').val();
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $(this).val();
-    if (facultyId) {
-      fetchModalDepts(schoolId, facultyId);
+    fetchModalDepts(schoolId, facultyId || 0, []);
+  });
+
+  $('#materialDept').on('change', function () {
+    var normalized = normalizeDepartmentSelection($(this).val() || []);
+    var current = $(this).val() || [];
+    if (JSON.stringify(normalized) !== JSON.stringify(current)) {
+      $(this).val(normalized).trigger('change.select2');
     }
   });
 
@@ -808,6 +852,7 @@ $(document).ready(function () {
     var schoolVal = $('#materialSchool').val();
     var hostFacultyVal = $('#materialHostFaculty').val();
     var facultyVal = $('#materialFaculty').val();
+    var deptVals = normalizeDepartmentSelection($('#materialDept').val() || []);
     
     if (!schoolVal || schoolVal == UNSELECTED_VALUE) {
       $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Please select a school');
@@ -823,6 +868,13 @@ $(document).ready(function () {
       $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Please select a faculty (who can buy)');
       return;
     }
+
+    if (!Array.isArray(deptVals) || deptVals.length === 0) {
+      $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Please select departments coverage');
+      return;
+    }
+
+    $('#materialDept').val(deptVals).trigger('change.select2');
 
     var formData = $form.serialize();
     var actionParam = isEdit ? 'update_material=1' : 'create_material=1';
@@ -883,7 +935,7 @@ $(document).ready(function () {
     $(this).removeData('editMaterial');
     
     // Remove any hidden fields added during edit mode
-    $('#newMaterialForm').find('input[type="hidden"][name="school"], input[type="hidden"][name="host_faculty"], input[type="hidden"][name="faculty"], input[type="hidden"][name="dept"], input[type="hidden"][name="level"]').remove();
+    $('#newMaterialForm').find('input.dynamic-hidden').remove();
     
     // If fields were replaced with disabled inputs during edit, restore them to select2 dropdowns
     // Check if materialSchool is currently a text input (disabled)
@@ -892,11 +944,12 @@ $(document).ready(function () {
       $('#materialSchool').replaceWith('<select class="form-select" id="materialSchool" name="school" required></select>');
       $('#materialHostFaculty').replaceWith('<select class="form-select" id="materialHostFaculty" name="host_faculty" required></select>');
       $('#materialFaculty').replaceWith('<select class="form-select" id="materialFaculty" name="faculty" required></select>');
-      $('#materialDept').replaceWith('<select class="form-select" id="materialDept" name="dept" required></select>');
+      $('#materialDept').replaceWith('<select class="form-select" id="materialDept" name="depts[]" multiple required></select>');
       $('#materialLevel').replaceWith('<select class="form-select" id="materialLevel" name="level"></select>');
       
       // Re-initialize select2 on restored dropdowns
-      $('#materialSchool, #materialHostFaculty, #materialFaculty, #materialDept, #materialLevel').select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal') });
+      $('#materialSchool, #materialHostFaculty, #materialFaculty, #materialLevel').select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal') });
+      $('#materialDept').select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal'), closeOnSelect: false, placeholder: 'Select departments coverage' });
     }
     
     // For restricted admins (role 5), restore their default values
@@ -927,7 +980,7 @@ $(document).ready(function () {
         $faculty.val($faculty.find('option:first').val()).trigger('change.select2');
       }
     }
-    $('#materialDept').val('0').trigger('change.select2');
+    $('#materialDept').val([]).trigger('change.select2');
   });
 
   // Initialize modal dropdowns on modal show
@@ -942,7 +995,7 @@ $(document).ready(function () {
     var schoolId = adminRole == 5 ? adminSchool : $('#materialSchool').val();
     if (schoolId) {
       fetchModalFaculties(schoolId);
-      fetchModalDepts(schoolId, 0);
+      fetchModalDepts(schoolId, (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : 0, []);
     }
   });
 });
