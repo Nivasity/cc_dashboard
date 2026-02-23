@@ -56,46 +56,6 @@ function normalize_student_row($row) {
   ];
 }
 
-function parse_admin_departments($raw_departments) {
-  if ($raw_departments === null || $raw_departments === '') {
-    return [];
-  }
-
-  $decoded = json_decode((string)$raw_departments, true);
-  if (!is_array($decoded)) {
-    return [];
-  }
-
-  $ids = [];
-  foreach ($decoded as $dept_id) {
-    $dept_id = (int)$dept_id;
-    if ($dept_id > 0) {
-      $ids[] = $dept_id;
-    }
-  }
-
-  return array_values(array_unique($ids));
-}
-
-function build_department_visibility_clause($dept_id, $admin_faculty, $admin_departments) {
-  $dept_id = (int)$dept_id;
-  $admin_faculty = (int)$admin_faculty;
-  $admin_departments = array_values(array_filter(array_map('intval', (array)$admin_departments), function ($id) {
-    return $id > 0;
-  }));
-
-  if ($dept_id > 0) {
-    return "(m.dept = $dept_id OR (m.dept = 0 AND m.faculty = $admin_faculty))";
-  }
-
-  if (count($admin_departments) > 0) {
-    $dept_csv = implode(',', $admin_departments);
-    return "(m.dept IN ($dept_csv) OR (m.dept = 0 AND m.faculty = $admin_faculty))";
-  }
-
-  return "(d.faculty_id = $admin_faculty OR (m.dept = 0 AND m.faculty = $admin_faculty))";
-}
-
 function parse_bought_ids_json($raw_json) {
   if ($raw_json === null) {
     return [];
