@@ -117,23 +117,6 @@ function parse_bought_ids_json($raw_json) {
   return array_values(array_unique($ids));
 }
 
-function get_effective_host_faculty_name_for_manual($conn, $manual_id) {
-  $manual_id = (int)$manual_id;
-  if ($manual_id <= 0) {
-    return 'Unknown Faculty';
-  }
-
-  $sql = "SELECT COALESCE(fh.name, 'Unknown Faculty') AS host_faculty_name
-    FROM manuals m
-    LEFT JOIN faculties fh ON fh.id = COALESCE(NULLIF(m.host_faculty, 0), NULLIF(m.faculty, 0), 0)
-    WHERE m.id = $manual_id
-    LIMIT 1";
-
-  $result = mysqli_query($conn, $sql);
-  $row = $result ? mysqli_fetch_assoc($result) : null;
-  return (string)($row['host_faculty_name'] ?? 'Unknown Faculty');
-}
-
 function try_send_notification($conn, $admin_id, $user_ids, $title, $body, $type = 'material', $data = []) {
   if (!function_exists('sendNotification')) {
     return ['success' => false, 'message' => 'Notification helper unavailable'];
@@ -692,8 +675,7 @@ if ($action === 'grant') {
     $export = $export_result ? mysqli_fetch_assoc($export_result) : null;
 
     if (!$export) {
-      $host_faculty_name = get_effective_host_faculty_name_for_manual($conn, $manual_id);
-      respond_json(403, ['success' => false, 'message' => 'Can\'t grant this record as it is for "' . $host_faculty_name . '"']);
+      respond_json(404, ['success' => false, 'message' => 'Export not found for selected material']);
     }
 
     $export_bought_ids = parse_bought_ids_json($export['bought_ids_json'] ?? null);
