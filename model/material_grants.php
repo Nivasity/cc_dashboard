@@ -178,7 +178,10 @@ if ($admin_school <= 0 || $admin_faculty <= 0) {
 }
 
 $action = $_GET['action'] ?? '';
-$effective_host_faculty_expr = "COALESCE(NULLIF(m.host_faculty, 0), NULLIF(m.faculty, 0), 0)";
+$manuals_has_host_faculty = has_column($conn, 'manuals', 'host_faculty');
+$effective_host_faculty_expr = $manuals_has_host_faculty
+  ? "COALESCE(NULLIF(m.host_faculty, 0), NULLIF(m.faculty, 0), 0)"
+  : "COALESCE(NULLIF(m.faculty, 0), 0)";
 $scope_clause = "m.school_id = $admin_school AND $effective_host_faculty_expr = $admin_faculty";
 $material_status_clause = "(m.status = 'open' OR (m.status = 'closed' AND m.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)))";
 $export_has_bought_ids_json = has_column($conn, 'manual_export_audits', 'bought_ids_json');
@@ -287,10 +290,10 @@ if ($action === 'lookup') {
       m.status,
       m.created_at,
       m.school_id,
-      COALESCE(NULLIF(m.host_faculty, 0), NULLIF(m.faculty, 0), 0) AS effective_host_faculty_id,
+      $effective_host_faculty_expr AS effective_host_faculty_id,
       COALESCE(fh.name, 'Unknown Faculty') AS host_faculty_name
     FROM manuals m
-    LEFT JOIN faculties fh ON fh.id = COALESCE(NULLIF(m.host_faculty, 0), NULLIF(m.faculty, 0), 0)
+    LEFT JOIN faculties fh ON fh.id = $effective_host_faculty_expr
     WHERE m.id = $manual_id
       AND $material_status_clause
     LIMIT 1";
@@ -578,10 +581,10 @@ if ($action === 'grant') {
   $manual_scope_sql = "SELECT
       m.id,
       m.school_id,
-      COALESCE(NULLIF(m.host_faculty, 0), NULLIF(m.faculty, 0), 0) AS effective_host_faculty_id,
+      $effective_host_faculty_expr AS effective_host_faculty_id,
       COALESCE(fh.name, 'Unknown Faculty') AS host_faculty_name
     FROM manuals m
-    LEFT JOIN faculties fh ON fh.id = COALESCE(NULLIF(m.host_faculty, 0), NULLIF(m.faculty, 0), 0)
+    LEFT JOIN faculties fh ON fh.id = $effective_host_faculty_expr
     WHERE m.id = $manual_id
     LIMIT 1";
   $manual_scope_result = mysqli_query($conn, $manual_scope_sql);
