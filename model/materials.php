@@ -846,8 +846,8 @@ if(isset($_POST['update_material'])){
       $statusRes = 'error';
       $messageRes = 'School, Faculty Host, and Faculty are required';
     } else {
-      // Verify the material exists and was created by this admin
-      $check_stmt = mysqli_prepare($conn, "SELECT admin_id, school_id, faculty FROM manuals WHERE id = ?");
+      // Verify material exists and enforce scope-based authorization
+      $check_stmt = mysqli_prepare($conn, "SELECT admin_id, school_id, faculty, dept, depts, coverage FROM manuals WHERE id = ?");
       mysqli_stmt_bind_param($check_stmt, 'i', $material_id);
       mysqli_stmt_execute($check_stmt);
       $result = mysqli_stmt_get_result($check_stmt);
@@ -857,16 +857,47 @@ if(isset($_POST['update_material'])){
       if(!$existing_material){
         $statusRes = 'error';
         $messageRes = 'Material not found';
-      } elseif($existing_material['admin_id'] != $admin_id){
+      } elseif(intval($existing_material['admin_id']) <= 0){
         $statusRes = 'error';
-        $messageRes = 'Unauthorized: You can only edit materials you created';
+        $messageRes = 'Unauthorized: Only admin-created materials can be edited';
       } else {
-        // Validate admin permissions
+        // School admins (role 5) can only edit materials within their school/faculty scope.
         if($admin_role == 5){
-          if($school != $admin_school){
+          if(intval($existing_material['school_id']) !== intval($admin_school)){
+            $statusRes = 'error';
+            $messageRes = 'Unauthorized: Material is outside your school scope';
+          } elseif(intval($admin_faculty) != UNSELECTED_VALUE){
+            $existing_scope = resolveMaterialCoverage($conn, $existing_material);
+            $existing_dept_ids = $existing_scope['dept_ids'];
+            $normalized_existing_depts = array();
+            foreach($existing_dept_ids as $existing_dept_id){
+              $existing_dept_id = intval($existing_dept_id);
+              if($existing_dept_id > 0){
+                $normalized_existing_depts[] = $existing_dept_id;
+              }
+            }
+
+            if(count($normalized_existing_depts) === 0){
+              $statusRes = 'error';
+              $messageRes = 'Unauthorized: Material has no valid department scope';
+            } else {
+              $dept_scope_sql = implode(',', $normalized_existing_depts);
+              $admin_faculty_safe = intval($admin_faculty);
+              $scope_query = mysqli_query($conn, "SELECT id FROM depts WHERE faculty_id = $admin_faculty_safe AND id IN ($dept_scope_sql) LIMIT 1");
+              if(!$scope_query || mysqli_num_rows($scope_query) === 0){
+                $statusRes = 'error';
+                $messageRes = 'Unauthorized: Material is outside your faculty scope';
+              }
+            }
+          }
+        }
+
+        // Validate admin permissions
+        if((!isset($statusRes) || $statusRes !== 'error') && $admin_role == 5){
+          if(intval($school) !== intval($admin_school)){
             $statusRes = 'error';
             $messageRes = 'Unauthorized: Invalid school';
-          } elseif($admin_faculty != UNSELECTED_VALUE && ($host_faculty != $admin_faculty || $faculty != $admin_faculty)){
+          } elseif(intval($admin_faculty) != UNSELECTED_VALUE && (intval($host_faculty) !== intval($admin_faculty) || intval($faculty) !== intval($admin_faculty))){
             $statusRes = 'error';
             $messageRes = 'Unauthorized: Invalid faculty';
           }
