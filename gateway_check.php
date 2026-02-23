@@ -167,6 +167,93 @@ function fetch_paystack_transactions(string $from, string $to, int $page, string
   return paystack_api_request('https://api.paystack.co/transaction', $params);
 }
 
+function verify_bulk_payment_ref(string $refId): array
+{
+  $ch = curl_init();
+  curl_setopt_array($ch, [
+    CURLOPT_URL => 'https://api.nivasity.com/payment/verify-bulk.php',
+    CURLOPT_POST => true,
+    CURLOPT_POSTFIELDS => http_build_query(['ref_id' => $refId]),
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT => 30,
+    CURLOPT_SSL_VERIFYPEER => true,
+    CURLOPT_SSL_VERIFYHOST => 2,
+    CURLOPT_HTTPHEADER => [
+      'Accept: application/json',
+      'Content-Type: application/x-www-form-urlencoded',
+    ],
+  ]);
+  $resp = curl_exec($ch);
+  $err = curl_error($ch);
+  $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+  curl_close($ch);
+
+  if ($err) {
+    return ['ok' => false, 'message' => 'cURL error: ' . $err, 'http_code' => $code, 'raw' => null, 'json' => null];
+  }
+
+  $json = json_decode((string)$resp, true);
+  $apiOk = $code >= 200 && $code < 300;
+  if (is_array($json)) {
+    if (isset($json['status'])) {
+      $statusText = strtolower((string)$json['status']);
+      if (in_array($statusText, ['false', 'error', 'failed', 'fail', '0'], true)) {
+        $apiOk = false;
+      } elseif (in_array($statusText, ['true', 'success', 'ok', '1'], true)) {
+        $apiOk = true;
+      }
+    }
+    if (isset($json['success']) && $json['success'] === false) {
+      $apiOk = false;
+    }
+
+    return [
+      'ok' => $apiOk,
+      'message' => (string)($json['message'] ?? ''),
+      'http_code' => $code,
+      'raw' => $resp,
+      'json' => $json,
+    ];
+  }
+
+  return [
+    'ok' => $code >= 200 && $code < 300,
+    'message' => $code >= 200 && $code < 300 ? 'Verification request sent.' : 'Verification request failed.',
+    'http_code' => $code,
+    'raw' => $resp,
+    'json' => null,
+  ];
+}
+
+// AJAX verify handler (POST)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['ajax'] ?? '') === '1' && ($_POST['verify_local'] ?? '') === '1') {
+  header('Content-Type: application/json');
+  $ref_id = trim((string)($_POST['ref_id'] ?? ''));
+  if ($ref_id === '') {
+    echo json_encode(['status' => 'error', 'message' => 'Missing ref_id']);
+    exit;
+  }
+
+  $verify = verify_bulk_payment_ref($ref_id);
+  $local = get_local_tx_status($conn, $ref_id);
+  $ok = $verify['ok'] || $local['found'];
+
+  echo json_encode([
+    'status' => $ok ? 'success' : 'error',
+    'message' => $verify['message'] !== '' ? $verify['message'] : ($ok ? 'Verification completed.' : 'Verification failed.'),
+    'ref_id' => $ref_id,
+    'local_found' => $local['found'],
+    'local_status' => $local['row']['status'] ?? '',
+    'verify' => [
+      'ok' => $verify['ok'],
+      'http_code' => $verify['http_code'],
+      'json' => $verify['json'],
+      'raw' => $verify['raw'],
+    ],
+  ]);
+  exit;
+}
+
 // Execute query to gateway based on mode and gateway selection
 $api_response = ['status' => null, 'message' => '', 'data' => [], 'meta' => []];
 if ($gateway === 'paystack') {
@@ -504,6 +591,7 @@ function h($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
         const $pagination = $('#pagination');
         const $pageInfo = $('#pageInfo');
         let currentRows = [];
+        let activePage = 1;
 
         function badgeClass(source, status) {
           if (status === 'successful') return 'bg-label-success';
@@ -519,6 +607,12 @@ function h($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
           const html = rows.map(function(r, idx) {
             const localBadge = r.local_found ? '<span class="badge bg-label-success">Yes</span>' : '<span class="badge bg-label-danger">No</span>';
             const remoteBadge = '<span class="badge '+badgeClass(r.source, r.status_remote)+'">'+ (r.status_remote || '') +'</span>';
+            const showVerifyButton = !r.local_found && !!(r.tx_ref || '');
+            const localStatusHtml = (r.local_status || '') !== ''
+              ? (r.local_status || '')
+              : (showVerifyButton
+                ? '<button type="button" class="btn btn-sm btn-outline-primary js-verify-local" data-ref_id="'+ (r.tx_ref || '') +'">Verify</button>'
+                : '-');
             const trData = [
               'data-tx_ref="'+ (r.tx_ref||'') +'"',
               'data-source="'+ (r.source||'') +'"',
@@ -537,7 +631,7 @@ function h($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
                       <td>'+ remoteBadge +'</td>\
                       <td>'+ (r.created_at||'') +'</td>\
                       <td>'+ localBadge +'</td>\
-                      <td>'+ (r.local_status||'') +'</td>\
+                      <td>'+ localStatusHtml +'</td>\
                     </tr>';
           }).join('');
           $tbody.html(html);
@@ -546,6 +640,7 @@ function h($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
         function renderPagination(totalPages, currentPage) {
           currentPage = parseInt(currentPage || 1, 10);
           totalPages = parseInt(totalPages || 1, 10);
+          activePage = currentPage;
           $pageInfo.text('Page ' + currentPage + ' of ' + totalPages);
 
           function pageItem(label, page, disabled, active) {
@@ -593,6 +688,31 @@ function h($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
           e.preventDefault();
           const page = parseInt($(this).data('page'), 10);
           if (!isNaN(page)) { fetchPage(page); }
+        });
+
+        // Verify unmatched row using backend proxy to verify-bulk API
+        $(document).on('click', '.js-verify-local', function(e){
+          e.preventDefault();
+          e.stopPropagation();
+          const $btn = $(this);
+          const refId = String($btn.data('ref_id') || '').trim();
+          if (!refId) { return; }
+
+          const oldText = $btn.text();
+          $btn.prop('disabled', true).text('Verifying...');
+
+          $.post('gateway_check.php', { ajax: '1', verify_local: '1', ref_id: refId }).done(function(res){
+            if (res && res.status === 'success') {
+              fetchPage(activePage);
+              return;
+            }
+            const msg = (res && res.message) ? res.message : 'Verification failed';
+            alert(msg);
+            $btn.prop('disabled', false).text(oldText);
+          }).fail(function(){
+            alert('Network error while verifying payment');
+            $btn.prop('disabled', false).text(oldText);
+          });
         });
 
         // Row click -> details modal
