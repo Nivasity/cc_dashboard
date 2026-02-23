@@ -120,19 +120,15 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
             <div class="card mb-4">
               <div class="card-body">
                 <div class="row g-3 align-items-end">
-                  <div class="col-md-3">
-                    <label class="form-label" for="deptSelect">Department</label>
-                    <select id="deptSelect" class="form-select"></select>
-                  </div>
-                  <div class="col-md-4">
+                  <div class="col-md-5">
                     <label class="form-label" for="materialSelect">Material (Code &amp; Course Title)</label>
                     <select id="materialSelect" class="form-select"></select>
                   </div>
-                  <div class="col-md-4">
+                  <div class="col-md-5">
                     <label class="form-label" for="lookupInput">Export Code / Student Email / Matric Number</label>
                     <input type="text" id="lookupInput" class="form-control" placeholder="e.g. GXCZEFPJVY or student@email.com or 20XX/XXXX" />
                   </div>
-                  <div class="col-md-1 d-grid">
+                  <div class="col-md-2 d-grid">
                     <button class="btn btn-primary" id="lookupBtn">Lookup</button>
                   </div>
                 </div>
@@ -273,9 +269,7 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
 
   <?php if ($admin_scope_ready) { ?>
     <script>
-      const deptSelect = document.getElementById('deptSelect');
       const materialSelect = document.getElementById('materialSelect');
-      const $deptSelect = $('#deptSelect');
       const $materialSelect = $('#materialSelect');
       const lookupInput = document.getElementById('lookupInput');
       const lookupBtn = document.getElementById('lookupBtn');
@@ -298,10 +292,6 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
       const confirmGrantBtn = document.getElementById('confirmGrantBtn');
 
       let currentLookup = null;
-      $deptSelect.select2({
-        theme: 'bootstrap-5',
-        width: '100%'
-      });
       $materialSelect.select2({
         theme: 'bootstrap-5',
         width: '100%'
@@ -346,36 +336,8 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
         resultBody.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">Run a lookup to see student records.</td></tr>';
       }
 
-      async function loadDepartments() {
-        const res = await fetch('model/material_grants.php?action=departments');
-        const data = await res.json();
-
-        deptSelect.innerHTML = '';
-        if (!data.success || !Array.isArray(data.departments) || data.departments.length === 0) {
-          deptSelect.innerHTML = '<option value="">No departments available</option>';
-          materialSelect.innerHTML = '<option value="">No materials available</option>';
-          $deptSelect.trigger('change.select2');
-          $materialSelect.trigger('change.select2');
-          lookupBtn.disabled = true;
-          resetResults('No departments available for your scope.');
-          return;
-        }
-
-        data.departments.forEach(function(item) {
-          const opt = document.createElement('option');
-          opt.value = String(item.id);
-          opt.textContent = item.name;
-          deptSelect.appendChild(opt);
-        });
-        deptSelect.value = String(data.departments[0].id);
-        $deptSelect.trigger('change.select2');
-
-        await loadMaterials();
-      }
-
       async function loadMaterials() {
-        const deptId = deptSelect.value;
-        const res = await fetch('model/material_grants.php?action=materials&dept_id=' + encodeURIComponent(deptId || '0'));
+        const res = await fetch('model/material_grants.php?action=materials');
         const data = await res.json();
 
         materialSelect.innerHTML = '';
@@ -383,7 +345,7 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
           materialSelect.innerHTML = '<option value="">No materials available</option>';
           $materialSelect.trigger('change.select2');
           lookupBtn.disabled = true;
-          resetResults('No eligible materials available for this department.');
+          resetResults('No eligible materials available for your faculty.');
           return;
         }
 
@@ -439,7 +401,6 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
         resultBody.innerHTML = rowsHtml;
 
         currentLookup = {
-          dept_id: deptSelect.value,
           manual_id: materialSelect.value,
           lookup_value: lookupInput.value.trim(),
           mode: lookup.mode,
@@ -456,14 +417,9 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
       }
 
       async function runLookup() {
-        const deptId = deptSelect.value;
         const manualId = materialSelect.value;
         const lookupValue = lookupInput.value.trim();
 
-        if (!deptId) {
-          showGrantToast('Error', 'Select a department.', 'error');
-          return;
-        }
         if (!manualId) {
           showGrantToast('Error', 'Select a material.', 'error');
           return;
@@ -478,7 +434,6 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
 
         try {
           const params = new URLSearchParams();
-          params.set('dept_id', deptId);
           params.set('manual_id', manualId);
           params.set('lookup_value', lookupValue);
 
@@ -574,12 +529,6 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
         }
       }
 
-      function onDepartmentChanged() {
-        loadMaterials();
-      }
-
-      $deptSelect.on('change select2:select', onDepartmentChanged);
-
       lookupBtn.addEventListener('click', function() {
         runLookup();
       });
@@ -606,7 +555,7 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
         performGrant();
       });
 
-      loadDepartments().catch(function() {
+      loadMaterials().catch(function() {
         showGrantToast('Error', 'Failed to initialize page data.', 'error');
         resetResults('Failed to initialize page data.');
       });
