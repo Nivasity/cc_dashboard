@@ -634,17 +634,23 @@ if ($action === 'grant') {
 
   $manual_scope_sql = "SELECT
       m.id,
+      m.school_id,
+      COALESCE(NULLIF(m.host_faculty, 0), NULLIF(m.faculty, 0), 0) AS effective_host_faculty_id,
       COALESCE(fh.name, 'Unknown Faculty') AS host_faculty_name
     FROM manuals m
     LEFT JOIN faculties fh ON fh.id = COALESCE(NULLIF(m.host_faculty, 0), NULLIF(m.faculty, 0), 0)
     WHERE m.id = $manual_id
-      AND $scope_clause
     LIMIT 1";
   $manual_scope_result = mysqli_query($conn, $manual_scope_sql);
   $manual_scope = $manual_scope_result ? mysqli_fetch_assoc($manual_scope_result) : null;
   if (!$manual_scope) {
-    $host_faculty_name = get_effective_host_faculty_name_for_manual($conn, $manual_id);
-    respond_json(403, ['success' => false, 'message' => 'Can\'t grant this record as it is for "' . $host_faculty_name . '"']);
+    respond_json(404, ['success' => false, 'message' => 'Invalid material']);
+  }
+  if ((int)$manual_scope['school_id'] !== $admin_school) {
+    respond_json(403, ['success' => false, 'message' => 'Material is outside your scope']);
+  }
+  if ((int)$manual_scope['effective_host_faculty_id'] !== $admin_faculty) {
+    respond_json(403, ['success' => false, 'message' => 'Can\'t grant this record as it is for "' . (string)$manual_scope['host_faculty_name'] . '"']);
   }
 
   if ($mode === 'export') {
