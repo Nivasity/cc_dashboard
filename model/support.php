@@ -379,7 +379,7 @@ if (isset($_POST['support_id'])) {
   $e_message = str_replace('\r\n', '<br>', $message);
   $supportMessage = "User: $first_name (User id: $user_id)<br>Email: <a href='mailto:$userEmail'>$userEmail</a><br>Message: <br>$e_message";
   if ($picture !== 'NULL') {
-    $supportMessage .= "<br><br>File attached: <a href='https://nivasity.com/assets/images/supports/$picture'>https://nivasity.com/assets/images/supports/$picture</a>";
+    $supportMessage .= "<br><br>File attached: <a href='https://cc.nivasity.com/assets/images/supports/$picture'>https://cc.nivasity.com/assets/images/supports/$picture</a>";
   }
 
   // Send confirmation email to the user
