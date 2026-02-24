@@ -6,26 +6,40 @@ This directory contains configuration files that are not tracked by Git for secu
 
 ### 1. Database Configuration (`db.php`)
 
-This file contains database credentials.
+This file contains database credentials and API auth token.
 
 To enable database connectivity:
 
 1. Copy `db.example.php` to `db.php`
 2. Edit `db.php` and replace placeholder values with your actual credentials
-3. Configure database credentials (DB_USERNAME, DB_PASSWORD)
+3. Configure database credentials (`DB_HOST`, `DB_NAME`, `DB_USERNAME`, `DB_PASSWORD`)
+4. Configure `API_BEARER_TOKEN` for protected API access
+5. Configure `API_ADMIN_ID` (an existing `admins.id`) for API-triggered notifications/support actions
 
 **Example:**
 
 ```php
 <?php
+// Optional DB host and database name
+define('DB_HOST', 'localhost');
+define('DB_NAME', 'niverpay_db');
+
 // Database Credentials
 define('DB_USERNAME', 'your_db_username');
 define('DB_PASSWORD', 'your_db_password');
+
+// API Bearer Token used by /API/reference endpoint
+define('API_BEARER_TOKEN', 'replace_with_secure_random_bearer_token');
+
+// Admin ID used by API for support responses and user/support notifications
+define('API_ADMIN_ID', 1);
 ?>
 ```
 
 **Important**: 
 - The `db.php` file is ignored by Git to keep your credentials secure
+- `/API/reference` requires `Authorization: Bearer <API_BEARER_TOKEN>`
+- `/API/support_tickets` and user update notifications use `API_ADMIN_ID`
 
 ### 2. SMTP Configuration (`mail.php`)
 
