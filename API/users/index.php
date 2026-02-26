@@ -91,7 +91,12 @@ function handleGetUsers(mysqli $conn): void
     }
 
     // Never return password hashes from API responses.
-    $safeColumns = array_values(array_filter($tableColumns, static fn (string $column): bool => $column !== 'password'));
+    $safeColumns = array_values(array_filter(
+        $tableColumns,
+        static function (string $column): bool {
+            return $column !== 'password';
+        }
+    ));
     $columnSet = array_fill_keys($safeColumns, true);
 
     $id = parseOptionalPositiveIntQueryParam('id');
@@ -321,7 +326,7 @@ function logUserAuditUpdate(mysqli $conn, int $adminId, int $userId, array $form
 function getRequestData(): array
 {
     $contentType = strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? ''));
-    if (str_contains($contentType, 'application/json')) {
+    if (strpos($contentType, 'application/json') !== false) {
         $rawBody = file_get_contents('php://input');
         if ($rawBody === false || trim($rawBody) === '') {
             return [];
@@ -448,7 +453,7 @@ function parseOptionalPositiveIntQueryParam(string $paramName): ?int
     return (int) $value;
 }
 
-function inferMysqliType(mixed $value): string
+function inferMysqliType($value): string
 {
     return is_int($value) ? 'i' : 's';
 }
@@ -481,21 +486,30 @@ function executePreparedStatement(mysqli $conn, string $sql, string $types, arra
     mysqli_stmt_close($stmt);
 }
 
-function buildSelectClause(mixed $columnsInput, array $columnSet, array $defaultColumns): string
+function buildSelectClause($columnsInput, array $columnSet, array $defaultColumns): string
 {
     $raw = trim((string) $columnsInput);
     if ($raw === '' || $raw === '*') {
         $escapedDefault = array_map(
-            static fn (string $column): string => '`' . str_replace('`', '``', $column) . '`',
+            static function (string $column): string {
+                return '`' . str_replace('`', '``', $column) . '`';
+            },
             $defaultColumns
         );
         return implode(', ', $escapedDefault);
     }
 
-    $requested = array_filter(array_map('trim', explode(',', $raw)), static fn ($value): bool => $value !== '');
+    $requested = array_filter(
+        array_map('trim', explode(',', $raw)),
+        static function ($value): bool {
+            return $value !== '';
+        }
+    );
     if ($requested === []) {
         $escapedDefault = array_map(
-            static fn (string $column): string => '`' . str_replace('`', '``', $column) . '`',
+            static function (string $column): string {
+                return '`' . str_replace('`', '``', $column) . '`';
+            },
             $defaultColumns
         );
         return implode(', ', $escapedDefault);
@@ -511,14 +525,16 @@ function buildSelectClause(mixed $columnsInput, array $columnSet, array $default
     }
 
     $escaped = array_map(
-        static fn (string $column): string => '`' . str_replace('`', '``', $column) . '`',
+        static function (string $column): string {
+            return '`' . str_replace('`', '``', $column) . '`';
+        },
         array_keys($selected)
     );
 
     return implode(', ', $escaped);
 }
 
-function appendFilters(array &$whereClauses, string &$types, array &$params, array $columnSet, mixed $filters, string $operator): void
+function appendFilters(array &$whereClauses, string &$types, array &$params, array $columnSet, $filters, string $operator): void
 {
     if ($filters === null) {
         return;
@@ -544,7 +560,7 @@ function appendFilters(array &$whereClauses, string &$types, array &$params, arr
     }
 }
 
-function appendLikeFilters(array &$whereClauses, string &$types, array &$params, array $columnSet, mixed $filters): void
+function appendLikeFilters(array &$whereClauses, string &$types, array &$params, array $columnSet, $filters): void
 {
     if ($filters === null) {
         return;
@@ -570,7 +586,7 @@ function appendLikeFilters(array &$whereClauses, string &$types, array &$params,
     }
 }
 
-function appendInFilters(array &$whereClauses, string &$types, array &$params, array $columnSet, mixed $filters): void
+function appendInFilters(array &$whereClauses, string &$types, array &$params, array $columnSet, $filters): void
 {
     if ($filters === null) {
         return;
@@ -616,14 +632,19 @@ function appendInFilters(array &$whereClauses, string &$types, array &$params, a
     }
 }
 
-function buildSortClause(mixed $sortInput, array $columnSet): string
+function buildSortClause($sortInput, array $columnSet): string
 {
     $rawSort = trim((string) $sortInput);
     if ($rawSort === '') {
         return '';
     }
 
-    $parts = array_filter(array_map('trim', explode(',', $rawSort)), static fn ($value): bool => $value !== '');
+    $parts = array_filter(
+        array_map('trim', explode(',', $rawSort)),
+        static function ($value): bool {
+            return $value !== '';
+        }
+    );
     if ($parts === []) {
         return '';
     }
@@ -633,10 +654,10 @@ function buildSortClause(mixed $sortInput, array $columnSet): string
         $direction = 'ASC';
         $column = $part;
 
-        if (str_starts_with($part, '-')) {
+        if (strncmp($part, '-', 1) === 0) {
             $direction = 'DESC';
             $column = substr($part, 1);
-        } elseif (str_starts_with($part, '+')) {
+        } elseif (strncmp($part, '+', 1) === 0) {
             $column = substr($part, 1);
         }
 
