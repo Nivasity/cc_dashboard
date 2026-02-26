@@ -99,6 +99,39 @@ curl -X PATCH -H "Authorization: Bearer YOUR_TOKEN" -H "Content-Type: applicatio
   "http://localhost/cc_dashboard/API/users?id=1"
 ```
 
+## Verification Code Endpoint
+
+Send an email verification code to a user and persist it in `verification_code` table from `API/niverpay_db.sql`.
+
+```text
+POST /API/verification_code
+```
+
+### Verification Request Payload
+
+`POST /API/verification_code` body (`application/json` or form-data):
+
+```json
+{
+  "email": "student@example.com"
+}
+```
+
+### Verification Behavior
+
+- Validates the user exists in `users` by email.
+- Generates a unique code using `generateVerificationCode()` + `isCodeUnique()` from `model/functions.php`.
+- Inserts the code into `verification_code` with a 24-hour `exp_date`.
+- Sends verification email via `sendMail()` from `model/mail.php`.
+
+### Verification Example
+
+```bash
+curl -X POST -H "Authorization: Bearer YOUR_TOKEN" -H "Content-Type: application/json" ^
+  -d "{\"email\":\"student@example.com\"}" ^
+  "http://localhost/cc_dashboard/API/verification_code"
+```
+
 ## Support Tickets Endpoint
 
 Manage `support_tickets_v2` / `support_ticket_messages` using `API/niverpay_db.sql` schema.

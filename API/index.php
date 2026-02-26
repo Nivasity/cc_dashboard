@@ -16,6 +16,7 @@ echo json_encode(
             'reference' => $referenceUrl . '?table=users&limit=25&sort=-id',
             'users' => $scheme . '://' . $host . $basePath . '/users?limit=25&sort=-id',
             'support_tickets' => $scheme . '://' . $host . $basePath . '/support_tickets?limit=25&sort=-created_at',
+            'verification_code' => $scheme . '://' . $host . $basePath . '/verification_code',
         ],
         'auth' => 'Bearer token required via Authorization header',
     ],
