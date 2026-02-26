@@ -224,14 +224,19 @@ function getTableColumns(mysqli $conn, string $table): array
     return $columns;
 }
 
-function buildSelectClause(mixed $columnsInput, array $columnSet): string
+function buildSelectClause($columnsInput, array $columnSet): string
 {
     $raw = trim((string) $columnsInput);
     if ($raw === '' || $raw === '*') {
         return '*';
     }
 
-    $requested = array_filter(array_map('trim', explode(',', $raw)), static fn ($value): bool => $value !== '');
+    $requested = array_filter(
+        array_map('trim', explode(',', $raw)),
+        static function ($value): bool {
+            return $value !== '';
+        }
+    );
     if ($requested === []) {
         return '*';
     }
@@ -246,14 +251,16 @@ function buildSelectClause(mixed $columnsInput, array $columnSet): string
     }
 
     $escaped = array_map(
-        static fn (string $column): string => '`' . str_replace('`', '``', $column) . '`',
+        static function (string $column): string {
+            return '`' . str_replace('`', '``', $column) . '`';
+        },
         array_keys($selected)
     );
 
     return implode(', ', $escaped);
 }
 
-function appendFilters(array &$whereClauses, string &$types, array &$params, array $columnSet, mixed $filters, string $operator): void
+function appendFilters(array &$whereClauses, string &$types, array &$params, array $columnSet, $filters, string $operator): void
 {
     if ($filters === null) {
         return;
@@ -279,7 +286,7 @@ function appendFilters(array &$whereClauses, string &$types, array &$params, arr
     }
 }
 
-function appendLikeFilters(array &$whereClauses, string &$types, array &$params, array $columnSet, mixed $filters): void
+function appendLikeFilters(array &$whereClauses, string &$types, array &$params, array $columnSet, $filters): void
 {
     if ($filters === null) {
         return;
@@ -305,7 +312,7 @@ function appendLikeFilters(array &$whereClauses, string &$types, array &$params,
     }
 }
 
-function appendInFilters(array &$whereClauses, string &$types, array &$params, array $columnSet, mixed $filters): void
+function appendInFilters(array &$whereClauses, string &$types, array &$params, array $columnSet, $filters): void
 {
     if ($filters === null) {
         return;
@@ -351,14 +358,19 @@ function appendInFilters(array &$whereClauses, string &$types, array &$params, a
     }
 }
 
-function buildSortClause(mixed $sortInput, array $columnSet): string
+function buildSortClause($sortInput, array $columnSet): string
 {
     $rawSort = trim((string) $sortInput);
     if ($rawSort === '') {
         return '';
     }
 
-    $parts = array_filter(array_map('trim', explode(',', $rawSort)), static fn ($value): bool => $value !== '');
+    $parts = array_filter(
+        array_map('trim', explode(',', $rawSort)),
+        static function ($value): bool {
+            return $value !== '';
+        }
+    );
     if ($parts === []) {
         return '';
     }
@@ -368,10 +380,10 @@ function buildSortClause(mixed $sortInput, array $columnSet): string
         $direction = 'ASC';
         $column = $part;
 
-        if (str_starts_with($part, '-')) {
+        if (strncmp($part, '-', 1) === 0) {
             $direction = 'DESC';
             $column = substr($part, 1);
-        } elseif (str_starts_with($part, '+')) {
+        } elseif (strncmp($part, '+', 1) === 0) {
             $column = substr($part, 1);
         }
 
@@ -472,4 +484,3 @@ function respond(int $status, array $payload): void
     echo json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     exit;
 }
-
