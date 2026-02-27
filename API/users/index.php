@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../_bootstrap.php';
+
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Headers: Authorization, Content-Type');
@@ -359,14 +361,18 @@ function normalizeUserPayload(array $input): array
         'adm_year' => ['nullable' => true, 'type' => 'string'],
         'profile_pic' => ['nullable' => true, 'type' => 'string'],
     ];
+    $expectedFields = array_keys($rules);
 
     if (array_key_exists('password', $input)) {
-        badRequest('Password updates are not allowed on this endpoint.');
+        badRequest('Password updates are not allowed on this endpoint.', [
+            'unsupported_fields' => ['password'],
+            'expected_fields' => $expectedFields,
+        ]);
     }
 
-    $unknownKeys = array_diff(array_keys($input), array_keys($rules));
+    $unknownKeys = array_values(array_diff(array_keys($input), $expectedFields));
     if ($unknownKeys !== []) {
-        badRequest('Unsupported field(s): ' . implode(', ', $unknownKeys));
+        badRequestUnsupportedFields($unknownKeys, $expectedFields);
     }
 
     $payload = [];
@@ -773,12 +779,26 @@ function getAuthorizationHeader(): string
     return '';
 }
 
-function badRequest(string $message): void
+function badRequestUnsupportedFields(array $unsupportedFields, array $expectedFields): void
 {
-    respond(400, [
+    $unsupported = array_values(array_unique(array_map('strval', $unsupportedFields)));
+    sort($unsupported);
+
+    $expected = array_values(array_unique(array_map('strval', $expectedFields)));
+    sort($expected);
+
+    badRequest('Unsupported field(s) in request payload.', [
+        'unsupported_fields' => $unsupported,
+        'expected_fields' => $expected,
+    ]);
+}
+
+function badRequest(string $message, array $extra = []): void
+{
+    respond(400, array_merge([
         'success' => false,
         'message' => $message,
-    ]);
+    ], $extra));
 }
 
 function unauthorized(string $message): void

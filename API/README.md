@@ -11,6 +11,19 @@ Send the token in the `Authorization` header:
 Authorization: Bearer <your_token>
 ```
 
+## Validation Errors
+
+If a request body contains unsupported fields, the API returns `400` with both the invalid keys and the accepted keys:
+
+```json
+{
+  "success": false,
+  "message": "Unsupported field(s) in request payload.",
+  "unsupported_fields": ["foo"],
+  "expected_fields": ["user_id", "subject", "message", "category", "priority"]
+}
+```
+
 ## Reference Endpoint
 
 ```text

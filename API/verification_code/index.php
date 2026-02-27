@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../_bootstrap.php';
+
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Headers: Authorization, Content-Type');
@@ -52,6 +54,8 @@ if ($method !== 'POST') {
 }
 
 $input = getRequestData();
+ensureAllowedInputFields($input, ['email']);
+
 $email = trim((string) ($input['email'] ?? ''));
 if ($email === '' || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
     badRequest('A valid email field is required.');
@@ -149,6 +153,23 @@ function getRequestData(): array
     }
 
     return $_POST;
+}
+
+function ensureAllowedInputFields(array $input, array $allowedFields): void
+{
+    $unsupported = array_values(array_diff(array_keys($input), $allowedFields));
+    if ($unsupported === []) {
+        return;
+    }
+
+    sort($unsupported);
+    $expected = array_values($allowedFields);
+    sort($expected);
+
+    badRequest('Unsupported field(s) in request payload.', [
+        'unsupported_fields' => $unsupported,
+        'expected_fields' => $expected,
+    ]);
 }
 
 function generateUniqueVerificationCode(mysqli $conn, int $length): string
@@ -283,12 +304,12 @@ function getAuthorizationHeader(): string
     return '';
 }
 
-function badRequest(string $message): void
+function badRequest(string $message, array $extra = []): void
 {
-    respond(400, [
+    respond(400, array_merge([
         'success' => false,
         'message' => $message,
-    ]);
+    ], $extra));
 }
 
 function unauthorized(string $message): void

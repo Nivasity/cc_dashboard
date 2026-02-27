@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . '/../_bootstrap.php';
+
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Headers: Authorization, Content-Type');
@@ -157,6 +159,8 @@ function handleGetTickets(mysqli $conn): void
 function handleCreateTicket(mysqli $conn, int $apiAdminId): void
 {
     $input = getRequestData();
+    ensureAllowedInputFields($input, ['user_id', 'subject', 'message', 'category', 'priority']);
+
     $userId = requirePositiveInt($input, 'user_id');
     $subject = requireNonEmptyString($input, 'subject', 150);
     $message = requireNonEmptyString($input, 'message', 50000);
@@ -278,6 +282,8 @@ function handleCreateTicket(mysqli $conn, int $apiAdminId): void
 function handleUpdateTicket(mysqli $conn, int $apiAdminId): void
 {
     $input = getRequestData();
+    ensureAllowedInputFields($input, ['action', 'id', 'code', 'response', 'close_ticket']);
+
     $action = strtolower(trim((string) ($input['action'] ?? '')));
     if (!in_array($action, ['respond', 'close'], true)) {
         badRequest('action is required and must be respond or close.');
@@ -478,6 +484,23 @@ function getRequestData(): array
     return $_POST;
 }
 
+function ensureAllowedInputFields(array $input, array $allowedFields): void
+{
+    $unsupported = array_values(array_diff(array_keys($input), $allowedFields));
+    if ($unsupported === []) {
+        return;
+    }
+
+    sort($unsupported);
+    $expected = array_values($allowedFields);
+    sort($expected);
+
+    badRequest('Unsupported field(s) in request payload.', [
+        'unsupported_fields' => $unsupported,
+        'expected_fields' => $expected,
+    ]);
+}
+
 function requireNonEmptyString(array $input, string $field, int $maxLength): string
 {
     if (!array_key_exists($field, $input)) {
@@ -632,9 +655,9 @@ function getAuthorizationHeader(): string
     return '';
 }
 
-function badRequest(string $message): void
+function badRequest(string $message, array $extra = []): void
 {
-    respond(400, ['success' => false, 'message' => $message]);
+    respond(400, array_merge(['success' => false, 'message' => $message], $extra));
 }
 
 function unauthorized(string $message): void
