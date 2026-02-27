@@ -92,13 +92,10 @@ executePrepared(
     [$userId, $verificationCode, $expiresAt]
 );
 
-$verificationUrl = buildVerificationUrl($verificationCode);
 $subject = 'Verify Your Account on NIVASITY';
 $body = 'Hello ' . htmlspecialchars($firstName) . ',<br><br>'
     . 'We received a request to verify your Nivasity account.<br><br>'
     . 'Your verification code is: <b>' . htmlspecialchars($verificationCode) . '</b><br><br>'
-    . 'You can also verify directly with this link:<br>'
-    . '<a href="' . htmlspecialchars($verificationUrl) . '">' . htmlspecialchars($verificationUrl) . '</a><br><br>'
     . 'This code will expire on <b>' . htmlspecialchars($expiresAt) . '</b>.<br><br>'
     . 'If you did not request this, please ignore this email.<br><br>'
     . 'Best regards,<br>Nivasity Team';
@@ -174,19 +171,6 @@ function generateUniqueVerificationCode(mysqli $conn, int $length): string
         'success' => false,
         'message' => 'Unable to generate a unique verification code.',
     ]);
-}
-
-function buildVerificationUrl(string $code): string
-{
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
-    $scriptName = str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '/API/verification_code/index.php'));
-    $basePath = preg_replace('#/API/verification_code(?:/index\.php)?$#', '', $scriptName);
-    if (!is_string($basePath)) {
-        $basePath = '';
-    }
-
-    return $scheme . '://' . $host . rtrim($basePath, '/') . '/setup.html?verify=' . rawurlencode($code);
 }
 
 function executePrepared(mysqli $conn, string $sql, string $types, array $params): void
