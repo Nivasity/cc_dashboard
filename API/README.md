@@ -220,6 +220,46 @@ PATCH  /API/support_tickets
 }
 ```
 
+#### Create Ticket Fields
+
+- `user_id` (required): positive integer, must exist in `users.id`
+- `subject` (required): non-empty string, max `150` chars
+- `message` (required): non-empty string, max `50000` chars
+- `priority` (optional): one of `low`, `medium`, `high`, `urgent`
+  If omitted, default is `medium`.
+- `category` (optional): string, max `50` chars
+  If omitted/empty, saved as `null`.
+
+#### Category Options (From Support Page)
+
+Use one of the support page categories below for consistency:
+
+- `Payments or Transactions`
+- `Account or Access Issues`
+- `Materials or Events`
+- `Department Requests`
+- `Technical and Other Issues`
+
+Note: API currently accepts any category string up to `50` chars, but the above list is the UI standard.
+
+#### Create Ticket Success Response
+
+```json
+{
+  "success": true,
+  "message": "Support ticket created successfully.",
+  "data": {
+    "id": 123,
+    "code": "AB12CD34",
+    "user_id": 10,
+    "status": "open",
+    "priority": "medium",
+    "category": "Payments or Transactions",
+    "created_at": "2026-02-27 13:30:00"
+  }
+}
+```
+
 ### Respond / Close Ticket
 
 `PATCH /API/support_tickets` supports two actions:
