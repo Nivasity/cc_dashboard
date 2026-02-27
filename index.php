@@ -10,43 +10,64 @@ $admin_faculty = (int)($admin_['faculty'] ?? 0);
 $school_clause = ($admin_role == 5 && $admin_school > 0) ? " AND school = $admin_school" : '';
 
 // Time range filtering
-$range = $_GET['range'] ?? '24h';
+$range = $_GET['range'] ?? '7d';
+$comparison_current_label = 'Last 7 Days';
+$comparison_prev_label = 'Previous 7 Days';
 switch ($range) {
   case 'weekly':
+  case '7d':
+    $range = '7d';
     $current_start = "DATE_SUB(NOW(), INTERVAL 7 DAY)";
     $prev_start = "DATE_SUB(NOW(), INTERVAL 14 DAY)";
-    $prev_end = "DATE_SUB(NOW(), INTERVAL 7 DAY)";
+    $comparison_current_label = 'Last 7 Days';
+    $comparison_prev_label = 'Previous 7 Days';
     break;
   case 'monthly':
-    $current_start = "DATE_SUB(NOW(), INTERVAL 1 MONTH)";
-    $prev_start = "DATE_SUB(NOW(), INTERVAL 2 MONTH)";
-    $prev_end = "DATE_SUB(NOW(), INTERVAL 1 MONTH)";
+  case '30d':
+    $range = '30d';
+    $current_start = "DATE_SUB(NOW(), INTERVAL 30 DAY)";
+    $prev_start = "DATE_SUB(NOW(), INTERVAL 60 DAY)";
+    $comparison_current_label = 'Last 30 Days';
+    $comparison_prev_label = 'Previous 30 Days';
     break;
   case 'quarter':
-    $current_start = "DATE_SUB(NOW(), INTERVAL 3 MONTH)";
-    $prev_start = "DATE_SUB(NOW(), INTERVAL 6 MONTH)";
-    $prev_end = "DATE_SUB(NOW(), INTERVAL 3 MONTH)";
+  case '90d':
+    $range = '90d';
+    $current_start = "DATE_SUB(NOW(), INTERVAL 90 DAY)";
+    $prev_start = "DATE_SUB(NOW(), INTERVAL 180 DAY)";
+    $comparison_current_label = 'Last 90 Days';
+    $comparison_prev_label = 'Previous 90 Days';
+    break;
+  case 'this_month':
+    $current_start = "DATE_FORMAT(CURDATE(), '%Y-%m-01')";
+    $prev_start = "DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')";
+    $comparison_current_label = 'This Month';
+    $comparison_prev_label = 'Last Month';
     break;
   case 'yearly':
-    $current_start = "DATE_SUB(NOW(), INTERVAL 1 YEAR)";
-    $prev_start = "DATE_SUB(NOW(), INTERVAL 2 YEAR)";
-    $prev_end = "DATE_SUB(NOW(), INTERVAL 1 YEAR)";
+  case 'this_year':
+    $range = 'this_year';
+    $current_start = "DATE_FORMAT(CURDATE(), '%Y-01-01')";
+    $prev_start = "DATE_FORMAT(DATE_SUB(CURDATE(), INTERVAL 1 YEAR), '%Y-01-01')";
+    $comparison_current_label = 'This Year';
+    $comparison_prev_label = 'Last Year';
     break;
   default:
-    $range = '24h';
-    $current_start = "DATE_SUB(NOW(), INTERVAL 1 DAY)";
-    $prev_start = "DATE_SUB(NOW(), INTERVAL 2 DAY)";
-    $prev_end = "DATE_SUB(NOW(), INTERVAL 1 DAY)";
+    $range = '7d';
+    $current_start = "DATE_SUB(NOW(), INTERVAL 7 DAY)";
+    $prev_start = "DATE_SUB(NOW(), INTERVAL 14 DAY)";
+    $comparison_current_label = 'Last 7 Days';
+    $comparison_prev_label = 'Previous 7 Days';
 }
 
 $range_labels = [
-  '24h' => 'Past 24 Hrs',
-  'weekly' => 'Past 7 Days',
-  'monthly' => 'Past 30 Days',
-  'quarter' => 'Past 90 Days',
-  'yearly' => 'Past 365 Days'
+  '7d' => '7 Days',
+  '30d' => '30 Days',
+  '90d' => '90 Days',
+  'this_month' => 'This Month',
+  'this_year' => 'This Year'
 ];
-$range_label = $range_labels[$range] ?? 'Past 24 Hrs';
+$range_label = $range_labels[$range] ?? '7 Days';
 
 // Count unverified HOCs
 $hoc_count = mysqli_fetch_assoc(
@@ -99,6 +120,11 @@ $growth_percent = round($growth_percent, 2);
 $growth_sign = $growth_diff >= 0 ? '+' : '-';
 $revenue_class = $growth_diff >= 0 ? 'text-success' : 'text-danger';
 $revenue_icon = $growth_diff >= 0 ? 'bx-up-arrow-alt' : 'bx-down-arrow-alt';
+$chart_categories = [$range_label];
+$chart_current = [(int)$total_revenue];
+$chart_previous = [(int)$prev_revenue];
+$chart_current_label = $comparison_current_label;
+$chart_previous_label = $comparison_prev_label;
 
 $sales_base = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t WHERE t.status = 'successful'";
 if ($admin_role == 5 && $admin_school > 0) {
@@ -186,22 +212,6 @@ if ($admin_role == 5 && $admin_school > 0) {
 $transactions_sql = $transactions_base . $transactions_where;
 $transactions_amount = mysqli_fetch_assoc(mysqli_query($conn, $transactions_sql))["total"];
 
-// Monthly revenue data for chart
-$monthly_current = [];
-$monthly_previous = [];
-for ($m = 1; $m <= 12; $m++) {
-  $month_sql = $revenue_base . " AND YEAR(t.created_at) = $curr_year AND MONTH(t.created_at) = $m";
-  $month_total = mysqli_fetch_assoc(mysqli_query($conn, $month_sql))["total"];
-  $prev_month_sql = $revenue_base . " AND YEAR(t.created_at) = $prev_year AND MONTH(t.created_at) = $m";
-  $prev_month_total = mysqli_fetch_assoc(mysqli_query($conn, $prev_month_sql))["total"];
-  if ($admin_role == 5) {
-    $month_total *= 0.1;
-    $prev_month_total *= 0.1;
-  }
-  $monthly_current[] = (int)$month_total;
-  $monthly_previous[] = (int)$prev_month_total;
-}
-
 ?>
 
 <!DOCTYPE html>
@@ -288,10 +298,11 @@ for ($m = 1; $m <= 12; $m++) {
                               <?php echo $range_label; ?>
                             </button>
                             <div class="dropdown-menu dropdown-menu-end" aria-labelledby="rangeDropdownRevenue">
-                              <a class="dropdown-item range-option" href="#" data-range="24h">Past 24 Hrs</a>
-                              <a class="dropdown-item range-option" href="#" data-range="weekly">Past 7 Days</a>
-                              <a class="dropdown-item range-option" href="#" data-range="monthly">Past 30 Days</a>
-                              <a class="dropdown-item range-option" href="#" data-range="quarter">Past 90 Days</a>
+                              <a class="dropdown-item range-option" href="#" data-range="7d">7 Days</a>
+                              <a class="dropdown-item range-option" href="#" data-range="30d">30 Days</a>
+                              <a class="dropdown-item range-option" href="#" data-range="90d">90 Days</a>
+                              <a class="dropdown-item range-option" href="#" data-range="this_month">This Month</a>
+                              <a class="dropdown-item range-option" href="#" data-range="this_year">This Year</a>
                             </div>
                           </div>
                         </div>
@@ -313,10 +324,11 @@ for ($m = 1; $m <= 12; $m++) {
                               <?php echo $range_label; ?>
                             </button>
                             <div class="dropdown-menu dropdown-menu-end" aria-labelledby="rangeDropdownSales">
-                              <a class="dropdown-item range-option" href="#" data-range="24h">Past 24 Hrs</a>
-                              <a class="dropdown-item range-option" href="#" data-range="weekly">Past 7 Days</a>
-                              <a class="dropdown-item range-option" href="#" data-range="monthly">Past 30 Days</a>
-                              <a class="dropdown-item range-option" href="#" data-range="quarter">Past 90 Days</a>
+                              <a class="dropdown-item range-option" href="#" data-range="7d">7 Days</a>
+                              <a class="dropdown-item range-option" href="#" data-range="30d">30 Days</a>
+                              <a class="dropdown-item range-option" href="#" data-range="90d">90 Days</a>
+                              <a class="dropdown-item range-option" href="#" data-range="this_month">This Month</a>
+                              <a class="dropdown-item range-option" href="#" data-range="this_year">This Year</a>
                             </div>
                           </div>
                         </div>
@@ -333,12 +345,27 @@ for ($m = 1; $m <= 12; $m++) {
                 <div class="card">
                   <div class="row row-bordered g-0">
                     <div class="col-md-8">
-                      <h5 class="card-header m-0 me-2 pb-3">Total Revenue</h5>
+                      <div class="card-header d-flex align-items-center justify-content-between m-0 me-2 pb-3">
+                        <h5 class="m-0">Total Revenue</h5>
+                        <div class="dropdown">
+                          <button class="btn btn-sm btn-outline-primary dropdown-toggle range-display" type="button" id="rangeDropdownRevenueChart" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            <?php echo $range_label; ?>
+                          </button>
+                          <div class="dropdown-menu dropdown-menu-end" aria-labelledby="rangeDropdownRevenueChart">
+                            <a class="dropdown-item range-option" href="#" data-range="7d">7 Days</a>
+                            <a class="dropdown-item range-option" href="#" data-range="30d">30 Days</a>
+                            <a class="dropdown-item range-option" href="#" data-range="90d">90 Days</a>
+                            <a class="dropdown-item range-option" href="#" data-range="this_month">This Month</a>
+                            <a class="dropdown-item range-option" href="#" data-range="this_year">This Year</a>
+                          </div>
+                        </div>
+                      </div>
                       <div id="totalRevenueChart" class="px-2"
-                        data-curr-year="<?php echo $curr_year; ?>"
-                        data-prev-year="<?php echo $prev_year; ?>"
-                        data-current='<?php echo json_encode($monthly_current); ?>'
-                        data-prev='<?php echo json_encode($monthly_previous); ?>'></div>
+                        data-categories='<?php echo json_encode($chart_categories); ?>'
+                        data-current-label="<?php echo htmlspecialchars($chart_current_label); ?>"
+                        data-prev-label="<?php echo htmlspecialchars($chart_previous_label); ?>"
+                        data-current='<?php echo json_encode($chart_current); ?>'
+                        data-prev='<?php echo json_encode($chart_previous); ?>'></div>
                     </div>
                     <div class="col-md-4">
                       <div class="card-body">

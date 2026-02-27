@@ -19,25 +19,24 @@
       ? {
           series: [
             {
-              name: totalRevenueChartEl.dataset.currYear,
-              data: JSON.parse(totalRevenueChartEl.dataset.current || '[]')
+              name: totalRevenueChartEl.dataset.currentLabel || 'Current Period',
+              data: JSON.parse(totalRevenueChartEl.dataset.current || '[0]')
             },
             {
-              name: totalRevenueChartEl.dataset.prevYear,
-              data: JSON.parse(totalRevenueChartEl.dataset.prev || '[]').map(n => -n)
+              name: totalRevenueChartEl.dataset.prevLabel || 'Previous Period',
+              data: JSON.parse(totalRevenueChartEl.dataset.prev || '[0]')
             }
           ],
           chart: {
             id: 'totalRevenueChart',
             height: 300,
-            stacked: true,
             type: 'bar',
             toolbar: { show: false }
           },
           plotOptions: {
             bar: {
               horizontal: false,
-              columnWidth: '33%',
+              columnWidth: '42%',
               borderRadius: 12,
               startingShape: 'rounded',
               endingShape: 'rounded'
@@ -47,12 +46,7 @@
           dataLabels: {
             enabled: false
           },
-          stroke: {
-            curve: 'smooth',
-            width: 6,
-            lineCap: 'round',
-            colors: [cardColor]
-          },
+          stroke: { width: 0 },
           legend: {
             show: true,
             horizontalAlign: 'left',
@@ -80,7 +74,7 @@
             }
           },
           xaxis: {
-            categories: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+            categories: JSON.parse(totalRevenueChartEl.dataset.categories || '["Revenue"]'),
             labels: {
               style: {
                 fontSize: '13px',
@@ -96,6 +90,9 @@
           },
           yaxis: {
             labels: {
+              formatter: function (value) {
+                return '\u20A6' + Number(value).toLocaleString();
+              },
               style: {
                 fontSize: '13px',
                 colors: axisColor
