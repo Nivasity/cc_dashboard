@@ -94,10 +94,10 @@ function handleGetTickets(mysqli $conn): void
     $sortRaw = trim((string) ($_GET['sort'] ?? '-created_at'));
     $sortDirection = 'DESC';
     $sortColumn = $sortRaw;
-    if (str_starts_with($sortRaw, '-')) {
+    if (strncmp($sortRaw, '-', 1) === 0) {
         $sortDirection = 'DESC';
         $sortColumn = substr($sortRaw, 1);
-    } elseif (str_starts_with($sortRaw, '+')) {
+    } elseif (strncmp($sortRaw, '+', 1) === 0) {
         $sortDirection = 'ASC';
         $sortColumn = substr($sortRaw, 1);
     } else {
@@ -462,7 +462,7 @@ function generateUniqueTicketCode(mysqli $conn): string
 function getRequestData(): array
 {
     $contentType = strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? ''));
-    if (str_contains($contentType, 'application/json')) {
+    if (strpos($contentType, 'application/json') !== false) {
         $rawBody = file_get_contents('php://input');
         if ($rawBody === false || trim($rawBody) === '') {
             return [];
@@ -505,7 +505,7 @@ function requirePositiveInt(array $input, string $field): int
     return (int) $intValue;
 }
 
-function toPositiveIntOrNull(mixed $value): ?int
+function toPositiveIntOrNull($value): ?int
 {
     if ($value === null || $value === '') {
         return null;
