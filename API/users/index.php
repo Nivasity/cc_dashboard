@@ -132,7 +132,7 @@ function handleGetUsers(mysqli $conn): void
     appendInFilters($whereClauses, $types, $params, $columnSet, $_GET['filter_in'] ?? null);
 
     $orderByClause = buildSortClause($_GET['sort'] ?? '', $columnSet);
-    $limit = parseIntQueryParam('limit', 100, 1, 500);
+    $limit = parseIntQueryParam('limit', 10, 1, 500);
     $offset = parseIntQueryParam('offset', 0, 0, 100000000);
 
     $whereSql = $whereClauses ? (' WHERE ' . implode(' AND ', $whereClauses)) : '';

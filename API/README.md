@@ -33,7 +33,7 @@ If `table` is omitted, the endpoint returns all allowed table names from `API/ni
 - `filter_like[field]=value`: contains search
 - `filter_in[field]=a,b,c`: IN filter
 - `sort`: comma list, prefix column with `-` for descending (example: `sort=-id,created_at`)
-- `limit`: rows per page, min `1`, max `500` (default `100`)
+- `limit`: rows per page, min `1`, max `500` (default `10`)
 - `offset`: start offset (default `0`)
 
 ### Reference Response Format
@@ -126,7 +126,7 @@ PATCH  /API/users?id=1
 - `filter_like[field]=value`: contains search
 - `filter_in[field]=a,b,c`: IN filter
 - `sort`: comma list, prefix with `-` for descending
-- `limit`: rows per page, min `1`, max `500` (default `100`)
+- `limit`: rows per page, min `1`, max `500` (default `10`)
 - `offset`: start offset (default `0`)
 
 ### Users Update Payload
@@ -203,7 +203,7 @@ PATCH  /API/support_tickets
 - `status`: ticket status filter
 - `user_id`: filter by ticket owner
 - `sort`: one of `id`, `created_at`, `last_message_at`, `status`, `priority` (prefix with `-` for descending)
-- `limit`: rows per page (default `50`, max `500`)
+- `limit`: rows per page (default `10`, max `500`)
 - `offset`: start offset
 
 ### Create Ticket

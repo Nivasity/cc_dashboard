@@ -76,7 +76,7 @@ if ($table === '') {
             'filter_like[field]' => 'Contains filter',
             'filter_in[field]' => 'IN filter using comma-separated values',
             'sort' => 'Comma list. Prefix with - for DESC (example: sort=-id,created_at)',
-            'limit' => 'Rows per request (1 - 500, default: 100)',
+            'limit' => 'Rows per request (1 - 500, default: 10)',
             'offset' => 'Start row offset (default: 0)',
         ],
     ]);
@@ -108,7 +108,7 @@ appendLikeFilters($whereClauses, $types, $params, $columnSet, $_GET['filter_like
 appendInFilters($whereClauses, $types, $params, $columnSet, $_GET['filter_in'] ?? null);
 
 $orderByClause = buildSortClause($_GET['sort'] ?? '', $columnSet);
-$limit = parseIntQueryParam('limit', 100, 1, 500);
+$limit = parseIntQueryParam('limit', 10, 1, 500);
 $offset = parseIntQueryParam('offset', 0, 0, 100000000);
 
 $whereSql = $whereClauses ? (' WHERE ' . implode(' AND ', $whereClauses)) : '';

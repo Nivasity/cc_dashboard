@@ -85,7 +85,7 @@ function handleGetTickets(mysqli $conn): void
         ]);
     }
 
-    $limit = parseIntQueryParam('limit', 50, 1, 500);
+    $limit = parseIntQueryParam('limit', 10, 1, 500);
     $offset = parseIntQueryParam('offset', 0, 0, 100000000);
     $status = trim((string) ($_GET['status'] ?? ''));
     $userId = parseOptionalPositiveIntQueryParam('user_id');
