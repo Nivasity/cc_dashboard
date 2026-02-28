@@ -129,6 +129,22 @@ function handleQueue(mysqli $conn, array $adminScope, array $request): void
     $offset = 0;
   }
 
+  $reservationAggJoin = "LEFT JOIN (
+      SELECT
+        rr.refund_id,
+        COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed
+      FROM refund_reservations rr
+      GROUP BY rr.refund_id
+    ) rr_agg ON rr_agg.refund_id = r.id";
+  $consumedExpr = 'COALESCE(rr_agg.total_consumed, 0)';
+  $remainingExpr = "GREATEST(COALESCE(r.amount, 0) - {$consumedExpr}, 0)";
+  $statusExpr = "CASE
+      WHEN r.status = 'cancelled' THEN 'cancelled'
+      WHEN {$remainingExpr} <= 0 THEN 'applied'
+      WHEN {$consumedExpr} > 0 THEN 'partially_applied'
+      ELSE 'pending'
+    END";
+
   $where = [];
   $types = '';
   $params = [];
@@ -140,7 +156,7 @@ function handleQueue(mysqli $conn, array $adminScope, array $request): void
   }
 
   if ($status !== '') {
-    $where[] = 'r.status = ?';
+    $where[] = "{$statusExpr} = ?";
     $types .= 's';
     $params[] = $status;
   }
@@ -167,7 +183,10 @@ function handleQueue(mysqli $conn, array $adminScope, array $request): void
 
   $countRows = dbFetchAll(
     $conn,
-    "SELECT COUNT(*) AS total_rows FROM refunds r{$whereSql}",
+    "SELECT COUNT(*) AS total_rows
+     FROM refunds r
+     {$reservationAggJoin}
+     {$whereSql}",
     $types,
     $params
   );
@@ -186,13 +205,14 @@ function handleQueue(mysqli $conn, array $adminScope, array $request): void
        END AS student_name,
        r.ref_id,
        r.amount,
-       r.remaining_amount,
-       (COALESCE(r.amount, 0) - COALESCE(r.remaining_amount, 0)) AS consumed_amount,
-       r.status,
+       {$remainingExpr} AS remaining_amount,
+       {$consumedExpr} AS consumed_amount,
+       {$statusExpr} AS status,
        r.reason,
        r.created_at,
        r.updated_at
      FROM refunds r
+     {$reservationAggJoin}
      LEFT JOIN schools s ON s.id = r.school_id
      LEFT JOIN users u ON u.id = r.student_id
      {$whereSql}
@@ -222,6 +242,15 @@ function handleDetail(mysqli $conn, array $adminScope, array $request): void
     badRequest('refund_id is required.');
   }
 
+  $consumedExpr = 'COALESCE(rr_agg.total_consumed, 0)';
+  $remainingExpr = "GREATEST(COALESCE(r.amount, 0) - {$consumedExpr}, 0)";
+  $statusExpr = "CASE
+      WHEN r.status = 'cancelled' THEN 'cancelled'
+      WHEN {$remainingExpr} <= 0 THEN 'applied'
+      WHEN {$consumedExpr} > 0 THEN 'partially_applied'
+      ELSE 'pending'
+    END";
+
   $refundRows = dbFetchAll(
     $conn,
     "SELECT
@@ -235,13 +264,20 @@ function handleDetail(mysqli $conn, array $adminScope, array $request): void
        END AS student_name,
        r.ref_id,
        r.amount,
-       r.remaining_amount,
-       (COALESCE(r.amount, 0) - COALESCE(r.remaining_amount, 0)) AS consumed_amount,
-       r.status,
+       {$remainingExpr} AS remaining_amount,
+       {$consumedExpr} AS consumed_amount,
+       {$statusExpr} AS status,
        r.reason,
        r.created_at,
        r.updated_at
      FROM refunds r
+     LEFT JOIN (
+       SELECT
+         rr.refund_id,
+         COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed
+       FROM refund_reservations rr
+       GROUP BY rr.refund_id
+     ) rr_agg ON rr_agg.refund_id = r.id
      LEFT JOIN schools s ON s.id = r.school_id
      LEFT JOIN users u ON u.id = r.student_id
      WHERE r.id = ?
@@ -301,7 +337,7 @@ function handleDetail(mysqli $conn, array $adminScope, array $request): void
     'total_consumed' => 0,
     'total_released' => 0,
   ];
-  $totals['outstanding'] = (float) ($refund['remaining_amount'] ?? 0);
+  $totals['outstanding'] = max((float) ($refund['remaining_amount'] ?? 0), 0.0);
 
   respond(200, [
     'status' => 'success',
@@ -319,8 +355,18 @@ function handleOutstandingMonitoring(mysqli $conn, array $adminScope, array $req
     $schoolId = $adminScope['school_id'];
   }
 
-  $where = ["r.status IN ('pending', 'partially_applied')"];
-  $refundedWhere = ["r.status IN ('pending', 'partially_applied', 'applied')"];
+  $reservationAggJoin = "LEFT JOIN (
+      SELECT
+        rr.refund_id,
+        COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed
+      FROM refund_reservations rr
+      GROUP BY rr.refund_id
+    ) rr_agg ON rr_agg.refund_id = r.id";
+  $consumedExpr = 'COALESCE(rr_agg.total_consumed, 0)';
+  $remainingExpr = "GREATEST(COALESCE(r.amount, 0) - {$consumedExpr}, 0)";
+
+  $where = ["r.status <> 'cancelled'", "{$remainingExpr} > 0"];
+  $refundedWhere = ["r.status <> 'cancelled'"];
   $types = '';
   $params = [];
 
@@ -339,9 +385,10 @@ function handleOutstandingMonitoring(mysqli $conn, array $adminScope, array $req
     "SELECT
        r.school_id,
        COALESCE(s.name, CONCAT('School #', r.school_id)) AS school_name,
-       COALESCE(SUM(r.remaining_amount), 0) AS outstanding_amount,
+       COALESCE(SUM({$remainingExpr}), 0) AS outstanding_amount,
        COUNT(*) AS refunds_count
      FROM refunds r
+     {$reservationAggJoin}
      LEFT JOIN schools s ON s.id = r.school_id
      {$whereSql}
      GROUP BY r.school_id, s.name
@@ -358,8 +405,9 @@ function handleOutstandingMonitoring(mysqli $conn, array $adminScope, array $req
   $refundedRows = dbFetchAll(
     $conn,
     "SELECT
-       COALESCE(SUM(GREATEST(COALESCE(r.amount, 0) - COALESCE(r.remaining_amount, 0), 0)), 0) AS total_refunded
+       COALESCE(SUM({$consumedExpr}), 0) AS total_refunded
      FROM refunds r
+     {$reservationAggJoin}
      {$refundedWhereSql}",
     $types,
     $params
@@ -1056,13 +1104,21 @@ function refreshRefundStatuses(mysqli $conn): void
 {
   mysqli_query(
     $conn,
-    "UPDATE refunds
+    "UPDATE refunds r
+     LEFT JOIN (
+       SELECT
+         rr.refund_id,
+         COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed
+       FROM refund_reservations rr
+       GROUP BY rr.refund_id
+     ) rr_agg ON rr_agg.refund_id = r.id
      SET status = CASE
-       WHEN COALESCE(remaining_amount, 0) <= 0 THEN 'applied'
-       WHEN COALESCE(remaining_amount, 0) < COALESCE(amount, 0) THEN 'partially_applied'
+       WHEN GREATEST(COALESCE(r.amount, 0) - COALESCE(rr_agg.total_consumed, 0), 0) <= 0 THEN 'applied'
+       WHEN COALESCE(rr_agg.total_consumed, 0) > 0 THEN 'partially_applied'
        ELSE 'pending'
-     END
-     WHERE status IN ('pending', 'partially_applied', 'applied')"
+     END,
+     remaining_amount = GREATEST(COALESCE(r.amount, 0) - COALESCE(rr_agg.total_consumed, 0), 0)
+     WHERE r.status IN ('pending', 'partially_applied', 'applied')"
   );
 }
 
