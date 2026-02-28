@@ -734,16 +734,8 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
 
                 if ($httpStatus === 500) {
                   $amount = 0.0;
-                  $materialsPayload = [];
                   foreach ($selectedMaterials as $selectedMaterial) {
                     $amount += (float) ($selectedMaterial['price'] ?? 0);
-                    $materialsPayload[] = [
-                      'manual_bought_id' => (int) ($selectedMaterial['bought_id'] ?? 0),
-                      'manual_id' => (int) ($selectedMaterial['manual_id'] ?? 0),
-                      'title' => (string) ($selectedMaterial['title'] ?? ''),
-                      'course_code' => (string) ($selectedMaterial['course_code'] ?? ''),
-                      'price' => (float) ($selectedMaterial['price'] ?? 0),
-                    ];
                   }
 
                   if ($amount <= 0) {
@@ -779,7 +771,7 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                         'existing_refund' => normalizeNumericRow($existingRows[0], ['amount', 'remaining_amount']),
                       ];
                     } else {
-                      $materialsJson = json_encode($materialsPayload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+                      $materialsJson = json_encode(array_values($selectedMaterialIds), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
                       if ($materialsJson === false) {
                         throw new RuntimeException('Unable to encode selected materials payload.');
                       }
@@ -852,7 +844,7 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                           'former' => null,
                           'source_ref_id' => $sourceRefId,
                           'student_email' => $studentEmail,
-                          'selected_materials_count' => count($materialsPayload),
+                          'selected_materials_count' => count($selectedMaterialIds),
                         ]);
                       }
 
