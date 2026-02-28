@@ -402,6 +402,79 @@ html.dark-style .table > :not(caption) > * > * {
   border-bottom-color: #374151;
 }
 
+html.dark-style .table thead.table-secondary,
+html.dark-style .table thead.table-light,
+html.dark-style .table .table-secondary,
+html.dark-style .table .table-light {
+  --bs-table-bg: #1f2937;
+  --bs-table-color: #f3f4f6;
+  color: #f3f4f6;
+}
+
+html.dark-style .table thead.table-secondary th,
+html.dark-style .table thead.table-light th {
+  background-color: #1f2937 !important;
+  color: #f3f4f6 !important;
+  border-bottom-color: #374151 !important;
+}
+
+html.dark-style .table .badge.bg-label-secondary {
+  background-color: rgba(148, 163, 184, 0.25) !important;
+  color: #e5e7eb !important;
+}
+
+html.dark-style .table .badge.bg-label-primary {
+  background-color: rgba(59, 130, 246, 0.25) !important;
+  color: #bfdbfe !important;
+}
+
+html.dark-style .table .badge.bg-label-success {
+  background-color: rgba(16, 185, 129, 0.25) !important;
+  color: #a7f3d0 !important;
+}
+
+html.dark-style .table .badge.bg-label-info {
+  background-color: rgba(6, 182, 212, 0.25) !important;
+  color: #a5f3fc !important;
+}
+
+html.dark-style .table .badge.bg-label-warning {
+  background-color: rgba(245, 158, 11, 0.25) !important;
+  color: #fde68a !important;
+}
+
+html.dark-style .table .badge.bg-label-danger {
+  background-color: rgba(239, 68, 68, 0.25) !important;
+  color: #fecaca !important;
+}
+
+html.dark-style .dataTables_wrapper .page-item .page-link,
+html.dark-style .pagination .page-item .page-link {
+  background-color: #111827;
+  color: #d1d5db;
+  border-color: #374151;
+}
+
+html.dark-style .dataTables_wrapper .page-item.active .page-link,
+html.dark-style .pagination .page-item.active .page-link {
+  background-color: #ff9100;
+  border-color: #ff9100;
+  color: #111827;
+}
+
+html.dark-style .dataTables_wrapper .page-item.disabled .page-link,
+html.dark-style .pagination .page-item.disabled .page-link {
+  background-color: #0f172a;
+  color: #6b7280;
+  border-color: #1f2937;
+}
+
+html.dark-style .dataTables_wrapper .page-item:not(.active):not(.disabled) .page-link:hover,
+html.dark-style .pagination .page-item:not(.active):not(.disabled) .page-link:hover {
+  background-color: #1f2937;
+  color: #f3f4f6;
+}
+
 html.dark-style .form-control,
 html.dark-style .form-select,
 html.dark-style .input-group-text {

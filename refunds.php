@@ -186,6 +186,10 @@ $thirtyDaysAgo = date('Y-m-d', strtotime('-29 days'));
               data-bs-target="#newRefundModal" aria-label="Create refund">
               <i class='bx bx-plus fs-3'></i>
             </button>
+            <button type="button" class="btn btn-info howto_btn" data-bs-toggle="modal"
+              data-bs-target="#refundHowtoModal" aria-label="How to manage refunds" id="refundHowtoBtn">
+              <i class='bx bx-help-circle fs-3'></i>
+            </button>
 
             <?php include('partials/_footer.php') ?>
             <div class="content-backdrop fade"></div>
@@ -232,6 +236,20 @@ $thirtyDaysAgo = date('Y-m-d', strtotime('-29 days'));
               <button type="submit" id="createRefundBtn" class="btn btn-primary" disabled>Create Refund</button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="refundHowtoModal" tabindex="-1" aria-labelledby="refundHowtoModalLabel" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="refundHowtoModalLabel">How to Manage Refunds</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body d-flex justify-content-center">
+            <iframe src="https://drive.google.com/file/d/1fYdghhGJ0qMxu7ZlzWa-L5p_30jr1hSu/preview" width="640" height="480"></iframe>
+          </div>
         </div>
       </div>
     </div>
