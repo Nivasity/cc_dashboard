@@ -286,6 +286,38 @@
   }
 }
 
+@media (max-width: 767.98px) {
+  .cc-global-search {
+    width: min(220px, 46vw);
+  }
+
+  .cc-global-search .form-control {
+    min-width: 120px;
+    font-size: 0.82rem;
+  }
+
+  .cc-global-search .bx-search {
+    font-size: 1rem !important;
+  }
+
+  .cc-global-search-dropdown {
+    width: min(92vw, 520px);
+    left: -10px;
+  }
+}
+
+@media (max-width: 420px) {
+  .cc-global-search {
+    width: min(170px, 42vw);
+  }
+
+  .cc-global-search .form-control {
+    min-width: 92px;
+    padding-left: 0.35rem;
+    padding-right: 0.25rem;
+  }
+}
+
 /* Global dark mode */
 html.dark-style {
   color-scheme: dark;
