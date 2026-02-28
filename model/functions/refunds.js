@@ -2,26 +2,53 @@ $(document).ready(function () {
   var endpoint = 'model/refunds.php';
   var queueTable = null;
   var cancelRefundId = null;
+  var studentLookupTimer = null;
+  var sourceLookupTimer = null;
 
   var $createModal = $('#newRefundModal');
   var $createForm = $('#refundCreateForm');
   var $createBtn = $('#createRefundBtn');
+  var $createSchool = $('#createSchoolId');
+  var $createStudentEmail = $('#createStudentEmail');
+  var $createSourceRef = $('#createSourceRefId');
+  var $createMaterials = $('#createMaterialIds');
+  var $createReason = $('#createReason');
+  var $studentLookupFeedback = $('#studentLookupFeedback');
+  var $sourceLookupFeedback = $('#sourceLookupFeedback');
+  var $selectedMaterialsTotal = $('#selectedMaterialsTotal');
+
   var $queueFilterForm = $('#refundQueueFilterForm');
   var $monitoringFilterForm = $('#monitoringFilterForm');
   var $cancelModal = $('#cancelRefundModal');
   var $cancelForm = $('#cancelRefundForm');
   var $cancelBtn = $('#cancelRefundBtn');
 
+  var createState = {
+    student: null,
+    sourceValidated: false,
+    sourceMaterials: []
+  };
+
   $('#monitoringSchoolId, #queueSchoolId, #queueStatus').select2({
     theme: 'bootstrap-5',
     width: '100%'
   });
 
-  $('#createSchoolId').select2({
+  $createSchool.select2({
     theme: 'bootstrap-5',
     width: '100%',
     dropdownParent: $createModal
   });
+
+  $createMaterials.select2({
+    theme: 'bootstrap-5',
+    width: '100%',
+    dropdownParent: $createModal,
+    placeholder: 'Select refund materials',
+    allowClear: true,
+    closeOnSelect: false
+  });
+  $createMaterials.prop('disabled', true).trigger('change.select2');
 
   function toNumber(value) {
     var n = Number(value);
@@ -44,6 +71,15 @@ $(document).ready(function () {
       .replace(/'/g, '&#039;');
   }
 
+  function isValidEmail(value) {
+    var email = String(value || '').trim();
+    if (!email) {
+      return false;
+    }
+
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  }
+
   function getBadgeClass(status) {
     switch (status) {
       case 'pending':
@@ -57,6 +93,207 @@ $(document).ready(function () {
       default:
         return 'secondary';
     }
+  }
+
+  function setFeedback($node, tone, message) {
+    if (!$node.length) {
+      return;
+    }
+
+    var toneClass = 'text-muted';
+    if (tone === 'success') {
+      toneClass = 'text-success';
+    } else if (tone === 'error') {
+      toneClass = 'text-danger';
+    } else if (tone === 'info') {
+      toneClass = 'text-info';
+    }
+
+    $node.removeClass('text-muted text-success text-danger text-info').addClass(toneClass).text(message || '');
+  }
+
+  function getSelectedMaterialIds() {
+    var value = $createMaterials.val();
+    return Array.isArray(value) ? value.filter(Boolean) : [];
+  }
+
+  function updateSelectedMaterialsTotal() {
+    var selectedIds = getSelectedMaterialIds();
+    var total = 0;
+
+    selectedIds.forEach(function (id) {
+      var option = $createMaterials.find('option[value="' + id + '"]');
+      total += toNumber(option.data('price'));
+    });
+
+    $selectedMaterialsTotal.text('Selected Total: ' + formatCurrency(total));
+  }
+
+  function updateCreateSubmitState() {
+    var hasSchool = String($createSchool.val() || '').trim() !== '';
+    var hasStudent = createState.student && createState.student.id;
+    var hasValidSource = createState.sourceValidated === true;
+    var hasMaterials = getSelectedMaterialIds().length > 0;
+    var hasReason = String($createReason.val() || '').trim() !== '';
+
+    $createBtn.prop('disabled', !(hasSchool && hasStudent && hasValidSource && hasMaterials && hasReason));
+  }
+
+  function clearMaterials() {
+    createState.sourceMaterials = [];
+    $createMaterials.empty().val([]).trigger('change.select2');
+    $createMaterials.prop('disabled', true).trigger('change.select2');
+    $selectedMaterialsTotal.text('Selected Total: ' + formatCurrency(0));
+  }
+
+  function invalidateSource(message) {
+    createState.sourceValidated = false;
+    clearMaterials();
+    setFeedback($sourceLookupFeedback, message ? 'error' : 'muted', message || '');
+    updateCreateSubmitState();
+  }
+
+  function lookupSource() {
+    var sourceRefId = String($createSourceRef.val() || '').trim();
+    var schoolId = String($createSchool.val() || '').trim();
+    var studentId = createState.student ? createState.student.id : null;
+
+    if (!sourceRefId || !schoolId || !studentId) {
+      invalidateSource('Provide school, student email and source ref to validate transaction.');
+      return;
+    }
+
+    setFeedback($sourceLookupFeedback, 'info', 'Validating source transaction...');
+
+    $.ajax({
+      url: endpoint,
+      method: 'GET',
+      dataType: 'json',
+      data: {
+        action: 'lookup_source',
+        source_ref_id: sourceRefId,
+        student_id: studentId,
+        school_id: schoolId
+      },
+      success: function (res) {
+        if (res.status !== 'success') {
+          invalidateSource(res.message || 'Unable to validate source ref.');
+          return;
+        }
+
+        var materials = Array.isArray(res.materials) ? res.materials : [];
+        if (materials.length === 0) {
+          invalidateSource('No refundable materials found for this transaction.');
+          return;
+        }
+
+        createState.sourceValidated = true;
+        createState.sourceMaterials = materials;
+
+        $createMaterials.empty();
+        materials.forEach(function (material) {
+          var boughtId = material.bought_id;
+          var label = (material.title || 'Material #' + material.manual_id) +
+            ' (' + (material.course_code || '-') + ') - ' + formatCurrency(material.price);
+          var option = new Option(label, boughtId, false, false);
+          $(option).data('price', toNumber(material.price));
+          $createMaterials.append(option);
+        });
+
+        $createMaterials.prop('disabled', false).val([]).trigger('change.select2');
+        updateSelectedMaterialsTotal();
+        setFeedback($sourceLookupFeedback, 'success', 'Source ref validated. Select materials to refund.');
+        updateCreateSubmitState();
+      },
+      error: function (xhr) {
+        var message = 'Unable to validate source transaction.';
+        if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
+          message = xhr.responseJSON.message;
+        }
+        invalidateSource(message);
+      }
+    });
+  }
+
+  function lookupStudent() {
+    var email = String($createStudentEmail.val() || '').trim();
+    if (!isValidEmail(email)) {
+      createState.student = null;
+      setFeedback($studentLookupFeedback, email ? 'error' : 'muted', email ? 'Enter a valid student email.' : '');
+      invalidateSource('Provide school, student email and source ref to validate transaction.');
+      updateCreateSubmitState();
+      return;
+    }
+
+    setFeedback($studentLookupFeedback, 'info', 'Looking up student...');
+
+    $.ajax({
+      url: endpoint,
+      method: 'GET',
+      dataType: 'json',
+      data: {
+        action: 'lookup_student',
+        student_email: email
+      },
+      success: function (res) {
+        if (res.status !== 'success' || !res.student) {
+          createState.student = null;
+          setFeedback($studentLookupFeedback, 'error', res.message || 'Student lookup failed.');
+          invalidateSource('Provide school, student email and source ref to validate transaction.');
+          updateCreateSubmitState();
+          return;
+        }
+
+        createState.student = res.student;
+        setFeedback($studentLookupFeedback, 'success', 'Student found: ' + (res.student.first_name || '') + ' ' + (res.student.last_name || ''));
+        if (String($createSourceRef.val() || '').trim() !== '') {
+          lookupSource();
+        } else {
+          invalidateSource('Enter source ref ID to continue.');
+        }
+        updateCreateSubmitState();
+      },
+      error: function (xhr) {
+        createState.student = null;
+        var message = 'Student lookup failed.';
+        if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
+          message = xhr.responseJSON.message;
+        }
+        setFeedback($studentLookupFeedback, 'error', message);
+        invalidateSource('Provide school, student email and source ref to validate transaction.');
+        updateCreateSubmitState();
+      }
+    });
+  }
+
+  function resetCreateForm() {
+    if (!$createForm.length) {
+      return;
+    }
+
+    createState.student = null;
+    createState.sourceValidated = false;
+    createState.sourceMaterials = [];
+
+    $createForm.trigger('reset');
+    $createSchool.val('').trigger('change.select2');
+    $createMaterials.empty().val([]).trigger('change.select2');
+    $createMaterials.prop('disabled', true).trigger('change.select2');
+    setFeedback($studentLookupFeedback, 'muted', '');
+    setFeedback($sourceLookupFeedback, 'muted', '');
+    $selectedMaterialsTotal.text('Selected Total: ' + formatCurrency(0));
+
+    if (studentLookupTimer) {
+      clearTimeout(studentLookupTimer);
+      studentLookupTimer = null;
+    }
+
+    if (sourceLookupTimer) {
+      clearTimeout(sourceLookupTimer);
+      sourceLookupTimer = null;
+    }
+
+    updateCreateSubmitState();
   }
 
   function renderQueue(refunds) {
@@ -250,29 +487,67 @@ $(document).ready(function () {
     fetchDaily();
   }
 
-  function resetCreateForm() {
-    if (!$createForm.length) {
-      return;
+  $createStudentEmail.on('input', function () {
+    createState.student = null;
+    createState.sourceValidated = false;
+    clearMaterials();
+    setFeedback($studentLookupFeedback, 'muted', '');
+    setFeedback($sourceLookupFeedback, 'muted', '');
+    updateCreateSubmitState();
+
+    if (studentLookupTimer) {
+      clearTimeout(studentLookupTimer);
     }
 
-    $createForm.trigger('reset');
-    $('#createSchoolId').val('').trigger('change.select2');
-  }
+    studentLookupTimer = setTimeout(function () {
+      lookupStudent();
+    }, 350);
+  });
+
+  $createSourceRef.on('input', function () {
+    createState.sourceValidated = false;
+    clearMaterials();
+    setFeedback($sourceLookupFeedback, 'info', 'Validating source transaction...');
+    updateCreateSubmitState();
+
+    if (sourceLookupTimer) {
+      clearTimeout(sourceLookupTimer);
+    }
+
+    sourceLookupTimer = setTimeout(function () {
+      lookupSource();
+    }, 350);
+  });
+
+  $createSchool.on('change', function () {
+    lookupSource();
+    updateCreateSubmitState();
+  });
+
+  $createReason.on('input', function () {
+    updateCreateSubmitState();
+  });
+
+  $createMaterials.on('change', function () {
+    updateSelectedMaterialsTotal();
+    updateCreateSubmitState();
+  });
 
   $createForm.on('submit', function (e) {
     e.preventDefault();
 
     var payload = {
       action: 'create',
-      school_id: $('#createSchoolId').val(),
-      source_ref_id: $('#createSourceRefId').val().trim(),
-      student_id: $('#createStudentId').val().trim(),
-      amount: $('#createAmount').val(),
-      reason: $('#createReason').val().trim()
+      school_id: String($createSchool.val() || '').trim(),
+      source_ref_id: String($createSourceRef.val() || '').trim(),
+      student_email: String($createStudentEmail.val() || '').trim(),
+      material_ids: getSelectedMaterialIds(),
+      reason: String($createReason.val() || '').trim()
     };
 
-    if (!payload.school_id || !payload.source_ref_id || !payload.amount || !payload.reason) {
-      showToast('bg-danger', 'School, source ref, amount and reason are required.');
+    if (!payload.school_id || !payload.source_ref_id || !payload.student_email || payload.material_ids.length === 0 || !payload.reason) {
+      showToast('bg-danger', 'School, student email, source ref, materials and reason are required.');
+      updateCreateSubmitState();
       return;
     }
 
@@ -283,10 +558,10 @@ $(document).ready(function () {
       method: 'POST',
       dataType: 'json',
       data: payload,
+      traditional: true,
       success: function (res) {
         if (res.status === 'success') {
           showToast('bg-success', res.message || 'Refund created successfully.');
-          resetCreateForm();
           var createModal = bootstrap.Modal.getInstance($createModal.get(0));
           if (createModal) {
             createModal.hide();
@@ -295,6 +570,7 @@ $(document).ready(function () {
           reloadMonitoring();
         } else {
           showToast('bg-danger', res.message || 'Failed to create refund.');
+          updateCreateSubmitState();
         }
       },
       error: function (xhr) {
@@ -303,11 +579,18 @@ $(document).ready(function () {
           message = xhr.responseJSON.message;
         }
         showToast('bg-danger', message);
+        updateCreateSubmitState();
       },
       complete: function () {
-        $createBtn.prop('disabled', false).text('Create Refund');
+        if ($createBtn.text() === 'Creating...') {
+          $createBtn.text('Create Refund');
+        }
       }
     });
+  });
+
+  $createModal.on('shown.bs.modal', function () {
+    updateCreateSubmitState();
   });
 
   $createModal.on('hidden.bs.modal', function () {
@@ -389,6 +672,7 @@ $(document).ready(function () {
     });
   });
 
+  resetCreateForm();
   fetchQueue();
   reloadMonitoring();
 });

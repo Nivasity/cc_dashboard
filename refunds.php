@@ -213,24 +213,28 @@ $thirtyDaysAgo = date('Y-m-d', strtotime('-29 days'));
                 <div class="col-md-4">
                   <label for="createSourceRefId" class="form-label">Source Ref ID</label>
                   <input type="text" class="form-control" id="createSourceRefId" name="source_ref_id" placeholder="e.g. nivas_123_001" required />
+                  <div id="sourceLookupFeedback" class="form-text"></div>
                 </div>
                 <div class="col-md-4">
-                  <label for="createStudentId" class="form-label">Student ID (Optional)</label>
-                  <input type="number" min="1" step="1" class="form-control" id="createStudentId" name="student_id" placeholder="e.g. 219" />
-                </div>
-                <div class="col-md-4">
-                  <label for="createAmount" class="form-label">Amount</label>
-                  <input type="number" min="0.01" step="0.01" class="form-control" id="createAmount" name="amount" placeholder="0.00" required />
+                  <label for="createStudentEmail" class="form-label">Student Email</label>
+                  <input type="email" class="form-control" id="createStudentEmail" name="student_email" placeholder="student@example.com" required />
+                  <div id="studentLookupFeedback" class="form-text"></div>
                 </div>
                 <div class="col-md-8">
                   <label for="createReason" class="form-label">Reason</label>
                   <textarea class="form-control" id="createReason" name="reason" rows="2" maxlength="2000" placeholder="Why is this refund being approved?" required></textarea>
                 </div>
+                <div class="col-md-12">
+                  <label for="createMaterialIds" class="form-label">Refund Materials</label>
+                  <select id="createMaterialIds" name="material_ids[]" class="form-select" multiple required></select>
+                  <div class="form-text">Only materials paid under this source transaction can be selected.</div>
+                  <div class="form-text fw-semibold" id="selectedMaterialsTotal">Selected Total: NGN 0.00</div>
+                </div>
               </div>
             </div>
             <div class="modal-footer">
               <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-              <button type="submit" id="createRefundBtn" class="btn btn-primary">Create Refund</button>
+              <button type="submit" id="createRefundBtn" class="btn btn-primary" disabled>Create Refund</button>
             </div>
           </form>
         </div>
