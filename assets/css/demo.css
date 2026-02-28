@@ -525,6 +525,35 @@ html.dark-style .form-control::placeholder {
   color: #9ca3af;
 }
 
+html.dark-style .form-select {
+  color: #e5e7eb !important;
+  -webkit-text-fill-color: #e5e7eb;
+}
+
+html.dark-style .form-select option {
+  color: #e5e7eb;
+  background-color: #111827;
+}
+
+html.dark-style .form-select:disabled,
+html.dark-style .form-control:disabled,
+html.dark-style .form-select[readonly],
+html.dark-style .form-control[readonly] {
+  color: #cbd5e1 !important;
+  -webkit-text-fill-color: #cbd5e1;
+  opacity: 1;
+}
+
+html.dark-style .select2-container--bootstrap-5 .select2-selection--single .select2-selection__rendered,
+html.dark-style .select2-container--bootstrap-5 .select2-selection--multiple .select2-selection__rendered {
+  color: #e5e7eb !important;
+}
+
+html.dark-style .select2-container--bootstrap-5 .select2-selection--single .select2-selection__placeholder,
+html.dark-style .select2-container--bootstrap-5 .select2-selection--multiple .select2-search__field::placeholder {
+  color: #9ca3af !important;
+}
+
 html.dark-style .btn-outline-secondary {
   color: #d1d5db;
   border-color: #4b5563;
