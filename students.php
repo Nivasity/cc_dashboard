@@ -453,6 +453,7 @@ $admin_faculty = $admin_['faculty'] ?? 0;
     // Get the 'tab' parameter from the URL
     const urlParams = new URLSearchParams(window.location.search);
     const tabParam = urlParams.get('tab');
+    const studentDataParam = (urlParams.get('student_data') || '').trim();
 
     // Populate Admission Year select with ranges like 2019/2020
     function getAdmissionYears() {
@@ -968,6 +969,14 @@ $admin_faculty = $admin_['faculty'] ?? 0;
         placeholder: $(this).data('placeholder'),
         closeOnSelect: false
       });
+
+      if (studentDataParam) {
+        const profileSearchInput = $('#search_profile-form [name="student_data"]');
+        profileSearchInput.val(studentDataParam);
+        setTimeout(function () {
+          $('#search_profile-form').trigger('submit');
+        }, 250);
+      }
     });
   </script>
 </body>

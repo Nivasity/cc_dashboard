@@ -38,6 +38,7 @@ $canAcademics = in_array($adminRole, [1, 2, 3, 5], true);
 $canFinance = in_array($adminRole, [1, 2, 3, 4, 5], true);
 $canRefunds = in_array($adminRole, [1, 2, 3, 4], true);
 $canMaterials = in_array($adminRole, [1, 2, 3, 5], true);
+$canStudents = in_array($adminRole, [1, 2, 3, 5], true);
 $canSupport = in_array($adminRole, [1, 2, 3, 4, 5], true);
 $canUserSupport = in_array($adminRole, [1, 2, 3], true);
 
@@ -82,6 +83,11 @@ $groups = [
   'materials' => [
     'key' => 'materials',
     'label' => 'Materials',
+    'items' => [],
+  ],
+  'students' => [
+    'key' => 'students',
+    'label' => 'Students',
     'items' => [],
   ],
   'support' => [
@@ -381,6 +387,83 @@ if ($canMaterials) {
       (string) ($row['title'] ?? ''),
       $subtitle,
       'course_materials.php?manual_id=' . (int) ($row['id'] ?? 0)
+    );
+  }
+}
+
+if ($canStudents) {
+  $studentScopeSql = '';
+  if ($isSchoolScopedAdmin) {
+    $studentScopeSql .= " AND u.school = {$adminSchoolId}";
+    if ($adminFacultyId > 0) {
+      $studentScopeSql .= " AND d.faculty_id = {$adminFacultyId}";
+    }
+  }
+
+  $studentRows = fetchRows(
+    $conn,
+    "SELECT
+       u.id,
+       u.first_name,
+       u.last_name,
+       u.email,
+       u.phone,
+       u.matric_no,
+       u.role,
+       u.status,
+       s.name AS school_name,
+       d.name AS dept_name
+     FROM users u
+     LEFT JOIN schools s ON s.id = u.school
+     LEFT JOIN depts d ON d.id = u.dept
+     WHERE u.role IN ('student', 'hoc')
+       AND (
+         COALESCE(u.email, '') LIKE '{$likeTerm}'
+         OR COALESCE(u.phone, '') LIKE '{$likeTerm}'
+         OR COALESCE(u.matric_no, '') LIKE '{$likeTerm}'
+         OR CONCAT_WS(' ', COALESCE(u.first_name, ''), COALESCE(u.last_name, '')) LIKE '{$likeTerm}'
+       )
+       {$studentScopeSql}
+     ORDER BY u.last_login DESC, u.id DESC
+     LIMIT 10"
+  );
+
+  foreach ($studentRows as $row) {
+    $fullName = trim((string) ($row['first_name'] ?? '') . ' ' . (string) ($row['last_name'] ?? ''));
+    if ($fullName === '') {
+      $fullName = (string) ($row['email'] ?? ('Student #' . (int) ($row['id'] ?? 0)));
+    }
+
+    $lookupValue = trim((string) ($row['email'] ?? ''));
+    if ($lookupValue === '') {
+      $lookupValue = trim((string) ($row['matric_no'] ?? ''));
+    }
+    if ($lookupValue === '') {
+      $lookupValue = trim((string) ($row['phone'] ?? ''));
+    }
+    if ($lookupValue === '') {
+      continue;
+    }
+
+    $subtitle = strtoupper((string) ($row['role'] ?? 'student'));
+    if (!empty($row['matric_no'])) {
+      $subtitle .= ' - ' . (string) $row['matric_no'];
+    } elseif (!empty($row['email'])) {
+      $subtitle .= ' - ' . (string) $row['email'];
+    }
+    if (!empty($row['dept_name'])) {
+      $subtitle .= ' - ' . (string) $row['dept_name'];
+    } elseif (!empty($row['school_name'])) {
+      $subtitle .= ' - ' . (string) $row['school_name'];
+    }
+
+    appendSearchItem(
+      $groups,
+      'students',
+      'student_profile',
+      $fullName,
+      $subtitle,
+      'students.php?tab=profile&student_data=' . rawurlencode($lookupValue)
     );
   }
 }
