@@ -184,3 +184,174 @@
   border-radius: 0.25rem;
   width: 60%;
 }
+
+/* Global dark mode */
+html.dark-style {
+  color-scheme: dark;
+  --bs-body-color: #d1d5db;
+  --bs-body-color-rgb: 209, 213, 219;
+  --bs-body-bg: #0f172a;
+  --bs-body-bg-rgb: 15, 23, 42;
+}
+
+html.dark-style body {
+  background-color: #0f172a;
+  color: #d1d5db;
+}
+
+html.dark-style h1,
+html.dark-style h2,
+html.dark-style h3,
+html.dark-style h4,
+html.dark-style h5,
+html.dark-style h6,
+html.dark-style .h1,
+html.dark-style .h2,
+html.dark-style .h3,
+html.dark-style .h4,
+html.dark-style .h5,
+html.dark-style .h6 {
+  color: #f3f4f6;
+}
+
+html.dark-style .text-muted {
+  color: #9ca3af !important;
+}
+
+html.dark-style .layout-page,
+html.dark-style .content-wrapper {
+  background-color: #0f172a;
+}
+
+html.dark-style .card,
+html.dark-style .accordion-item,
+html.dark-style .modal-content,
+html.dark-style .dropdown-menu,
+html.dark-style .list-group-item,
+html.dark-style .toast,
+html.dark-style .offcanvas {
+  background-color: #1f2937;
+  color: #e5e7eb;
+  border-color: #374151;
+}
+
+html.dark-style .bg-navbar-theme {
+  background-color: #1f2937 !important;
+  border: 1px solid #374151;
+}
+
+html.dark-style .bg-menu-theme {
+  background-color: #111827 !important;
+  border-right: 1px solid #374151;
+}
+
+html.dark-style .bg-footer-theme {
+  background-color: #1f2937 !important;
+  border-top: 1px solid #374151;
+}
+
+html.dark-style .bg-navbar-theme .navbar-nav > .nav-link,
+html.dark-style .bg-navbar-theme .navbar-nav > .nav-item > .nav-link {
+  color: #d1d5db !important;
+}
+
+html.dark-style .menu-vertical .menu-item .menu-link,
+html.dark-style .menu-vertical .menu-item .menu-link .menu-icon,
+html.dark-style .menu-vertical .menu-header,
+html.dark-style .menu-vertical .menu-sub .menu-link {
+  color: #cbd5e1 !important;
+}
+
+html.dark-style .bg-menu-theme .menu-link:hover,
+html.dark-style .bg-menu-theme .menu-link:focus {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  color: #ffffff !important;
+}
+
+html.dark-style .bg-menu-theme .menu-item.active > .menu-link,
+html.dark-style .bg-menu-theme .menu-item.open > .menu-link {
+  background-color: rgba(255, 145, 0, 0.2) !important;
+  color: #ffbe73 !important;
+}
+
+html.dark-style .menu-inner-shadow {
+  background: linear-gradient(#111827 41%, rgba(17, 24, 39, 0.11) 95%, rgba(17, 24, 39, 0));
+}
+
+html.dark-style .footer-link,
+html.dark-style a,
+html.dark-style .text-primary {
+  color: #ffbe73 !important;
+}
+
+html.dark-style a:hover,
+html.dark-style a:focus {
+  color: #ffd4a1 !important;
+}
+
+html.dark-style .table {
+  color: #e5e7eb;
+  --bs-table-bg: transparent;
+  --bs-table-striped-bg: rgba(255, 255, 255, 0.03);
+  --bs-table-hover-bg: rgba(255, 255, 255, 0.05);
+  --bs-table-border-color: #374151;
+}
+
+html.dark-style .table > :not(caption) > * > * {
+  border-bottom-color: #374151;
+}
+
+html.dark-style .form-control,
+html.dark-style .form-select,
+html.dark-style .input-group-text {
+  background-color: #111827;
+  border-color: #374151;
+  color: #e5e7eb;
+}
+
+html.dark-style .form-control:focus,
+html.dark-style .form-select:focus {
+  border-color: #ff9100;
+  box-shadow: 0 0 0 0.2rem rgba(255, 145, 0, 0.2);
+}
+
+html.dark-style .form-control::placeholder {
+  color: #9ca3af;
+}
+
+html.dark-style .btn-outline-secondary {
+  color: #d1d5db;
+  border-color: #4b5563;
+}
+
+html.dark-style .btn-outline-secondary:hover {
+  background-color: #374151;
+  border-color: #4b5563;
+  color: #ffffff;
+}
+
+html.dark-style .dropdown-divider,
+html.dark-style hr {
+  border-color: #374151;
+  background-color: #374151;
+}
+
+html.dark-style .select2-container--bootstrap-5 .select2-selection {
+  background-color: #111827 !important;
+  border-color: #374151 !important;
+  color: #e5e7eb !important;
+}
+
+html.dark-style .select2-container--bootstrap-5 .select2-dropdown {
+  background-color: #1f2937 !important;
+  border-color: #374151 !important;
+}
+
+html.dark-style .select2-container--bootstrap-5 .select2-results__option {
+  color: #e5e7eb !important;
+}
+
+html.dark-style .select2-container--bootstrap-5 .select2-results__option--highlighted {
+  background-color: rgba(255, 145, 0, 0.2) !important;
+  color: #ffbe73 !important;
+}

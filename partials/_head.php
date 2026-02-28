@@ -1,6 +1,29 @@
 <!-- Favicon -->
 <link rel="icon" type="image/x-icon" href="assets/img/favicon/favicon.ico" />
 
+<script>
+  (function () {
+    var storageKey = 'cc_theme_mode';
+    var preferredTheme = null;
+
+    try {
+      preferredTheme = window.localStorage.getItem(storageKey);
+    } catch (e) {
+      preferredTheme = null;
+    }
+
+    if (preferredTheme !== 'dark' && preferredTheme !== 'light') {
+      var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+      preferredTheme = prefersDark ? 'dark' : 'light';
+    }
+
+    var html = document.documentElement;
+    html.classList.remove('light-style', 'dark-style');
+    html.classList.add(preferredTheme === 'dark' ? 'dark-style' : 'light-style');
+    html.setAttribute('data-theme-mode', preferredTheme);
+  })();
+</script>
+
 <!-- Fonts -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

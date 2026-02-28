@@ -7,6 +7,89 @@
 let menu, animate;
 
 (function () {
+  const themeStorageKey = 'cc_theme_mode';
+
+  const resolveThemeAssetsPath = function () {
+    const html = document.documentElement;
+    const assetsPath = html.getAttribute('data-assets-path') || 'assets/';
+    return assetsPath.endsWith('/') ? assetsPath : assetsPath + '/';
+  };
+
+  const syncThemeImages = function (themeMode) {
+    const isDark = themeMode === 'dark';
+    const assetsPath = resolveThemeAssetsPath();
+    const imageNodes = document.querySelectorAll('[data-app-dark-img][data-app-light-img]');
+
+    imageNodes.forEach(function (imageNode) {
+      const darkImage = imageNode.getAttribute('data-app-dark-img');
+      const lightImage = imageNode.getAttribute('data-app-light-img');
+      const targetImage = isDark ? darkImage : lightImage;
+      if (!targetImage) {
+        return;
+      }
+
+      const isAbsolute = /^(https?:)?\/\//i.test(targetImage) || targetImage.indexOf('assets/') === 0;
+      imageNode.setAttribute('src', isAbsolute ? targetImage : assetsPath + 'img/' + targetImage);
+    });
+  };
+
+  const syncThemeToggleUI = function (themeMode) {
+    const isDark = themeMode === 'dark';
+    const iconClassToAdd = isDark ? 'bx-sun' : 'bx-moon';
+    const iconClassToRemove = isDark ? 'bx-moon' : 'bx-sun';
+    const labelText = isDark ? 'Light' : 'Dark';
+
+    document.querySelectorAll('[data-theme-toggle-icon]').forEach(function (iconNode) {
+      iconNode.classList.remove(iconClassToRemove);
+      iconNode.classList.add(iconClassToAdd);
+    });
+
+    document.querySelectorAll('[data-theme-toggle-label]').forEach(function (labelNode) {
+      labelNode.textContent = labelText;
+    });
+  };
+
+  const applyThemeMode = function (themeMode) {
+    const html = document.documentElement;
+    const finalTheme = themeMode === 'dark' ? 'dark' : 'light';
+    const isDark = finalTheme === 'dark';
+
+    html.classList.toggle('dark-style', isDark);
+    html.classList.toggle('light-style', !isDark);
+    html.setAttribute('data-theme-mode', finalTheme);
+
+    try {
+      window.localStorage.setItem(themeStorageKey, finalTheme);
+    } catch (e) {
+      // Ignore localStorage failures (private mode / browser restrictions).
+    }
+
+    syncThemeImages(finalTheme);
+    syncThemeToggleUI(finalTheme);
+  };
+
+  const getCurrentThemeMode = function () {
+    const html = document.documentElement;
+    if (html.classList.contains('dark-style') || html.getAttribute('data-theme-mode') === 'dark') {
+      return 'dark';
+    }
+    return 'light';
+  };
+
+  const bindThemeToggle = function () {
+    const toggleNodes = document.querySelectorAll('[data-theme-toggle]');
+    if (!toggleNodes.length) {
+      return;
+    }
+
+    toggleNodes.forEach(function (toggleNode) {
+      toggleNode.addEventListener('click', function () {
+        const nextTheme = getCurrentThemeMode() === 'dark' ? 'light' : 'dark';
+        applyThemeMode(nextTheme);
+      });
+    });
+  };
+
   // Initialize menu
   //-----------------
 
@@ -115,4 +198,7 @@ let menu, animate;
 
   // Auto update menu collapsed/expanded based on the themeConfig
   window.Helpers.setCollapsed(true, false);
+
+  applyThemeMode(getCurrentThemeMode());
+  bindThemeToggle();
 })();
