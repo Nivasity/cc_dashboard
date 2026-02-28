@@ -132,17 +132,19 @@ function handleQueue(mysqli $conn, array $adminScope, array $request): void
   $reservationAggJoin = "LEFT JOIN (
       SELECT
         rr.refund_id,
-        COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed
+        COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed,
+        COALESCE(SUM(CASE WHEN rr.status = 'reserved' THEN rr.amount ELSE 0 END), 0) AS total_reserved
       FROM refund_reservations rr
       GROUP BY rr.refund_id
     ) rr_agg ON rr_agg.refund_id = r.id";
   $consumedExpr = 'COALESCE(rr_agg.total_consumed, 0)';
-  $remainingExpr = "GREATEST(COALESCE(r.amount, 0) - {$consumedExpr}, 0)";
+  $reservedExpr = 'COALESCE(rr_agg.total_reserved, 0)';
+  $remainingExpr = "GREATEST(COALESCE(r.amount, 0) - {$consumedExpr} - {$reservedExpr}, 0)";
   $statusExpr = "CASE
       WHEN r.status = 'cancelled' THEN 'cancelled'
-      WHEN {$remainingExpr} <= 0 THEN 'applied'
-      WHEN {$consumedExpr} > 0 THEN 'partially_applied'
-      ELSE 'pending'
+      WHEN {$remainingExpr} <= 0 AND {$reservedExpr} <= 0 AND {$consumedExpr} >= COALESCE(r.amount, 0) THEN 'applied'
+      WHEN {$remainingExpr} >= COALESCE(r.amount, 0) THEN 'pending'
+      ELSE 'partially_applied'
     END";
 
   $where = [];
@@ -243,12 +245,13 @@ function handleDetail(mysqli $conn, array $adminScope, array $request): void
   }
 
   $consumedExpr = 'COALESCE(rr_agg.total_consumed, 0)';
-  $remainingExpr = "GREATEST(COALESCE(r.amount, 0) - {$consumedExpr}, 0)";
+  $reservedExpr = 'COALESCE(rr_agg.total_reserved, 0)';
+  $remainingExpr = "GREATEST(COALESCE(r.amount, 0) - {$consumedExpr} - {$reservedExpr}, 0)";
   $statusExpr = "CASE
       WHEN r.status = 'cancelled' THEN 'cancelled'
-      WHEN {$remainingExpr} <= 0 THEN 'applied'
-      WHEN {$consumedExpr} > 0 THEN 'partially_applied'
-      ELSE 'pending'
+      WHEN {$remainingExpr} <= 0 AND {$reservedExpr} <= 0 AND {$consumedExpr} >= COALESCE(r.amount, 0) THEN 'applied'
+      WHEN {$remainingExpr} >= COALESCE(r.amount, 0) THEN 'pending'
+      ELSE 'partially_applied'
     END";
 
   $refundRows = dbFetchAll(
@@ -274,7 +277,8 @@ function handleDetail(mysqli $conn, array $adminScope, array $request): void
      LEFT JOIN (
        SELECT
          rr.refund_id,
-         COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed
+         COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed,
+         COALESCE(SUM(CASE WHEN rr.status = 'reserved' THEN rr.amount ELSE 0 END), 0) AS total_reserved
        FROM refund_reservations rr
        GROUP BY rr.refund_id
      ) rr_agg ON rr_agg.refund_id = r.id
@@ -358,12 +362,14 @@ function handleOutstandingMonitoring(mysqli $conn, array $adminScope, array $req
   $reservationAggJoin = "LEFT JOIN (
       SELECT
         rr.refund_id,
-        COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed
+        COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed,
+        COALESCE(SUM(CASE WHEN rr.status = 'reserved' THEN rr.amount ELSE 0 END), 0) AS total_reserved
       FROM refund_reservations rr
       GROUP BY rr.refund_id
     ) rr_agg ON rr_agg.refund_id = r.id";
   $consumedExpr = 'COALESCE(rr_agg.total_consumed, 0)';
-  $remainingExpr = "GREATEST(COALESCE(r.amount, 0) - {$consumedExpr}, 0)";
+  $reservedExpr = 'COALESCE(rr_agg.total_reserved, 0)';
+  $remainingExpr = "GREATEST(COALESCE(r.amount, 0) - {$consumedExpr} - {$reservedExpr}, 0)";
 
   $where = ["r.status <> 'cancelled'", "{$remainingExpr} > 0"];
   $refundedWhere = ["r.status <> 'cancelled'"];
@@ -689,6 +695,14 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
     'message' => 'Failed to create refund.',
   ];
   $transactionStarted = false;
+  $preflightDetails = null;
+  $reallocationLogs = [];
+  $refundStateChanges = [];
+  $transactionCapLogs = [];
+  $affectedSourceRefs = [$sourceRefId => true];
+  $affectedRefundIds = [];
+  $postflightWarnings = [];
+  $createdRefund = null;
 
   try {
     $transactionRows = dbFetchAll(
@@ -765,17 +779,17 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                   'message' => 'No refundable materials found for this source transaction.',
                 ];
               } else {
-                $materialsByBoughtId = [];
+                $materialsByManualId = [];
                 foreach ($refundableMaterials as $material) {
-                  $boughtId = isset($material['bought_id']) ? (int) $material['bought_id'] : 0;
-                  if ($boughtId > 0) {
-                    $materialsByBoughtId[$boughtId] = $material;
+                  $manualId = isset($material['manual_id']) ? (int) $material['manual_id'] : 0;
+                  if ($manualId > 0) {
+                    $materialsByManualId[$manualId] = $material;
                   }
                 }
 
                 $selectedMaterials = [];
-                foreach ($selectedMaterialIds as $materialBoughtId) {
-                  if (!isset($materialsByBoughtId[$materialBoughtId])) {
+                foreach ($selectedMaterialIds as $selectedManualId) {
+                  if (!isset($materialsByManualId[$selectedManualId])) {
                     $httpStatus = 400;
                     $responsePayload = [
                       'status' => 'failed',
@@ -784,7 +798,7 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                     break;
                   }
 
-                  $selectedMaterial = $materialsByBoughtId[$materialBoughtId];
+                  $selectedMaterial = $materialsByManualId[$selectedManualId];
                   $selectedMaterialSchool = isset($selectedMaterial['school_id']) ? (int) $selectedMaterial['school_id'] : 0;
                   if ($selectedMaterialSchool > 0 && $selectedMaterialSchool !== $schoolId) {
                     $httpStatus = 409;
@@ -814,6 +828,24 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                     mysqli_begin_transaction($conn);
                     $transactionStarted = true;
 
+                    $preflightDetails = reconcileSourceRefWithFallback($conn, $sourceRefId);
+                    if (isset($preflightDetails['affected_source_refs']) && is_array($preflightDetails['affected_source_refs'])) {
+                      foreach ($preflightDetails['affected_source_refs'] as $affectedSourceRef) {
+                        $affectedSourceRef = trim((string) $affectedSourceRef);
+                        if ($affectedSourceRef !== '') {
+                          $affectedSourceRefs[$affectedSourceRef] = true;
+                        }
+                      }
+                    }
+                    if (isset($preflightDetails['affected_refund_ids']) && is_array($preflightDetails['affected_refund_ids'])) {
+                      foreach ($preflightDetails['affected_refund_ids'] as $affectedRefundId) {
+                        $affectedRefundId = (int) $affectedRefundId;
+                        if ($affectedRefundId > 0) {
+                          $affectedRefundIds[$affectedRefundId] = true;
+                        }
+                      }
+                    }
+
                     $existingRows = dbFetchAll(
                       $conn,
                       "SELECT id, status, amount, remaining_amount, created_at
@@ -837,6 +869,11 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                         'existing_refund' => normalizeNumericRow($existingRows[0], ['amount', 'remaining_amount']),
                       ];
                     } else {
+                      $manualIdsExist = validateManualIdsExist($conn, $selectedMaterialIds);
+                      if (!$manualIdsExist) {
+                        throw new RuntimeException('One or more selected materials do not exist.');
+                      }
+
                       $materialsJson = json_encode(array_values($selectedMaterialIds), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
                       if ($materialsJson === false) {
                         throw new RuntimeException('Unable to encode selected materials payload.');
@@ -867,8 +904,151 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                       mysqli_stmt_close($stmt);
 
                       $refundId = (int) mysqli_insert_id($conn);
-                      mysqli_commit($conn);
-                      $transactionStarted = false;
+                      $affectedRefundIds[$refundId] = true;
+
+                      $targetTotals = getRefundLedgerTotals($conn, $refundId);
+                      $targetNeeded = max(
+                        0.0,
+                        round(
+                          $amount
+                          - (float) ($targetTotals['consumed_total'] ?? 0)
+                          - (float) ($targetTotals['reserved_total'] ?? 0),
+                          2
+                        )
+                      );
+
+                      if ($targetNeeded > 0) {
+                        $nextTargetSplitSequence = getNextRefundSplitSequence($conn, $refundId);
+                        $nextSourceSplitSequenceByRefund = [];
+                        $overlyRows = dbFetchAll(
+                          $conn,
+                          "SELECT
+                             id,
+                             refund_id,
+                             ref_id,
+                             split_sequence,
+                             school_id,
+                             payer_user_id,
+                             gateway,
+                             amount,
+                             channel,
+                             reserved_at,
+                             consumed_at,
+                             released_at
+                           FROM refund_reservations
+                           WHERE status = 'released'
+                             AND release_reason = 'overly'
+                             AND school_id = ?
+                             AND refund_id <> ?
+                             AND amount > 0
+                           ORDER BY COALESCE(released_at, consumed_at, reserved_at) ASC, id ASC
+                           FOR UPDATE",
+                          'ii',
+                          [$schoolId, $refundId]
+                        );
+
+                        foreach ($overlyRows as $sourceRow) {
+                          if ($targetNeeded <= 0) {
+                            break;
+                          }
+
+                          $sourceRowId = (int) ($sourceRow['id'] ?? 0);
+                          $sourceRefundId = (int) ($sourceRow['refund_id'] ?? 0);
+                          $sourceRowAmount = round((float) ($sourceRow['amount'] ?? 0), 2);
+                          if ($sourceRowId <= 0 || $sourceRefundId <= 0 || $sourceRowAmount <= 0) {
+                            continue;
+                          }
+
+                          $movedAmount = round(min($targetNeeded, $sourceRowAmount), 2);
+                          if ($movedAmount <= 0) {
+                            continue;
+                          }
+
+                          $currentTimestamp = date('Y-m-d H:i:s');
+                          insertRefundReservationRow($conn, [
+                            'refund_id' => $refundId,
+                            'ref_id' => (string) ($sourceRow['ref_id'] ?? ''),
+                            'split_sequence' => $nextTargetSplitSequence,
+                            'school_id' => $schoolId,
+                            'payer_user_id' => (int) ($sourceRow['payer_user_id'] ?? 0),
+                            'gateway' => (string) ($sourceRow['gateway'] ?? ''),
+                            'amount' => $movedAmount,
+                            'channel' => (string) ($sourceRow['channel'] ?? ''),
+                            'status' => 'consumed',
+                            'reserved_at' => $currentTimestamp,
+                            'consumed_at' => $currentTimestamp,
+                            'released_at' => null,
+                            'release_reason' => null,
+                          ]);
+                          $nextTargetSplitSequence++;
+
+                          $allocationPath = 'full';
+                          if ($movedAmount >= $sourceRowAmount - 0.00001) {
+                            $sourceUpdateStmt = dbExecute(
+                              $conn,
+                              "UPDATE refund_reservations
+                               SET release_reason = 'overly_reallocated'
+                               WHERE id = ?",
+                              'i',
+                              [$sourceRowId]
+                            );
+                            mysqli_stmt_close($sourceUpdateStmt);
+                          } else {
+                            $allocationPath = 'partial';
+                            $leftoverAmount = round($sourceRowAmount - $movedAmount, 2);
+                            if ($leftoverAmount < 0) {
+                              $leftoverAmount = 0;
+                            }
+
+                            $sourceUpdateStmt = dbExecute(
+                              $conn,
+                              "UPDATE refund_reservations
+                               SET amount = ?, release_reason = 'overly'
+                               WHERE id = ?",
+                              'di',
+                              [$leftoverAmount, $sourceRowId]
+                            );
+                            mysqli_stmt_close($sourceUpdateStmt);
+
+                            insertRefundReservationRow($conn, [
+                              'refund_id' => $sourceRefundId,
+                              'ref_id' => (string) ($sourceRow['ref_id'] ?? ''),
+                              'split_sequence' => getNextSplitSequenceCursor($conn, $sourceRefundId, $nextSourceSplitSequenceByRefund),
+                              'school_id' => (int) ($sourceRow['school_id'] ?? $schoolId),
+                              'payer_user_id' => (int) ($sourceRow['payer_user_id'] ?? 0),
+                              'gateway' => (string) ($sourceRow['gateway'] ?? ''),
+                              'amount' => $movedAmount,
+                              'channel' => (string) ($sourceRow['channel'] ?? ''),
+                              'status' => 'released',
+                              'reserved_at' => $sourceRow['reserved_at'] ?? null,
+                              'consumed_at' => $sourceRow['consumed_at'] ?? null,
+                              'released_at' => $sourceRow['released_at'] ?? $currentTimestamp,
+                              'release_reason' => 'overly_reallocated',
+                            ]);
+                          }
+
+                          $affectedRefundIds[$sourceRefundId] = true;
+                          $sourceReservationRef = trim((string) ($sourceRow['ref_id'] ?? ''));
+                          if ($sourceReservationRef !== '') {
+                            $affectedSourceRefs[$sourceReservationRef] = true;
+                          }
+
+                          $targetNeeded = max(0.0, round($targetNeeded - $movedAmount, 2));
+                          $reallocationLogs[] = [
+                            'target_refund_id' => $refundId,
+                            'source_released_row_id' => $sourceRowId,
+                            'source_refund_id' => $sourceRefundId,
+                            'source_ref_id' => (string) ($sourceRow['ref_id'] ?? ''),
+                            'moved_amount' => $movedAmount,
+                            'path' => $allocationPath,
+                            'actor_admin_id' => $adminId,
+                            'moved_at' => $currentTimestamp,
+                          ];
+                        }
+                      }
+
+                      $refundStateChanges = recomputeRefundsFromLedger($conn, array_map('intval', array_keys($affectedRefundIds)));
+                      $transactionCapLogs = capTransactionsRefundForSourceRefs($conn, array_keys($affectedSourceRefs));
 
                       if ($hasMaterialsColumn) {
                         $createdRows = dbFetchAll(
@@ -904,6 +1084,25 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                         'materials' => $materialsJson,
                       ];
 
+                      mysqli_commit($conn);
+                      $transactionStarted = false;
+
+                      foreach (array_keys($affectedSourceRefs) as $affectedSourceRef) {
+                        try {
+                          reconcileSourceRefWithFallback($conn, $affectedSourceRef);
+                        } catch (Throwable $postflightThrowable) {
+                          $postflightWarnings[] = [
+                            'source_ref_id' => $affectedSourceRef,
+                            'error' => $postflightThrowable->getMessage(),
+                          ];
+                        }
+                      }
+
+                      $createdRows = fetchRefundById($conn, $refundId, $hasMaterialsColumn);
+                      if ($createdRows !== []) {
+                        $createdRefund = $createdRows[0];
+                      }
+
                       if (function_exists('log_audit_event')) {
                         log_audit_event($conn, $adminId, 'create', 'refund', (string) $refundId, [
                           'after' => $createdRefund,
@@ -911,7 +1110,32 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                           'source_ref_id' => $sourceRefId,
                           'student_email' => $studentEmail,
                           'selected_materials_count' => count($selectedMaterialIds),
+                          'selected_manual_ids' => array_values($selectedMaterialIds),
+                          'preflight' => $preflightDetails,
+                          'reallocation' => [
+                            'rows' => $reallocationLogs,
+                            'moved_total' => array_sum(array_map(static function (array $row): float {
+                              return (float) ($row['moved_amount'] ?? 0);
+                            }, $reallocationLogs)),
+                          ],
+                          'affected_refund_state_changes' => $refundStateChanges,
+                          'transaction_refund_caps' => $transactionCapLogs,
+                          'postflight_warnings' => $postflightWarnings,
                         ]);
+                      }
+
+                      foreach ($reallocationLogs as $reallocationLog) {
+                        if (!function_exists('log_audit_event')) {
+                          break;
+                        }
+                        log_audit_event(
+                          $conn,
+                          $adminId,
+                          'reallocate',
+                          'refund_reservation',
+                          (string) ($reallocationLog['source_released_row_id'] ?? ''),
+                          $reallocationLog
+                        );
                       }
 
                       $httpStatus = 201;
@@ -919,6 +1143,13 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                         'status' => 'success',
                         'message' => 'Refund created successfully.',
                         'refund' => normalizeNumericRow($createdRefund, ['amount', 'remaining_amount']),
+                        'reallocation' => [
+                          'rows_moved' => count($reallocationLogs),
+                          'moved_total' => array_sum(array_map(static function (array $row): float {
+                            return (float) ($row['moved_amount'] ?? 0);
+                          }, $reallocationLogs)),
+                        ],
+                        'postflight_warnings' => $postflightWarnings,
                       ];
                     }
                   }
@@ -1108,17 +1339,625 @@ function refreshRefundStatuses(mysqli $conn): void
      LEFT JOIN (
        SELECT
          rr.refund_id,
-         COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed
+         COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed,
+         COALESCE(SUM(CASE WHEN rr.status = 'reserved' THEN rr.amount ELSE 0 END), 0) AS total_reserved
        FROM refund_reservations rr
        GROUP BY rr.refund_id
      ) rr_agg ON rr_agg.refund_id = r.id
      SET status = CASE
-       WHEN GREATEST(COALESCE(r.amount, 0) - COALESCE(rr_agg.total_consumed, 0), 0) <= 0 THEN 'applied'
-       WHEN COALESCE(rr_agg.total_consumed, 0) > 0 THEN 'partially_applied'
-       ELSE 'pending'
+       WHEN GREATEST(COALESCE(r.amount, 0) - COALESCE(rr_agg.total_consumed, 0) - COALESCE(rr_agg.total_reserved, 0), 0) <= 0
+         AND COALESCE(rr_agg.total_reserved, 0) <= 0
+         AND COALESCE(rr_agg.total_consumed, 0) >= COALESCE(r.amount, 0)
+         THEN 'applied'
+       WHEN GREATEST(COALESCE(r.amount, 0) - COALESCE(rr_agg.total_consumed, 0) - COALESCE(rr_agg.total_reserved, 0), 0) >= COALESCE(r.amount, 0) THEN 'pending'
+       ELSE 'partially_applied'
      END,
-     remaining_amount = GREATEST(COALESCE(r.amount, 0) - COALESCE(rr_agg.total_consumed, 0), 0)
+     remaining_amount = GREATEST(COALESCE(r.amount, 0) - COALESCE(rr_agg.total_consumed, 0) - COALESCE(rr_agg.total_reserved, 0), 0)
      WHERE r.status IN ('pending', 'partially_applied', 'applied')"
+  );
+}
+
+function reconcileSourceRefWithFallback(mysqli $conn, string $sourceRefId): array
+{
+  $sourceRefId = trim($sourceRefId);
+  if ($sourceRefId === '') {
+    return [
+      'mode' => 'skip',
+      'source_ref_id' => '',
+      'affected_refund_ids' => [],
+      'affected_source_refs' => [],
+    ];
+  }
+
+  if (callReconcileProcedureIfExists($conn, $sourceRefId)) {
+    return [
+      'mode' => 'procedure',
+      'source_ref_id' => $sourceRefId,
+      'affected_refund_ids' => [],
+      'affected_source_refs' => [$sourceRefId],
+    ];
+  }
+
+  if (isConnectionInTransaction($conn)) {
+    return inlineReconcileSourceRef($conn, $sourceRefId);
+  }
+
+  mysqli_begin_transaction($conn);
+  try {
+    $details = inlineReconcileSourceRef($conn, $sourceRefId);
+    mysqli_commit($conn);
+    return $details;
+  } catch (Throwable $throwable) {
+    mysqli_rollback($conn);
+    throw $throwable;
+  }
+}
+
+function callReconcileProcedureIfExists(mysqli $conn, string $sourceRefId): bool
+{
+  if (!storedProcedureExists($conn, 'sp_reconcile_source_ref')) {
+    return false;
+  }
+
+  $stmt = mysqli_prepare($conn, 'CALL sp_reconcile_source_ref(?)');
+  if (!$stmt) {
+    throw new RuntimeException('Failed to prepare reconcile procedure call: ' . mysqli_error($conn));
+  }
+
+  $stmt->bind_param('s', $sourceRefId);
+  if (!mysqli_stmt_execute($stmt)) {
+    $error = mysqli_stmt_error($stmt);
+    mysqli_stmt_close($stmt);
+    throw new RuntimeException('Failed to execute reconcile procedure: ' . $error);
+  }
+  mysqli_stmt_close($stmt);
+
+  // Flush any pending result sets from the procedure call.
+  do {
+    $result = mysqli_store_result($conn);
+    if ($result instanceof mysqli_result) {
+      mysqli_free_result($result);
+    }
+  } while (mysqli_more_results($conn) && mysqli_next_result($conn));
+
+  return true;
+}
+
+function storedProcedureExists(mysqli $conn, string $procedureName): bool
+{
+  static $cache = [];
+  $cacheKey = strtolower($procedureName);
+  if (array_key_exists($cacheKey, $cache)) {
+    return $cache[$cacheKey];
+  }
+
+  $rows = dbFetchAll(
+    $conn,
+    "SELECT COUNT(*) AS total_found
+     FROM INFORMATION_SCHEMA.ROUTINES
+     WHERE ROUTINE_SCHEMA = DATABASE()
+       AND ROUTINE_TYPE = 'PROCEDURE'
+       AND ROUTINE_NAME = ?",
+    's',
+    [$procedureName]
+  );
+
+  $exists = isset($rows[0]['total_found']) && (int) $rows[0]['total_found'] > 0;
+  $cache[$cacheKey] = $exists;
+
+  return $exists;
+}
+
+function isConnectionInTransaction(mysqli $conn): bool
+{
+  $rows = dbFetchAll($conn, 'SELECT @@in_transaction AS in_transaction');
+  if ($rows === []) {
+    return false;
+  }
+
+  return isset($rows[0]['in_transaction']) && (int) $rows[0]['in_transaction'] === 1;
+}
+
+function inlineReconcileSourceRef(mysqli $conn, string $sourceRefId): array
+{
+  $sourceRefId = trim($sourceRefId);
+  if ($sourceRefId === '') {
+    return [
+      'mode' => 'inline',
+      'source_ref_id' => '',
+      'affected_refund_ids' => [],
+      'affected_source_refs' => [],
+      'over_consumed_adjustments' => [],
+      'refund_state_changes' => [],
+      'transaction_refund_caps' => [],
+    ];
+  }
+
+  $affectedRefundIds = [];
+  $affectedSourceRefs = [$sourceRefId => true];
+  $overConsumedAdjustments = [];
+
+  $refundRows = dbFetchAll(
+    $conn,
+    "SELECT id, amount, status
+     FROM refunds
+     WHERE ref_id = ?
+       AND status <> 'cancelled'
+     ORDER BY id ASC
+     FOR UPDATE",
+    's',
+    [$sourceRefId]
+  );
+
+  foreach ($refundRows as $refundRow) {
+    $refundId = (int) ($refundRow['id'] ?? 0);
+    if ($refundId <= 0) {
+      continue;
+    }
+
+    $refundAmount = round((float) ($refundRow['amount'] ?? 0), 2);
+    $ledgerTotals = getRefundLedgerTotals($conn, $refundId);
+    $consumedTotal = round((float) ($ledgerTotals['consumed_total'] ?? 0), 2);
+
+    if ($consumedTotal > $refundAmount + 0.00001) {
+      $excess = round($consumedTotal - $refundAmount, 2);
+      $nextSplitSequence = getNextRefundSplitSequence($conn, $refundId);
+      $consumedRows = dbFetchAll(
+        $conn,
+        "SELECT
+           id,
+           refund_id,
+           ref_id,
+           split_sequence,
+           school_id,
+           payer_user_id,
+           gateway,
+           amount,
+           channel,
+           reserved_at,
+           consumed_at,
+           released_at
+         FROM refund_reservations
+         WHERE refund_id = ?
+           AND status = 'consumed'
+         ORDER BY COALESCE(consumed_at, reserved_at) DESC, id DESC
+         FOR UPDATE",
+        'i',
+        [$refundId]
+      );
+
+      foreach ($consumedRows as $consumedRow) {
+        if ($excess <= 0) {
+          break;
+        }
+
+        $consumedRowId = (int) ($consumedRow['id'] ?? 0);
+        $consumedRowAmount = round((float) ($consumedRow['amount'] ?? 0), 2);
+        if ($consumedRowId <= 0 || $consumedRowAmount <= 0) {
+          continue;
+        }
+
+        $releasedAmount = round(min($excess, $consumedRowAmount), 2);
+        $currentTimestamp = date('Y-m-d H:i:s');
+        if ($releasedAmount >= $consumedRowAmount - 0.00001) {
+          $updateStmt = dbExecute(
+            $conn,
+            "UPDATE refund_reservations
+             SET status = 'released',
+                 released_at = NOW(),
+                 release_reason = 'overly'
+             WHERE id = ?",
+            'i',
+            [$consumedRowId]
+          );
+          mysqli_stmt_close($updateStmt);
+        } else {
+          $leftoverAmount = round($consumedRowAmount - $releasedAmount, 2);
+          if ($leftoverAmount < 0) {
+            $leftoverAmount = 0;
+          }
+
+          $updateStmt = dbExecute(
+            $conn,
+            "UPDATE refund_reservations
+             SET amount = ?
+             WHERE id = ?",
+            'di',
+            [$leftoverAmount, $consumedRowId]
+          );
+          mysqli_stmt_close($updateStmt);
+
+          insertRefundReservationRow($conn, [
+            'refund_id' => $refundId,
+            'ref_id' => (string) ($consumedRow['ref_id'] ?? ''),
+            'split_sequence' => $nextSplitSequence,
+            'school_id' => (int) ($consumedRow['school_id'] ?? 0),
+            'payer_user_id' => (int) ($consumedRow['payer_user_id'] ?? 0),
+            'gateway' => (string) ($consumedRow['gateway'] ?? ''),
+            'amount' => $releasedAmount,
+            'channel' => (string) ($consumedRow['channel'] ?? ''),
+            'status' => 'released',
+            'reserved_at' => $consumedRow['reserved_at'] ?? null,
+            'consumed_at' => $consumedRow['consumed_at'] ?? null,
+            'released_at' => $currentTimestamp,
+            'release_reason' => 'overly',
+          ]);
+          $nextSplitSequence++;
+        }
+
+        $overConsumedAdjustments[] = [
+          'refund_id' => $refundId,
+          'reservation_row_id' => $consumedRowId,
+          'released_amount' => $releasedAmount,
+          'reason' => 'overly',
+        ];
+        $consumedSourceRef = trim((string) ($consumedRow['ref_id'] ?? ''));
+        if ($consumedSourceRef !== '') {
+          $affectedSourceRefs[$consumedSourceRef] = true;
+        }
+        $excess = max(0.0, round($excess - $releasedAmount, 2));
+      }
+    }
+
+    $affectedRefundIds[$refundId] = true;
+  }
+
+  $refundStateChanges = recomputeRefundsFromLedger($conn, array_map('intval', array_keys($affectedRefundIds)));
+  $transactionRefundCaps = capTransactionsRefundForSourceRefs($conn, array_keys($affectedSourceRefs));
+
+  return [
+    'mode' => 'inline',
+    'source_ref_id' => $sourceRefId,
+    'affected_refund_ids' => array_values(array_map('intval', array_keys($affectedRefundIds))),
+    'affected_source_refs' => array_values(array_keys($affectedSourceRefs)),
+    'over_consumed_adjustments' => $overConsumedAdjustments,
+    'refund_state_changes' => $refundStateChanges,
+    'transaction_refund_caps' => $transactionRefundCaps,
+  ];
+}
+
+function getRefundLedgerTotals(mysqli $conn, int $refundId): array
+{
+  $totalsRows = dbFetchAll(
+    $conn,
+    "SELECT
+       COALESCE(SUM(CASE WHEN status = 'consumed' THEN amount ELSE 0 END), 0) AS consumed_total,
+       COALESCE(SUM(CASE WHEN status = 'reserved' THEN amount ELSE 0 END), 0) AS reserved_total
+     FROM refund_reservations
+     WHERE refund_id = ?",
+    'i',
+    [$refundId]
+  );
+
+  return $totalsRows[0] ?? [
+    'consumed_total' => 0,
+    'reserved_total' => 0,
+  ];
+}
+
+function deriveRefundStatus(float $refundAmount, float $remainingAmount, float $consumedTotal, float $reservedTotal): string
+{
+  if ($remainingAmount <= 0.00001 && $reservedTotal <= 0.00001 && $consumedTotal + 0.00001 >= $refundAmount) {
+    return 'applied';
+  }
+
+  if ($remainingAmount + 0.00001 >= $refundAmount) {
+    return 'pending';
+  }
+
+  return 'partially_applied';
+}
+
+function recomputeRefundsFromLedger(mysqli $conn, array $refundIds): array
+{
+  $changes = [];
+  $normalizedRefundIds = array_values(array_unique(array_filter(array_map('intval', $refundIds), static function (int $refundId): bool {
+    return $refundId > 0;
+  })));
+
+  foreach ($normalizedRefundIds as $refundId) {
+    $refundRows = dbFetchAll(
+      $conn,
+      "SELECT id, amount, remaining_amount, status
+       FROM refunds
+       WHERE id = ?
+       LIMIT 1
+       FOR UPDATE",
+      'i',
+      [$refundId]
+    );
+
+    if ($refundRows === []) {
+      continue;
+    }
+
+    $refund = $refundRows[0];
+    $currentStatus = strtolower((string) ($refund['status'] ?? 'pending'));
+    if ($currentStatus === 'cancelled') {
+      continue;
+    }
+
+    $refundAmount = round((float) ($refund['amount'] ?? 0), 2);
+    $ledgerTotals = getRefundLedgerTotals($conn, $refundId);
+    $consumedTotal = round((float) ($ledgerTotals['consumed_total'] ?? 0), 2);
+    $reservedTotal = round((float) ($ledgerTotals['reserved_total'] ?? 0), 2);
+    $newRemaining = max(0.0, round($refundAmount - $consumedTotal - $reservedTotal, 2));
+    $newStatus = deriveRefundStatus($refundAmount, $newRemaining, $consumedTotal, $reservedTotal);
+
+    $beforeState = [
+      'remaining_amount' => (float) ($refund['remaining_amount'] ?? 0),
+      'status' => (string) ($refund['status'] ?? 'pending'),
+      'consumed_total' => $consumedTotal,
+      'reserved_total' => $reservedTotal,
+    ];
+
+    $previousRemaining = round((float) ($refund['remaining_amount'] ?? 0), 2);
+    $previousStatus = strtolower((string) ($refund['status'] ?? 'pending'));
+    if (abs($previousRemaining - $newRemaining) > 0.00001 || $previousStatus !== $newStatus) {
+      $updateStmt = dbExecute(
+        $conn,
+        "UPDATE refunds
+         SET remaining_amount = ?, status = ?, updated_at = NOW()
+         WHERE id = ?",
+        'dsi',
+        [$newRemaining, $newStatus, $refundId]
+      );
+      mysqli_stmt_close($updateStmt);
+    }
+
+    $changes[] = [
+      'refund_id' => $refundId,
+      'before' => $beforeState,
+      'after' => [
+        'remaining_amount' => $newRemaining,
+        'status' => $newStatus,
+        'consumed_total' => $consumedTotal,
+        'reserved_total' => $reservedTotal,
+      ],
+    ];
+  }
+
+  return $changes;
+}
+
+function getNextRefundSplitSequence(mysqli $conn, int $refundId): int
+{
+  $rows = dbFetchAll(
+    $conn,
+    "SELECT COALESCE(MAX(split_sequence), 0) AS max_sequence
+     FROM refund_reservations
+     WHERE refund_id = ?
+     FOR UPDATE",
+    'i',
+    [$refundId]
+  );
+
+  $maxSequence = isset($rows[0]['max_sequence']) ? (int) $rows[0]['max_sequence'] : 0;
+  return $maxSequence + 1;
+}
+
+function getNextSplitSequenceCursor(mysqli $conn, int $refundId, array &$sequenceCursorByRefund): int
+{
+  if ($refundId <= 0) {
+    return 1;
+  }
+
+  if (!array_key_exists($refundId, $sequenceCursorByRefund)) {
+    $sequenceCursorByRefund[$refundId] = getNextRefundSplitSequence($conn, $refundId);
+  }
+
+  $current = (int) $sequenceCursorByRefund[$refundId];
+  $sequenceCursorByRefund[$refundId] = $current + 1;
+  return $current;
+}
+
+function insertRefundReservationRow(mysqli $conn, array $rowData): int
+{
+  $payload = array_merge([
+    'refund_id' => 0,
+    'ref_id' => '',
+    'split_sequence' => 0,
+    'school_id' => 0,
+    'payer_user_id' => 0,
+    'gateway' => '',
+    'amount' => 0,
+    'channel' => '',
+    'status' => 'released',
+    'reserved_at' => null,
+    'consumed_at' => null,
+    'released_at' => null,
+    'release_reason' => null,
+  ], $rowData);
+
+  if ((int) $payload['refund_id'] <= 0) {
+    throw new RuntimeException('refund_id is required when inserting a refund reservation row.');
+  }
+
+  $insertStmt = dbExecute(
+    $conn,
+    "INSERT INTO refund_reservations
+      (refund_id, ref_id, split_sequence, school_id, payer_user_id, gateway, amount, channel, status, reserved_at, consumed_at, released_at, release_reason)
+     VALUES
+      (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    'isiiisdssssss',
+    [
+      (int) $payload['refund_id'],
+      (string) $payload['ref_id'],
+      (int) $payload['split_sequence'],
+      (int) $payload['school_id'],
+      (int) $payload['payer_user_id'],
+      (string) $payload['gateway'],
+      round((float) $payload['amount'], 2),
+      (string) $payload['channel'],
+      (string) $payload['status'],
+      $payload['reserved_at'],
+      $payload['consumed_at'],
+      $payload['released_at'],
+      $payload['release_reason'],
+    ]
+  );
+  mysqli_stmt_close($insertStmt);
+
+  return (int) mysqli_insert_id($conn);
+}
+
+function transactionsHasRefundColumn(mysqli $conn): bool
+{
+  static $checked = false;
+  static $hasColumn = false;
+
+  if ($checked) {
+    return $hasColumn;
+  }
+
+  $rows = dbFetchAll($conn, "SHOW COLUMNS FROM transactions LIKE 'refund'");
+  $hasColumn = $rows !== [];
+  $checked = true;
+
+  return $hasColumn;
+}
+
+function capTransactionsRefundForSourceRefs(mysqli $conn, array $sourceRefs): array
+{
+  if (!transactionsHasRefundColumn($conn)) {
+    return [];
+  }
+
+  $normalizedRefs = array_values(array_unique(array_filter(array_map(static function ($value): string {
+    return trim((string) $value);
+  }, $sourceRefs), static function (string $value): bool {
+    return $value !== '';
+  })));
+
+  $changes = [];
+  foreach ($normalizedRefs as $sourceRefId) {
+    $expectedRows = dbFetchAll(
+      $conn,
+      "SELECT
+         COALESCE(
+           SUM(
+             LEAST(
+               COALESCE(r.amount, 0),
+               COALESCE(rr_ref.total_consumed_for_refund, 0)
+             )
+           ),
+           0
+         ) AS expected_refund
+       FROM refunds r
+       INNER JOIN (
+         SELECT
+           refund_id,
+           COALESCE(SUM(amount), 0) AS total_consumed_for_refund
+         FROM refund_reservations
+         WHERE status = 'consumed'
+           AND ref_id = ?
+         GROUP BY refund_id
+       ) rr_ref ON rr_ref.refund_id = r.id
+       WHERE r.status <> 'cancelled'",
+      's',
+      [$sourceRefId]
+    );
+
+    $expectedRefund = isset($expectedRows[0]['expected_refund'])
+      ? round((float) $expectedRows[0]['expected_refund'], 2)
+      : 0.0;
+    if ($expectedRefund < 0) {
+      $expectedRefund = 0.0;
+    }
+
+    $transactionRows = dbFetchAll(
+      $conn,
+      "SELECT id, amount, COALESCE(refund, 0) AS refund
+       FROM transactions
+       WHERE ref_id = ?
+       FOR UPDATE",
+      's',
+      [$sourceRefId]
+    );
+
+    foreach ($transactionRows as $transactionRow) {
+      $transactionId = (int) ($transactionRow['id'] ?? 0);
+      if ($transactionId <= 0) {
+        continue;
+      }
+
+      $transactionAmount = round((float) ($transactionRow['amount'] ?? 0), 2);
+      $currentRefund = round((float) ($transactionRow['refund'] ?? 0), 2);
+      $newRefund = max(0.0, min($expectedRefund, $transactionAmount));
+
+      if (abs($newRefund - $currentRefund) <= 0.00001) {
+        continue;
+      }
+
+      $updateStmt = dbExecute(
+        $conn,
+        "UPDATE transactions
+         SET refund = ?
+         WHERE id = ?",
+        'di',
+        [$newRefund, $transactionId]
+      );
+      mysqli_stmt_close($updateStmt);
+
+      $changes[] = [
+        'source_ref_id' => $sourceRefId,
+        'transaction_id' => $transactionId,
+        'before_refund' => $currentRefund,
+        'after_refund' => $newRefund,
+        'expected_refund' => $expectedRefund,
+      ];
+    }
+  }
+
+  return $changes;
+}
+
+function validateManualIdsExist(mysqli $conn, array $manualIds): bool
+{
+  $manualIds = array_values(array_unique(array_filter(array_map('intval', $manualIds), static function (int $manualId): bool {
+    return $manualId > 0;
+  })));
+  if ($manualIds === []) {
+    return false;
+  }
+
+  $placeholders = implode(',', array_fill(0, count($manualIds), '?'));
+  $types = str_repeat('i', count($manualIds));
+  $rows = dbFetchAll(
+    $conn,
+    "SELECT COUNT(DISTINCT id) AS total_found
+     FROM manuals
+     WHERE id IN ({$placeholders})",
+    $types,
+    $manualIds
+  );
+
+  $totalFound = isset($rows[0]['total_found']) ? (int) $rows[0]['total_found'] : 0;
+  return $totalFound === count($manualIds);
+}
+
+function fetchRefundById(mysqli $conn, int $refundId, bool $hasMaterialsColumn): array
+{
+  if ($hasMaterialsColumn) {
+    return dbFetchAll(
+      $conn,
+      "SELECT id, school_id, student_id, ref_id, amount, remaining_amount, status, reason, materials, created_at, updated_at
+       FROM refunds
+       WHERE id = ?
+       LIMIT 1",
+      'i',
+      [$refundId]
+    );
+  }
+
+  return dbFetchAll(
+    $conn,
+    "SELECT id, school_id, student_id, ref_id, amount, remaining_amount, status, reason, created_at, updated_at
+     FROM refunds
+     WHERE id = ?
+     LIMIT 1",
+    'i',
+    [$refundId]
   );
 }
 
@@ -1276,19 +2115,19 @@ function getRefundableMaterialsForRef(mysqli $conn, string $sourceRefId, int $st
   return dbFetchAll(
     $conn,
     "SELECT
-       mb.id AS bought_id,
        mb.manual_id,
-       mb.price,
-       mb.school_id,
+       COALESCE(SUM(mb.price), 0) AS price,
+       MIN(mb.school_id) AS school_id,
        m.title,
        m.course_code,
        m.code
      FROM manuals_bought mb
-     LEFT JOIN manuals m ON m.id = mb.manual_id
+     INNER JOIN manuals m ON m.id = mb.manual_id
      WHERE mb.ref_id = ?
        AND mb.buyer = ?
        AND mb.status = 'successful'
-     ORDER BY mb.id ASC",
+     GROUP BY mb.manual_id, m.title, m.course_code, m.code
+     ORDER BY mb.manual_id ASC",
     'si',
     [$sourceRefId, $studentId]
   );

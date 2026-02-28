@@ -178,10 +178,14 @@ $(document).ready(function () {
 
         $createMaterials.empty();
         materials.forEach(function (material) {
-          var boughtId = material.bought_id;
-          var label = (material.title || 'Material #' + material.manual_id) +
+          var manualId = Number(material.manual_id || 0);
+          if (!manualId) {
+            return;
+          }
+
+          var label = (material.title || 'Material #' + manualId) +
             ' (' + (material.course_code || '-') + ') - ' + formatCurrency(material.price);
-          var option = new Option(label, boughtId, false, false);
+          var option = new Option(label, String(manualId), false, false);
           $(option).data('price', toNumber(material.price));
           $createMaterials.append(option);
         });
