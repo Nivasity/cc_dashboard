@@ -193,6 +193,14 @@ $admin_faculty = $admin_['faculty'] ?? 0;
           <div data-i18n="Financial report">Transactions</div>
         </a>
       </li>
+      <?php if (in_array((int) $_SESSION['nivas_adminRole'], [1, 2, 3, 4], true)) { ?>
+      <li class="menu-item <?php echo in_array($current_page, ['refunds.php', 'refund_detail.php'], true) ? 'active' : ''; ?>">
+        <a href="refunds.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-undo"></i>
+          <div data-i18n="Refunds">Refunds</div>
+        </a>
+      </li>
+      <?php } ?>
       <li class="menu-item <?php echo $current_page == 'batch_payments.php' ? 'active' : ''; ?>">
         <a href="batch_payments.php" class="menu-link">
           <i class="menu-icon tf-icons bx bx-package"></i>
