@@ -492,11 +492,6 @@ function handleLookupSource(mysqli $conn, array $adminScope, array $request): vo
     badRequest('student_id is required for source lookup.');
   }
 
-  $schoolId = toPositiveIntOrNull($request['school_id'] ?? null);
-  if ($adminScope['school_id'] !== null) {
-    $schoolId = (int) $adminScope['school_id'];
-  }
-
   $studentRows = dbFetchAll(
     $conn,
     "SELECT
@@ -522,13 +517,6 @@ function handleLookupSource(mysqli $conn, array $adminScope, array $request): vo
   $student = $studentRows[0];
   $studentSchool = isset($student['school']) ? (int) $student['school'] : 0;
   enforceSchoolScope($adminScope, $studentSchool);
-
-  if ($schoolId !== null && $studentSchool > 0 && $studentSchool !== $schoolId) {
-    respond(409, [
-      'status' => 'failed',
-      'message' => 'Selected school does not match the student school.',
-    ]);
-  }
 
   $transactionRows = dbFetchAll(
     $conn,
@@ -573,13 +561,13 @@ function handleLookupSource(mysqli $conn, array $adminScope, array $request): vo
 
   $materials = getRefundableMaterialsForRef($conn, $sourceRefId, $studentId);
 
-  if ($schoolId !== null && $schoolId > 0) {
+  if ($studentSchool > 0) {
     foreach ($materials as $material) {
       $materialSchoolId = isset($material['school_id']) ? (int) $material['school_id'] : 0;
-      if ($materialSchoolId > 0 && $materialSchoolId !== $schoolId) {
+      if ($materialSchoolId > 0 && $materialSchoolId !== $studentSchool) {
         respond(409, [
           'status' => 'failed',
-          'message' => 'Selected school does not match materials purchased for this source transaction.',
+          'message' => 'Student school does not match materials purchased for this source transaction.',
         ]);
       }
     }
@@ -604,15 +592,6 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
   $sourceRefId = trim((string) ($request['source_ref_id'] ?? $request['source_ref'] ?? $request['ref_id'] ?? ''));
   if ($sourceRefId === '') {
     badRequest('source_ref_id is required.');
-  }
-
-  $schoolId = toPositiveIntOrNull($request['school_id'] ?? null);
-  if ($adminScope['school_id'] !== null) {
-    $schoolId = $adminScope['school_id'];
-  }
-
-  if ($schoolId === null) {
-    badRequest('school_id is required.');
   }
 
   $studentEmail = normalizeEmail($request['student_email'] ?? $request['email'] ?? null);
@@ -686,15 +665,15 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
         $student = $studentRows[0];
         $studentId = (int) ($student['id'] ?? 0);
         $studentSchool = isset($student['school']) ? (int) $student['school'] : 0;
-        enforceSchoolScope($adminScope, $studentSchool);
-
-        if ($studentSchool > 0 && $studentSchool !== $schoolId) {
+        if ($studentSchool <= 0) {
           $httpStatus = 409;
           $responsePayload = [
             'status' => 'failed',
-            'message' => 'Selected school does not match the student school.',
+            'message' => 'Student does not have a valid school assignment.',
           ];
         } else {
+          $schoolId = $studentSchool;
+          enforceSchoolScope($adminScope, $schoolId);
           $sourceTransaction = $transactionRows[0];
           $sourceStatus = strtolower((string) ($sourceTransaction['status'] ?? ''));
           if (!in_array($sourceStatus, ['successful', 'success'], true)) {
@@ -741,11 +720,11 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
 
                   $selectedMaterial = $materialsByBoughtId[$materialBoughtId];
                   $selectedMaterialSchool = isset($selectedMaterial['school_id']) ? (int) $selectedMaterial['school_id'] : 0;
-                  if ($schoolId > 0 && $selectedMaterialSchool > 0 && $selectedMaterialSchool !== $schoolId) {
+                  if ($selectedMaterialSchool > 0 && $selectedMaterialSchool !== $schoolId) {
                     $httpStatus = 409;
                     $responsePayload = [
                       'status' => 'failed',
-                      'message' => 'Selected materials do not match the selected school.',
+                      'message' => 'Selected materials do not match the student school.',
                     ];
                     break;
                   }
@@ -796,7 +775,7 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                       $httpStatus = 409;
                       $responsePayload = [
                         'status' => 'failed',
-                        'message' => 'A non-cancelled refund already exists for this source transaction in the selected school.',
+                        'message' => 'A non-cancelled refund already exists for this source transaction for the student school.',
                         'existing_refund' => normalizeNumericRow($existingRows[0], ['amount', 'remaining_amount']),
                       ];
                     } else {

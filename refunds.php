@@ -202,25 +202,16 @@ $thirtyDaysAgo = date('Y-m-d', strtotime('-29 days'));
             <div class="modal-body">
               <div class="row g-3">
                 <div class="col-md-4">
-                  <label for="createSchoolId" class="form-label">School</label>
-                  <select id="createSchoolId" name="school_id" class="form-select" required>
-                    <option value="">Select School</option>
-                    <?php foreach ($schools as $school) { ?>
-                      <option value="<?php echo (int) $school['id']; ?>"><?php echo htmlspecialchars($school['name']); ?></option>
-                    <?php } ?>
-                  </select>
-                </div>
-                <div class="col-md-4">
-                  <label for="createSourceRefId" class="form-label">Source Ref ID</label>
-                  <input type="text" class="form-control" id="createSourceRefId" name="source_ref_id" placeholder="e.g. nivas_123_001" required />
-                  <div id="sourceLookupFeedback" class="form-text"></div>
-                </div>
-                <div class="col-md-4">
                   <label for="createStudentEmail" class="form-label">Student Email</label>
                   <input type="email" class="form-control" id="createStudentEmail" name="student_email" placeholder="student@example.com" required />
                   <div id="studentLookupFeedback" class="form-text"></div>
                 </div>
-                <div class="col-md-8">
+                <div class="col-md-4">
+                  <label for="createSourceRefId" class="form-label">Source Ref ID</label>
+                  <input type="text" class="form-control" id="createSourceRefId" name="source_ref_id" placeholder="e.g. nivas_123_001" required disabled />
+                  <div id="sourceLookupFeedback" class="form-text"></div>
+                </div>
+                <div class="col-md-12">
                   <label for="createReason" class="form-label">Reason</label>
                   <textarea class="form-control" id="createReason" name="reason" rows="2" maxlength="2000" placeholder="Why is this refund being approved?" required></textarea>
                 </div>

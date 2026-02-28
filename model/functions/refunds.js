@@ -8,7 +8,6 @@ $(document).ready(function () {
   var $createModal = $('#newRefundModal');
   var $createForm = $('#refundCreateForm');
   var $createBtn = $('#createRefundBtn');
-  var $createSchool = $('#createSchoolId');
   var $createStudentEmail = $('#createStudentEmail');
   var $createSourceRef = $('#createSourceRefId');
   var $createMaterials = $('#createMaterialIds');
@@ -32,12 +31,6 @@ $(document).ready(function () {
   $('#monitoringSchoolId, #queueSchoolId, #queueStatus').select2({
     theme: 'bootstrap-5',
     width: '100%'
-  });
-
-  $createSchool.select2({
-    theme: 'bootstrap-5',
-    width: '100%',
-    dropdownParent: $createModal
   });
 
   $createMaterials.select2({
@@ -130,13 +123,12 @@ $(document).ready(function () {
   }
 
   function updateCreateSubmitState() {
-    var hasSchool = String($createSchool.val() || '').trim() !== '';
     var hasStudent = createState.student && createState.student.id;
     var hasValidSource = createState.sourceValidated === true;
     var hasMaterials = getSelectedMaterialIds().length > 0;
     var hasReason = String($createReason.val() || '').trim() !== '';
 
-    $createBtn.prop('disabled', !(hasSchool && hasStudent && hasValidSource && hasMaterials && hasReason));
+    $createBtn.prop('disabled', !(hasStudent && hasValidSource && hasMaterials && hasReason));
   }
 
   function clearMaterials() {
@@ -155,11 +147,10 @@ $(document).ready(function () {
 
   function lookupSource() {
     var sourceRefId = String($createSourceRef.val() || '').trim();
-    var schoolId = String($createSchool.val() || '').trim();
     var studentId = createState.student ? createState.student.id : null;
 
-    if (!sourceRefId || !schoolId || !studentId) {
-      invalidateSource('Provide school, student email and source ref to validate transaction.');
+    if (!sourceRefId || !studentId) {
+      invalidateSource('Provide student email and source ref to validate transaction.');
       return;
     }
 
@@ -172,8 +163,7 @@ $(document).ready(function () {
       data: {
         action: 'lookup_source',
         source_ref_id: sourceRefId,
-        student_id: studentId,
-        school_id: schoolId
+        student_id: studentId
       },
       success: function (res) {
         if (res.status !== 'success') {
@@ -220,7 +210,8 @@ $(document).ready(function () {
     if (!isValidEmail(email)) {
       createState.student = null;
       setFeedback($studentLookupFeedback, email ? 'error' : 'muted', email ? 'Enter a valid student email.' : '');
-      invalidateSource('Provide school, student email and source ref to validate transaction.');
+      $createSourceRef.prop('disabled', true);
+      invalidateSource('Provide student email and source ref to validate transaction.');
       updateCreateSubmitState();
       return;
     }
@@ -239,12 +230,14 @@ $(document).ready(function () {
         if (res.status !== 'success' || !res.student) {
           createState.student = null;
           setFeedback($studentLookupFeedback, 'error', res.message || 'Student lookup failed.');
-          invalidateSource('Provide school, student email and source ref to validate transaction.');
+          $createSourceRef.prop('disabled', true);
+          invalidateSource('Provide student email and source ref to validate transaction.');
           updateCreateSubmitState();
           return;
         }
 
         createState.student = res.student;
+        $createSourceRef.prop('disabled', false);
         setFeedback($studentLookupFeedback, 'success', 'Student found: ' + (res.student.first_name || '') + ' ' + (res.student.last_name || ''));
         if (String($createSourceRef.val() || '').trim() !== '') {
           lookupSource();
@@ -260,7 +253,8 @@ $(document).ready(function () {
           message = xhr.responseJSON.message;
         }
         setFeedback($studentLookupFeedback, 'error', message);
-        invalidateSource('Provide school, student email and source ref to validate transaction.');
+        $createSourceRef.prop('disabled', true);
+        invalidateSource('Provide student email and source ref to validate transaction.');
         updateCreateSubmitState();
       }
     });
@@ -276,7 +270,7 @@ $(document).ready(function () {
     createState.sourceMaterials = [];
 
     $createForm.trigger('reset');
-    $createSchool.val('').trigger('change.select2');
+    $createSourceRef.prop('disabled', true);
     $createMaterials.empty().val([]).trigger('change.select2');
     $createMaterials.prop('disabled', true).trigger('change.select2');
     setFeedback($studentLookupFeedback, 'muted', '');
@@ -490,6 +484,7 @@ $(document).ready(function () {
   $createStudentEmail.on('input', function () {
     createState.student = null;
     createState.sourceValidated = false;
+    $createSourceRef.prop('disabled', true);
     clearMaterials();
     setFeedback($studentLookupFeedback, 'muted', '');
     setFeedback($sourceLookupFeedback, 'muted', '');
@@ -519,11 +514,6 @@ $(document).ready(function () {
     }, 350);
   });
 
-  $createSchool.on('change', function () {
-    lookupSource();
-    updateCreateSubmitState();
-  });
-
   $createReason.on('input', function () {
     updateCreateSubmitState();
   });
@@ -538,15 +528,14 @@ $(document).ready(function () {
 
     var payload = {
       action: 'create',
-      school_id: String($createSchool.val() || '').trim(),
       source_ref_id: String($createSourceRef.val() || '').trim(),
       student_email: String($createStudentEmail.val() || '').trim(),
       material_ids: getSelectedMaterialIds(),
       reason: String($createReason.val() || '').trim()
     };
 
-    if (!payload.school_id || !payload.source_ref_id || !payload.student_email || payload.material_ids.length === 0 || !payload.reason) {
-      showToast('bg-danger', 'School, student email, source ref, materials and reason are required.');
+    if (!payload.source_ref_id || !payload.student_email || payload.material_ids.length === 0 || !payload.reason) {
+      showToast('bg-danger', 'Student email, source ref, materials and reason are required.');
       updateCreateSubmitState();
       return;
     }
