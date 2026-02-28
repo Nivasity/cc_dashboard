@@ -3,6 +3,7 @@ $(document).ready(function () {
   var queueTable = null;
   var cancelRefundId = null;
 
+  var $createModal = $('#newRefundModal');
   var $createForm = $('#refundCreateForm');
   var $createBtn = $('#createRefundBtn');
   var $queueFilterForm = $('#refundQueueFilterForm');
@@ -11,9 +12,15 @@ $(document).ready(function () {
   var $cancelForm = $('#cancelRefundForm');
   var $cancelBtn = $('#cancelRefundBtn');
 
-  $('#createSchoolId, #monitoringSchoolId, #queueSchoolId, #queueStatus').select2({
+  $('#monitoringSchoolId, #queueSchoolId, #queueStatus').select2({
     theme: 'bootstrap-5',
     width: '100%'
+  });
+
+  $('#createSchoolId').select2({
+    theme: 'bootstrap-5',
+    width: '100%',
+    dropdownParent: $createModal
   });
 
   function toNumber(value) {
@@ -243,6 +250,15 @@ $(document).ready(function () {
     fetchDaily();
   }
 
+  function resetCreateForm() {
+    if (!$createForm.length) {
+      return;
+    }
+
+    $createForm.trigger('reset');
+    $('#createSchoolId').val('').trigger('change.select2');
+  }
+
   $createForm.on('submit', function (e) {
     e.preventDefault();
 
@@ -270,10 +286,11 @@ $(document).ready(function () {
       success: function (res) {
         if (res.status === 'success') {
           showToast('bg-success', res.message || 'Refund created successfully.');
-          $('#createSourceRefId').val('');
-          $('#createStudentId').val('');
-          $('#createAmount').val('');
-          $('#createReason').val('');
+          resetCreateForm();
+          var createModal = bootstrap.Modal.getInstance($createModal.get(0));
+          if (createModal) {
+            createModal.hide();
+          }
           fetchQueue();
           reloadMonitoring();
         } else {
@@ -291,6 +308,10 @@ $(document).ready(function () {
         $createBtn.prop('disabled', false).text('Create Refund');
       }
     });
+  });
+
+  $createModal.on('hidden.bs.modal', function () {
+    resetCreateForm();
   });
 
   $queueFilterForm.on('submit', function (e) {

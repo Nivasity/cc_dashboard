@@ -46,45 +46,6 @@ $thirtyDaysAgo = date('Y-m-d', strtotime('-29 days'));
               <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Finances /</span> Refunds</h4>
 
               <div class="card mb-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <h5 class="mb-0">Create Refund</h5>
-                  <small class="text-muted">Creates a pending refund record only</small>
-                </div>
-                <div class="card-body">
-                  <form id="refundCreateForm" class="row g-3" novalidate>
-                    <div class="col-md-3">
-                      <label for="createSchoolId" class="form-label">School</label>
-                      <select id="createSchoolId" name="school_id" class="form-select">
-                        <option value="">Select School</option>
-                        <?php foreach ($schools as $school) { ?>
-                          <option value="<?php echo (int) $school['id']; ?>"><?php echo htmlspecialchars($school['name']); ?></option>
-                        <?php } ?>
-                      </select>
-                    </div>
-                    <div class="col-md-3">
-                      <label for="createSourceRefId" class="form-label">Source Ref ID</label>
-                      <input type="text" class="form-control" id="createSourceRefId" name="source_ref_id" placeholder="e.g. nivas_123_001" required />
-                    </div>
-                    <div class="col-md-2">
-                      <label for="createStudentId" class="form-label">Student ID (Optional)</label>
-                      <input type="number" min="1" step="1" class="form-control" id="createStudentId" name="student_id" placeholder="e.g. 219" />
-                    </div>
-                    <div class="col-md-2">
-                      <label for="createAmount" class="form-label">Amount</label>
-                      <input type="number" min="0.01" step="0.01" class="form-control" id="createAmount" name="amount" placeholder="0.00" required />
-                    </div>
-                    <div class="col-md-12">
-                      <label for="createReason" class="form-label">Reason</label>
-                      <textarea class="form-control" id="createReason" name="reason" rows="2" maxlength="2000" placeholder="Why is this refund being approved?" required></textarea>
-                    </div>
-                    <div class="col-12">
-                      <button type="submit" id="createRefundBtn" class="btn btn-primary">Create Refund</button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-
-              <div class="card mb-4">
                 <div class="card-header d-flex flex-column flex-md-row justify-content-between gap-3">
                   <div>
                     <h5 class="mb-1">School-level Monitoring</h5>
@@ -106,7 +67,9 @@ $thirtyDaysAgo = date('Y-m-d', strtotime('-29 days'));
                       <input type="date" id="monitoringToDate" class="form-control" value="<?php echo htmlspecialchars($today); ?>" />
                     </div>
                     <div class="col-md-2">
-                      <button type="submit" class="btn btn-outline-primary w-100">Refresh</button>
+                      <button type="submit" class="btn btn-outline-primary w-100" aria-label="Refresh monitoring">
+                        <i class='bx bx-refresh'></i>
+                      </button>
                     </div>
                   </form>
                 </div>
@@ -215,12 +178,63 @@ $thirtyDaysAgo = date('Y-m-d', strtotime('-29 days'));
               </div>
             </div>
 
+            <button type="button" class="btn btn-primary new_formBtn" data-bs-toggle="modal"
+              data-bs-target="#newRefundModal" aria-label="Create refund">
+              <i class='bx bx-plus fs-3'></i>
+            </button>
+
             <?php include('partials/_footer.php') ?>
             <div class="content-backdrop fade"></div>
           </div>
         </div>
       </div>
       <div class="layout-overlay layout-menu-toggle"></div>
+    </div>
+
+    <div class="modal fade" id="newRefundModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title">Create Refund</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form id="refundCreateForm" novalidate>
+            <div class="modal-body">
+              <div class="row g-3">
+                <div class="col-md-4">
+                  <label for="createSchoolId" class="form-label">School</label>
+                  <select id="createSchoolId" name="school_id" class="form-select" required>
+                    <option value="">Select School</option>
+                    <?php foreach ($schools as $school) { ?>
+                      <option value="<?php echo (int) $school['id']; ?>"><?php echo htmlspecialchars($school['name']); ?></option>
+                    <?php } ?>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <label for="createSourceRefId" class="form-label">Source Ref ID</label>
+                  <input type="text" class="form-control" id="createSourceRefId" name="source_ref_id" placeholder="e.g. nivas_123_001" required />
+                </div>
+                <div class="col-md-4">
+                  <label for="createStudentId" class="form-label">Student ID (Optional)</label>
+                  <input type="number" min="1" step="1" class="form-control" id="createStudentId" name="student_id" placeholder="e.g. 219" />
+                </div>
+                <div class="col-md-4">
+                  <label for="createAmount" class="form-label">Amount</label>
+                  <input type="number" min="0.01" step="0.01" class="form-control" id="createAmount" name="amount" placeholder="0.00" required />
+                </div>
+                <div class="col-md-8">
+                  <label for="createReason" class="form-label">Reason</label>
+                  <textarea class="form-control" id="createReason" name="reason" rows="2" maxlength="2000" placeholder="Why is this refund being approved?" required></textarea>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+              <button type="submit" id="createRefundBtn" class="btn btn-primary">Create Refund</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
 
     <div class="modal fade" id="cancelRefundModal" tabindex="-1" aria-hidden="true">
