@@ -75,10 +75,16 @@ $thirtyDaysAgo = date('Y-m-d', strtotime('-29 days'));
                 </div>
                 <div class="card-body">
                   <div class="row mb-3">
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                       <div class="border rounded p-3 h-100">
                         <span class="text-muted d-block mb-1">Total Outstanding Liability</span>
                         <h4 class="mb-0" id="outstandingTotal">0.00</h4>
+                      </div>
+                    </div>
+                    <div class="col-md-6">
+                      <div class="border rounded p-3 h-100">
+                        <span class="text-muted d-block mb-1">Total Refunded</span>
+                        <h4 class="mb-0" id="refundedTotal">0.00</h4>
                       </div>
                     </div>
                   </div>
@@ -158,8 +164,6 @@ $thirtyDaysAgo = date('Y-m-d', strtotime('-29 days'));
                     <table class="table" id="refundQueueTable">
                       <thead class="table-secondary">
                         <tr>
-                          <th>ID</th>
-                          <th>School</th>
                           <th>Source Ref</th>
                           <th>Student</th>
                           <th>Amount</th>
@@ -226,28 +230,6 @@ $thirtyDaysAgo = date('Y-m-d', strtotime('-29 days'));
             <div class="modal-footer">
               <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
               <button type="submit" id="createRefundBtn" class="btn btn-primary" disabled>Create Refund</button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal fade" id="cancelRefundModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title">Cancel Refund</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-          </div>
-          <form id="cancelRefundForm" novalidate>
-            <div class="modal-body">
-              <p id="cancelRefundTarget" class="text-muted mb-2"></p>
-              <label for="cancelRefundReason" class="form-label">Cancellation Reason</label>
-              <textarea id="cancelRefundReason" class="form-control" rows="3" maxlength="2000" placeholder="Provide reason for cancellation" required></textarea>
-            </div>
-            <div class="modal-footer">
-              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
-              <button type="submit" id="cancelRefundBtn" class="btn btn-danger">Cancel Refund</button>
             </div>
           </form>
         </div>

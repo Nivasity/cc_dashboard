@@ -49,7 +49,7 @@ if ($admin_role == 5 && $admin_school > 0) {
   }
 }
 
-$tran_sql .= " GROUP BY t.id, t.ref_id, t.amount, t.status, t.created_at, u.first_name, u.last_name, u.matric_no ORDER BY t.created_at DESC LIMIT 10";
+$tran_sql .= " GROUP BY t.id, t.ref_id, t.amount, t.status, t.created_at, u.first_name, u.last_name, u.matric_no ORDER BY t.created_at DESC LIMIT 5";
 $tran_query = mysqli_query($conn, $tran_sql);
 
 if ($tran_query) {

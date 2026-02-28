@@ -320,16 +320,19 @@ function handleOutstandingMonitoring(mysqli $conn, array $adminScope, array $req
   }
 
   $where = ["r.status IN ('pending', 'partially_applied')"];
+  $refundedWhere = ["r.status IN ('pending', 'partially_applied', 'applied')"];
   $types = '';
   $params = [];
 
   if ($schoolId !== null) {
     $where[] = 'r.school_id = ?';
+    $refundedWhere[] = 'r.school_id = ?';
     $types .= 'i';
     $params[] = $schoolId;
   }
 
   $whereSql = ' WHERE ' . implode(' AND ', $where);
+  $refundedWhereSql = ' WHERE ' . implode(' AND ', $refundedWhere);
 
   $rows = dbFetchAll(
     $conn,
@@ -352,10 +355,25 @@ function handleOutstandingMonitoring(mysqli $conn, array $adminScope, array $req
     $grandTotal += (float) ($row['outstanding_amount'] ?? 0);
   }
 
+  $refundedRows = dbFetchAll(
+    $conn,
+    "SELECT
+       COALESCE(SUM(GREATEST(COALESCE(r.amount, 0) - COALESCE(r.remaining_amount, 0), 0)), 0) AS total_refunded
+     FROM refunds r
+     {$refundedWhereSql}",
+    $types,
+    $params
+  );
+
+  $totalRefunded = isset($refundedRows[0]['total_refunded'])
+    ? (float) $refundedRows[0]['total_refunded']
+    : 0.0;
+
   respond(200, [
     'status' => 'success',
     'message' => 'Outstanding liability loaded successfully.',
     'total_outstanding' => (float) $grandTotal,
+    'total_refunded' => $totalRefunded,
     'rows' => normalizeNumericRows($rows, ['outstanding_amount']),
   ]);
 }

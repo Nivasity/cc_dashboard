@@ -35,7 +35,7 @@ $roleId = (int)$admin_role;
 $scope = "(t.created_by_admin_id = $aid OR t.assigned_admin_id = $aid OR t.assigned_role_id = $roleId)";
 $sql .= " AND $scope";
 
-$sql .= " ORDER BY COALESCE(t.last_message_at, t.created_at) DESC LIMIT 10";
+$sql .= " ORDER BY COALESCE(t.last_message_at, t.created_at) DESC LIMIT 5";
 $q = mysqli_query($conn, $sql);
 
 if ($q) {

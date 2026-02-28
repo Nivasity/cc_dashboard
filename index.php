@@ -441,6 +441,39 @@ $transactions_amount = mysqli_fetch_assoc(mysqli_query($conn, $transactions_sql)
                 </div>
               </div>
             </div>
+
+            <?php if (in_array((int)$admin_role, [1, 2, 3, 4], true)): ?>
+            <div class="row">
+              <div class="col-12 mb-4">
+                <div class="card">
+                  <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Latest Refund Reservations</h5>
+                    <a href="refunds.php" class="btn btn-sm btn-outline-primary">View Refund Queue</a>
+                  </div>
+                  <div class="table-responsive text-nowrap">
+                    <table class="table">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Reservation Ref</th>
+                          <th>Refund Ref</th>
+                          <th>Student</th>
+                          <th>School</th>
+                          <th>Amount</th>
+                          <th>Status</th>
+                          <th>Date</th>
+                        </tr>
+                      </thead>
+                      <tbody id="latestRefundReservationsTable" class="table-border-bottom-0">
+                        <tr>
+                          <td colspan="7" class="text-center">Loading...</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <?php endif; ?>
             
           </div>
           <!-- / Content -->
@@ -485,6 +518,7 @@ $transactions_amount = mysqli_fetch_assoc(mysqli_query($conn, $transactions_sql)
   <script>
     // Helper function to escape HTML
     function escapeHtml(text) {
+      const safeText = String(text === null || text === undefined ? '' : text);
       const map = {
         '&': '&amp;',
         '<': '&lt;',
@@ -492,10 +526,12 @@ $transactions_amount = mysqli_fetch_assoc(mysqli_query($conn, $transactions_sql)
         '"': '&quot;',
         "'": '&#039;'
       };
-      return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+      return safeText.replace(/[&<>"']/g, function(m) { return map[m]; });
     }
 
     $(document).ready(function() {
+      const canViewRefundReservations = <?php echo in_array((int)$admin_role, [1, 2, 3, 4], true) ? 'true' : 'false'; ?>;
+
       // Fetch latest transactions
       $.ajax({
         url: 'model/dashboard_latest_transactions.php',
@@ -594,6 +630,49 @@ $transactions_amount = mysqli_fetch_assoc(mysqli_query($conn, $transactions_sql)
           $('#latestAdminTicketsTable').html('<tr><td colspan="5" class="text-center text-danger">Error loading tickets</td></tr>');
         }
       });
+
+      if (canViewRefundReservations) {
+        $.ajax({
+          url: 'model/dashboard_latest_refund_reservations.php',
+          method: 'GET',
+          dataType: 'json',
+          success: function(response) {
+            if (response.status === 'success' && response.reservations.length > 0) {
+              let html = '';
+              response.reservations.forEach(function(row) {
+                let statusBadge = '';
+                const status = escapeHtml(row.status);
+
+                if (row.status === 'reserved') {
+                  statusBadge = '<span class="badge bg-label-warning">Reserved</span>';
+                } else if (row.status === 'consumed') {
+                  statusBadge = '<span class="badge bg-label-success">Consumed</span>';
+                } else if (row.status === 'released') {
+                  statusBadge = '<span class="badge bg-label-info">Released</span>';
+                } else {
+                  statusBadge = '<span class="badge bg-label-secondary">' + status + '</span>';
+                }
+
+                html += '<tr>' +
+                  '<td><small>' + escapeHtml(row.reservation_ref) + '</small></td>' +
+                  '<td><small>' + escapeHtml(row.refund_ref) + '</small></td>' +
+                  '<td><strong>' + escapeHtml(row.student || '-') + '</strong></td>' +
+                  '<td>' + escapeHtml(row.school || '-') + '</td>' +
+                  '<td>₦' + Number(row.amount).toLocaleString() + '</td>' +
+                  '<td>' + statusBadge + '</td>' +
+                  '<td><small>' + escapeHtml(row.date) + '<br>' + escapeHtml(row.time) + '</small></td>' +
+                  '</tr>';
+              });
+              $('#latestRefundReservationsTable').html(html);
+            } else {
+              $('#latestRefundReservationsTable').html('<tr><td colspan="7" class="text-center text-muted">No refund reservations found</td></tr>');
+            }
+          },
+          error: function() {
+            $('#latestRefundReservationsTable').html('<tr><td colspan="7" class="text-center text-danger">Error loading refund reservations</td></tr>');
+          }
+        });
+      }
     });
   </script>
 

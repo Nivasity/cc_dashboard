@@ -1,7 +1,6 @@
 $(document).ready(function () {
   var endpoint = 'model/refunds.php';
   var queueTable = null;
-  var cancelRefundId = null;
   var studentLookupTimer = null;
   var sourceLookupTimer = null;
 
@@ -18,9 +17,6 @@ $(document).ready(function () {
 
   var $queueFilterForm = $('#refundQueueFilterForm');
   var $monitoringFilterForm = $('#monitoringFilterForm');
-  var $cancelModal = $('#cancelRefundModal');
-  var $cancelForm = $('#cancelRefundForm');
-  var $cancelBtn = $('#cancelRefundBtn');
 
   var createState = {
     student: null,
@@ -295,7 +291,7 @@ $(document).ready(function () {
     $tbody.empty();
 
     if (!Array.isArray(refunds) || refunds.length === 0) {
-      $tbody.append('<tr><td colspan="11" class="text-center text-muted">No refunds found.</td></tr>');
+      $tbody.append('<tr><td colspan="9" class="text-center text-muted">No refunds found.</td></tr>');
       if (queueTable) {
         queueTable.clear().destroy();
         queueTable = null;
@@ -310,16 +306,10 @@ $(document).ready(function () {
         studentText += '<br><small class="text-muted">ID: ' + escapeHtml(refund.student_id) + '</small>';
       }
 
-      var actions = '<a href="refund_detail.php?id=' + encodeURIComponent(refund.id) + '" class="btn btn-sm btn-outline-primary me-1">Detail</a>';
-      if (refund.status !== 'cancelled') {
-        actions += '<button type="button" class="btn btn-sm btn-outline-danger cancel-refund" data-id="' +
-          escapeHtml(refund.id) + '" data-ref="' + escapeHtml(refund.ref_id) + '">Cancel</button>';
-      }
+      var actions = '<a href="refund_detail.php?id=' + encodeURIComponent(refund.id) + '" class="btn btn-sm btn-outline-primary">Detail</a>';
 
       $tbody.append(
         '<tr>' +
-          '<td>' + escapeHtml(refund.id) + '</td>' +
-          '<td>' + escapeHtml(refund.school_name || ('School #' + refund.school_id)) + '</td>' +
           '<td class="fw-semibold">' + escapeHtml(refund.ref_id) + '</td>' +
           '<td>' + studentText + '</td>' +
           '<td>' + formatCurrency(refund.amount) + '</td>' +
@@ -341,7 +331,7 @@ $(document).ready(function () {
 
     queueTable = new DataTable('#refundQueueTable', {
       pageLength: 25,
-      order: [[0, 'desc']]
+      order: [[7, 'desc']]
     });
   }
 
@@ -435,15 +425,18 @@ $(document).ready(function () {
       success: function (res) {
         if (res.status === 'success') {
           $('#outstandingTotal').text(formatCurrency(res.total_outstanding || 0));
+          $('#refundedTotal').text(formatCurrency(res.total_refunded || 0));
           renderOutstanding(res.rows || []);
         } else {
           $('#outstandingTotal').text(formatCurrency(0));
+          $('#refundedTotal').text(formatCurrency(0));
           renderOutstanding([]);
           showToast('bg-danger', res.message || 'Failed to load outstanding liability.');
         }
       },
       error: function () {
         $('#outstandingTotal').text(formatCurrency(0));
+        $('#refundedTotal').text(formatCurrency(0));
         renderOutstanding([]);
         showToast('bg-danger', 'Failed to load outstanding liability.');
       }
@@ -600,65 +593,6 @@ $(document).ready(function () {
       return;
     }
     reloadMonitoring();
-  });
-
-  $(document).on('click', '.cancel-refund', function () {
-    cancelRefundId = $(this).data('id');
-    var ref = $(this).data('ref');
-    $('#cancelRefundTarget').text('Refund ID ' + cancelRefundId + ' | Source Ref ' + ref);
-    $('#cancelRefundReason').val('');
-    var modal = bootstrap.Modal.getOrCreateInstance($cancelModal.get(0));
-    modal.show();
-  });
-
-  $cancelForm.on('submit', function (e) {
-    e.preventDefault();
-    if (!cancelRefundId) {
-      showToast('bg-danger', 'No refund selected.');
-      return;
-    }
-
-    var reason = $('#cancelRefundReason').val().trim();
-    if (!reason) {
-      showToast('bg-danger', 'Cancellation reason is required.');
-      return;
-    }
-
-    $cancelBtn.prop('disabled', true).text('Cancelling...');
-
-    $.ajax({
-      url: endpoint,
-      method: 'POST',
-      dataType: 'json',
-      data: {
-        action: 'cancel',
-        refund_id: cancelRefundId,
-        cancel_reason: reason
-      },
-      success: function (res) {
-        if (res.status === 'success') {
-          showToast('bg-success', res.message || 'Refund cancelled successfully.');
-          var modal = bootstrap.Modal.getInstance($cancelModal.get(0));
-          if (modal) {
-            modal.hide();
-          }
-          fetchQueue();
-          reloadMonitoring();
-        } else {
-          showToast('bg-danger', res.message || 'Failed to cancel refund.');
-        }
-      },
-      error: function (xhr) {
-        var message = 'Failed to cancel refund.';
-        if (xhr && xhr.responseJSON && xhr.responseJSON.message) {
-          message = xhr.responseJSON.message;
-        }
-        showToast('bg-danger', message);
-      },
-      complete: function () {
-        $cancelBtn.prop('disabled', false).text('Cancel Refund');
-      }
-    });
   });
 
   resetCreateForm();
