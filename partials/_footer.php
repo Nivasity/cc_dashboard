@@ -21,7 +21,7 @@
       Nivasity Web Services, all rights reserved.
     </div>
     <div>
-      made with ❤️ by <a href="https://themeselection.com" class="footer-link fw-bolder">ThemeSelection</a>
+      made with 💚 by <a href="https://sannex.ng" class="footer-link fw-bolder">Sannex</a>
     </div>
   </div>
 </footer>
