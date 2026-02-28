@@ -15,9 +15,19 @@ $role6_only = $admin_role === 6;
   <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
     <!-- Search -->
     <div class="navbar-nav align-items-center">
-      <div class="nav-item d-flex align-items-center">
+      <div class="nav-item d-flex align-items-center cc-global-search" data-global-search-container>
         <i class="bx bx-search fs-4 lh-0"></i>
-        <input type="text" class="form-control border-0 shadow-none" placeholder="Search..." aria-label="Search..." />
+        <input
+          type="text"
+          id="globalSearchInput"
+          class="form-control border-0 shadow-none"
+          placeholder="Search academics, finance, materials, tickets..."
+          aria-label="Global search"
+          autocomplete="off"
+          data-global-search-input />
+        <div class="cc-global-search-dropdown card d-none" data-global-search-dropdown>
+          <div class="cc-global-search-results" data-global-search-results></div>
+        </div>
       </div>
     </div>
     <!-- /Search -->
