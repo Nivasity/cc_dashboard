@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 
-<html>
+<html lang="en" class="light-style" dir="ltr" data-theme="theme-default" data-assets-path="assets/" data-template="vertical-menu-template-free">
   <head>
     <meta charset="utf-8" />
     <meta
@@ -14,6 +14,29 @@
 
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="assets/img/favicon/favicon.ico" />
+
+    <script>
+      (function () {
+        var storageKey = 'cc_theme_mode';
+        var preferredTheme = null;
+
+        try {
+          preferredTheme = window.localStorage.getItem(storageKey);
+        } catch (e) {
+          preferredTheme = null;
+        }
+
+        if (preferredTheme !== 'dark' && preferredTheme !== 'light') {
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          preferredTheme = prefersDark ? 'dark' : 'light';
+        }
+
+        var html = document.documentElement;
+        html.classList.remove('light-style', 'dark-style');
+        html.classList.add(preferredTheme === 'dark' ? 'dark-style' : 'light-style');
+        html.setAttribute('data-theme-mode', preferredTheme);
+      })();
+    </script>
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -49,6 +72,17 @@
     <!-- Content -->
 
     <div class="container-xxl">
+      <div class="d-flex justify-content-end pt-3">
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-secondary d-flex align-items-center"
+          data-theme-toggle
+          aria-label="Toggle light and dark theme"
+          title="Toggle light and dark theme">
+          <i class="bx bx-moon me-1" data-theme-toggle-icon></i>
+          <span data-theme-toggle-label>Dark</span>
+        </button>
+      </div>
       <div class="authentication-wrapper authentication-basic container-p-y">
         <div class="authentication-inner">
           <!-- Register -->

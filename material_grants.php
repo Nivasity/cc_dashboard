@@ -58,6 +58,16 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
     .summary-card small {
       color: #8592a3;
     }
+
+    html.dark-style .grant-action-wrap {
+      background: rgba(31, 41, 55, 0.92);
+      border-color: #374151;
+    }
+
+    html.dark-style .lookup-label,
+    html.dark-style .summary-card small {
+      color: #9ca3af;
+    }
   </style>
 </head>
 
@@ -68,7 +78,17 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
         <div class="container-xxl flex-grow-1 container-p-y">
           <div class="d-flex align-items-center justify-content-between py-3 mb-4">
             <h4 class="fw-bold mb-0"><span class="text-muted fw-light">Grant Management /</span> Material Grants</h4>
-            <div class="dropdown">
+            <div class="d-flex align-items-center gap-2">
+              <button
+                type="button"
+                class="btn btn-sm btn-outline-secondary d-flex align-items-center"
+                data-theme-toggle
+                aria-label="Toggle light and dark theme"
+                title="Toggle light and dark theme">
+                <i class="bx bx-moon me-1" data-theme-toggle-icon></i>
+                <span class="d-none d-md-inline" data-theme-toggle-label>Dark</span>
+              </button>
+              <div class="dropdown">
               <a class="nav-link dropdown-toggle hide-arrow p-0" href="javascript:void(0);" data-bs-toggle="dropdown" data-bs-offset="0,8">
                 <div class="avatar avatar-online">
                   <img src="<?php echo $nav_pic; ?>" alt class="w-px-40 h-auto rounded-circle" />
@@ -105,6 +125,7 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
                   </a>
                 </li>
               </ul>
+            </div>
             </div>
           </div>
 
