@@ -19,6 +19,7 @@ echo json_encode(
             'users' => $scheme . '://' . $host . $basePath . '/users?limit=25&sort=-id',
             'support_tickets' => $scheme . '://' . $host . $basePath . '/support_tickets?limit=25&sort=-created_at',
             'verification_code' => $scheme . '://' . $host . $basePath . '/verification_code',
+            'order' => $scheme . '://' . $host . $basePath . '/order',
         ],
         'auth' => 'Bearer token required via Authorization header',
     ],

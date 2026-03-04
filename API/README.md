@@ -199,6 +199,46 @@ curl -X POST -H "Authorization: Bearer YOUR_TOKEN" -H "Content-Type: application
   "http://localhost/cc_dashboard/API/verification_code"
 ```
 
+## Order Endpoint
+
+Update `manuals_bought.manual_id` for an existing order, with strict validation on duplicate matches and manual pricing.
+
+```text
+PATCH /API/order
+```
+
+### Order Request Payload
+
+`PATCH /API/order` body (`application/json` or form-data):
+
+```json
+{
+  "new_manual_id": 22,
+  "old_manual_id": 15,
+  "ref_id": "TRX-ABC123"
+}
+```
+
+### Order Validation Rules
+
+- Exactly one row must exist in `manuals_bought` for (`manual_id` = `old_manual_id`) + (`ref_id` = `ref_id`).
+- If no row exists, the API returns `404`.
+- If more than one row exists, the API returns `409` duplicate error and does not update.
+- `old_manual_id` must exist in `manuals`.
+- `new_manual_id` must exist in `manuals`.
+- `new_manual_id` in `manuals` must have `status = open`.
+- Buyer (`manuals_bought.buyer`) must have a valid `users.dept` that exists inside `manuals.depts` for `new_manual_id`; otherwise API returns: `User is not allowed to buy this material.`
+- `manuals.price` for `new_manual_id` must be equal to the matched `manuals_bought.price` (current order amount).
+- `manuals.price` for `new_manual_id` must be equal to `manuals.price` for `old_manual_id`.
+
+### Order Example
+
+```bash
+curl -X PATCH -H "Authorization: Bearer YOUR_TOKEN" -H "Content-Type: application/json" ^
+  -d "{\"new_manual_id\":22,\"old_manual_id\":15,\"ref_id\":\"TRX-ABC123\"}" ^
+  "http://localhost/cc_dashboard/API/order"
+```
+
 ## Support Tickets Endpoint
 
 Manage `support_tickets_v2` / `support_ticket_messages` using `API/niverpay_db.sql` schema.
