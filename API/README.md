@@ -152,7 +152,7 @@ On successful update, the API also triggers:
 - `sendMail(...)` from `model/mail.php`
 - `notifyStudentProfileUpdate(...)` from `model/notification_helpers.php`
 - `log_audit_event(...)` from `model/functions.php` with:
-  `{"after": {...}, "former": {...}}`
+  `{"before": {...}, "after": {...}}`
 
 ### Users Examples
 
@@ -342,4 +342,4 @@ For support updates (respond/close), the API also triggers:
 - `sendMail(...)` from `model/mail.php`
 - `notifySupportTicketResponse(...)` / `notifySupportTicketClosed(...)` from `model/notification_helpers.php`
 - `log_audit_event(...)` from `model/functions.php` with:
-  `{"after": {...}, "former": {...}}`
+  `{"before": {...}, "after": {...}}`

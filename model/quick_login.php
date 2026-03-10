@@ -265,11 +265,13 @@ function deleteQuickLoginCode($conn, $admin_id) {
   if (mysqli_stmt_execute($stmt)) {
     mysqli_stmt_close($stmt);
     
-    // Log the action with detailed information
-    $details = "Deleted quick login code ID: $code_id";
-    if (isset($code_details)) {
-      $details .= ", Student ID: " . $code_details['student_id'] . ", Code: " . substr($code_details['code'], 0, 10) . "..., Expiry: " . $code_details['expiry_datetime'];
-    }
+    $details = [
+      'before' => isset($code_details) ? $code_details : null,
+      'after' => [
+        'id' => $code_id,
+        'status' => 'deleted',
+      ],
+    ];
     log_audit_event($conn, $admin_id, 'delete', 'quick_login_code', $code_id, $details);
     
     echo json_encode(['success' => true, 'message' => 'Login code deleted successfully']);

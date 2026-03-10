@@ -100,14 +100,11 @@ $result = $stmt->get_result();
 
 $logs = [];
 while ($row = $result->fetch_assoc()) {
-  $details = $row['details'];
-  $formatted = $details;
-  if ($details !== null && $details !== '') {
-    $decoded = json_decode($details, true);
-    if (json_last_error() === JSON_ERROR_NONE) {
-      $formatted = json_encode($decoded, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-    }
-  }
+    $details = $row['details'];
+    $formatted = json_encode(
+      normalize_audit_log_details($details),
+      JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT
+    );
 
   $logs[] = [
     'id' => (int) $row['id'],

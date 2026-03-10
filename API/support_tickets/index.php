@@ -229,8 +229,8 @@ function handleCreateTicket(mysqli $conn, int $apiAdminId): void
         'create',
         $ticketId,
         [
+            'before' => null,
             'after' => $createdTicket,
-            'former' => null,
         ]
     );
 
@@ -396,8 +396,8 @@ function handleUpdateTicket(mysqli $conn, int $apiAdminId): void
         $auditAction,
         $ticketId,
         [
+            'before' => $formerTicket,
             'after' => $afterTicket,
-            'former' => $formerTicket,
         ]
     );
 

@@ -306,15 +306,15 @@ function sendUserUpdateNotifications(mysqli $conn, int $userId, array $payload, 
     return $result;
 }
 
-function logUserAuditUpdate(mysqli $conn, int $adminId, int $userId, array $former, ?array $after): array
+function logUserAuditUpdate(mysqli $conn, int $adminId, int $userId, array $before, ?array $after): array
 {
     if (!function_exists('log_audit_event')) {
         return ['success' => false, 'message' => 'log_audit_event() not available.'];
     }
 
     $details = [
+        'before' => $before,
         'after' => $after,
-        'former' => $former,
     ];
 
     $ok = log_audit_event($conn, $adminId, 'update', 'user', (string) $userId, $details);

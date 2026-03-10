@@ -25,6 +25,97 @@ function isCodeUnique($code, $conn, $db_table)
     return $count == 0; // If count is 0, the code is unique
 }
 
+function audit_log_empty_object()
+{
+    return new stdClass();
+}
+
+function audit_log_is_list(array $value)
+{
+    if ($value === []) {
+        return true;
+    }
+
+    return array_keys($value) === range(0, count($value) - 1);
+}
+
+function normalize_audit_log_value($value, $fallbackKey = 'value')
+{
+    if ($value === null) {
+        return audit_log_empty_object();
+    }
+
+    if (is_array($value)) {
+        return $value === [] ? audit_log_empty_object() : $value;
+    }
+
+    if (is_object($value)) {
+        return get_object_vars($value) === [] ? audit_log_empty_object() : $value;
+    }
+
+    return [$fallbackKey => $value];
+}
+
+function normalize_audit_log_details($details)
+{
+    if (is_string($details)) {
+        $trimmed = trim($details);
+        if ($trimmed !== '') {
+            $decoded = json_decode($trimmed, true);
+            if (json_last_error() === JSON_ERROR_NONE) {
+                $details = $decoded;
+            }
+        }
+    }
+
+    $before = null;
+    $after = null;
+    $metadata = [];
+
+    if (is_object($details)) {
+        $details = get_object_vars($details);
+    }
+
+    if (is_array($details)) {
+        $hasBefore = array_key_exists('before', $details) || array_key_exists('former', $details);
+        $hasAfter = array_key_exists('after', $details);
+
+        if ($hasBefore) {
+            $before = array_key_exists('before', $details) ? $details['before'] : $details['former'];
+        }
+
+        if ($hasAfter) {
+            $after = $details['after'];
+        }
+
+        $metadata = $details;
+        unset($metadata['before'], $metadata['former'], $metadata['after']);
+
+        if (!$hasBefore && !$hasAfter) {
+            $after = $details;
+            $metadata = [];
+        } elseif ($metadata !== []) {
+            if ($after === null) {
+                $after = $metadata;
+            } elseif (is_array($after) && !audit_log_is_list($after)) {
+                $after['_audit_meta'] = $metadata;
+            } else {
+                $after = [
+                    'state' => normalize_audit_log_value($after),
+                    '_audit_meta' => $metadata,
+                ];
+            }
+        }
+    } elseif ($details !== null) {
+        $after = ['message' => (string) $details];
+    }
+
+    return [
+        'before' => normalize_audit_log_value($before),
+        'after' => normalize_audit_log_value($after),
+    ];
+}
+
 function log_audit_event($conn, $admin_id, $action, $entity_type, $entity_id = null, $details = null)
 {
     if (!($conn instanceof mysqli)) {
@@ -39,10 +130,13 @@ function log_audit_event($conn, $admin_id, $action, $entity_type, $entity_id = n
         return false;
     }
 
-    if (is_array($details) || is_object($details)) {
-        $details = json_encode($details, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    } elseif ($details !== null) {
-        $details = (string) $details;
+    $details = json_encode(
+        normalize_audit_log_details($details),
+        JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE
+    );
+
+    if ($details === false) {
+        return false;
     }
 
     $entity_id_param = $entity_id !== null ? (string) $entity_id : null;
@@ -68,10 +162,10 @@ function log_audit_event($conn, $admin_id, $action, $entity_type, $entity_id = n
         $user_agent
     );
 
-    $stmt->execute();
+    $ok = $stmt->execute();
     $stmt->close();
 
-    return true;
+    return (bool) $ok;
 }
 
 /**

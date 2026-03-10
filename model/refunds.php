@@ -1105,8 +1105,8 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
 
                       if (function_exists('log_audit_event')) {
                         log_audit_event($conn, $adminId, 'create', 'refund', (string) $refundId, [
+                          'before' => null,
                           'after' => $createdRefund,
-                          'former' => null,
                           'source_ref_id' => $sourceRefId,
                           'student_email' => $studentEmail,
                           'selected_materials_count' => count($selectedMaterialIds),
@@ -1262,7 +1262,7 @@ function handleCancelRefund(mysqli $conn, array $adminScope, array $request, int
 
     if (function_exists('log_audit_event')) {
       log_audit_event($conn, $adminId, 'cancel', 'refund', (string) $refundId, [
-        'former' => $refund,
+        'before' => $refund,
         'after' => $updatedRefund,
         'cancel_reason' => $cancelReason,
         'cancelled_at' => date('Y-m-d H:i:s'),
