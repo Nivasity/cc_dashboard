@@ -1,3 +1,11 @@
+
+# php -- BEGIN cPanel-generated handler, do not edit
+# Set the "ea-php72" package as the default "PHP" programming language.
+<IfModule mime_module>
+  AddHandler application/x-httpd-ea-php72___lsphp .php .php7 .phtml
+</IfModule>
+# php -- END cPanel-generated handler, do not edit
+
 <IfModule mod_deflate.c>
   AddOutputFilterByType DEFLATE text/plain text/html text/css text/javascript application/javascript application/x-javascript application/json application/xml image/svg+xml
 </IfModule>
