@@ -279,12 +279,12 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
     </div>
   <?php } ?>
 
-  <script src="assets/vendor/libs/jquery/jquery.js"></script>
+  <script src="assets/vendor/libs/jquery/jquery.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-  <script src="assets/vendor/js/bootstrap.js"></script>
-  <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
-  <script src="assets/vendor/libs/popper/popper.js"></script>
-  <script src="assets/vendor/js/menu.js"></script>
+  <script src="assets/vendor/js/bootstrap.min.js"></script>
+  <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
+  <script src="assets/vendor/libs/popper/popper.min.js"></script>
+  <script src="assets/vendor/js/menu.min.js"></script>
   <script src="assets/js/ui-toasts.js"></script>
   <script src="assets/js/main.js"></script>
 

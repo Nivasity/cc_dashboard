@@ -449,7 +449,7 @@ function h($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
     <title>Gateway Checker | Nivasity Command Center</title>
     <meta name="description" content="Check Flutterwave & Paystack transactions/refunds against local records" />
     <?php include('partials/_head.php') ?>
-    <script src="assets/vendor/js/bootstrap.js"></script>
+    <script src="assets/vendor/js/bootstrap.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   </head>
   <body>

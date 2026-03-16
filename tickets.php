@@ -134,13 +134,13 @@ if (in_array((int)$admin_role, [4, 5], true)) {
     </div>
   </div>
 
-  <script src="assets/vendor/libs/jquery/jquery.js"></script>
-  <script src="assets/vendor/js/bootstrap.js"></script>
+  <script src="assets/vendor/libs/jquery/jquery.min.js"></script>
+  <script src="assets/vendor/js/bootstrap.min.js"></script>
   <script src="https://cdn.datatables.net/2.1.8/js/dataTables.js"></script>
   <script src="https://cdn.datatables.net/2.1.8/js/dataTables.bootstrap5.js"></script>
-  <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
-  <script src="assets/vendor/libs/popper/popper.js"></script>
-  <script src="assets/vendor/js/menu.js"></script>
+  <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
+  <script src="assets/vendor/libs/popper/popper.min.js"></script>
+  <script src="assets/vendor/js/menu.min.js"></script>
   <script src="assets/js/ui-toasts.js"></script>
   <script src="assets/js/main.js"></script>
   <script>

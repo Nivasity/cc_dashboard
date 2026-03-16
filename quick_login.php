@@ -198,12 +198,12 @@ if (!in_array((int)$admin_role, [1, 2, 3], true)) {
 
   <!-- Core JS -->
   <!-- build:js assets/vendor/js/core.js -->
-  <script src="assets/vendor/libs/jquery/jquery.js"></script>
-  <script src="assets/vendor/libs/popper/popper.js"></script>
-  <script src="assets/vendor/js/bootstrap.js"></script>
-  <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
+  <script src="assets/vendor/libs/jquery/jquery.min.js"></script>
+  <script src="assets/vendor/libs/popper/popper.min.js"></script>
+  <script src="assets/vendor/js/bootstrap.min.js"></script>
+  <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
 
-  <script src="assets/vendor/js/menu.js"></script>
+  <script src="assets/vendor/js/menu.min.js"></script>
   <!-- endbuild -->
 
   <!-- Vendors JS -->

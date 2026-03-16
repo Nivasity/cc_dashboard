@@ -326,13 +326,13 @@ $admin_role = $_SESSION['nivas_adminRole'];
 
   <!-- Core JS -->
   <!-- build:js assets/vendor/js/core.js -->
-  <script src="assets/vendor/libs/jquery/jquery.js"></script>
-  <script src="assets/vendor/libs/popper/popper.js"></script>
-  <script src="assets/vendor/js/bootstrap.js"></script>
+  <script src="assets/vendor/libs/jquery/jquery.min.js"></script>
+  <script src="assets/vendor/libs/popper/popper.min.js"></script>
+  <script src="assets/vendor/js/bootstrap.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-  <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
+  <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
 
-  <script src="assets/vendor/js/menu.js"></script>
+  <script src="assets/vendor/js/menu.min.js"></script>
   <!-- endbuild -->
 
   <!-- Vendors JS -->

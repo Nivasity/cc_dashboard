@@ -32,15 +32,15 @@
   rel="stylesheet" />
 
 <!-- Icons. Uncomment required icon fonts -->
-<link rel="stylesheet" href="assets/vendor/fonts/boxicons.css" />
+<link rel="stylesheet" href="assets/vendor/fonts/boxicons.min.css" />
 
 <!-- Core CSS -->
-<link rel="stylesheet" href="assets/vendor/css/core.css" class="template-customizer-core-css" />
-<link rel="stylesheet" href="assets/vendor/css/theme-default.css" class="template-customizer-theme-css" />
+<link rel="stylesheet" href="assets/vendor/css/core.min.css" class="template-customizer-core-css" />
+<link rel="stylesheet" href="assets/vendor/css/theme-default.min.css" class="template-customizer-theme-css" />
 <link rel="stylesheet" href="assets/css/demo.css" />
 
 <!-- Vendors CSS -->
-<link rel="stylesheet" href="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
+<link rel="stylesheet" href="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.min.css" />
 <link rel="stylesheet" href="https://cdn.datatables.net/2.1.8/css/dataTables.bootstrap5.css" />
 <link rel="stylesheet" href="assets/vendor/libs/apex-charts/apex-charts.css" />
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" />
@@ -50,7 +50,7 @@
 <!-- Page CSS -->
 
 <!-- Helpers -->
-<script src="assets/vendor/js/helpers.js"></script>
+<script src="assets/vendor/js/helpers.min.js"></script>
 
 <!--! Template customizer & Theme config files MUST be included after core stylesheets and helpers.js in the <head> section -->
 <!--? Config:  Mandatory theme config file contain global vars & default theme options, Set your preferred theme option in this file.  -->
