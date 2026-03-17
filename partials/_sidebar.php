@@ -236,33 +236,25 @@ $admin_faculty = $admin_['faculty'] ?? 0;
       <?php } ?>
     <?php } ?>
 
-    <?php if ($admin_mgt_menu){ ?>
+    <?php if ($admin_mgt_menu || in_array((int) $_SESSION['nivas_adminRole'], [1, 2], true)){ ?>
       <!-- Admin Management -->
       <li class="menu-header small text-uppercase"><span class="menu-header-text">Admin Management</span></li>
-      <li class="menu-item">
-        <a href="javascript:void(0);" class="menu-link menu-toggle">
+      <?php if ($admin_mgt_menu){ ?>
+      <li class="menu-item <?php echo $current_page == 'admin.php' ? 'active' : ''; ?>">
+        <a href="admin.php" class="menu-link">
           <i class="menu-icon tf-icons bx bx-group"></i>
           <div data-i18n="Admin Management">Admins</div>
         </a>
-        <ul class="menu-sub">
-          <li class="menu-item">
-            <a href="admin.php" class="menu-link">
-              <div data-i18n="Admins">Profiles</div>
-            </a>
-          </li>
-          <li class="menu-item">
-            <a href="admin.php" class="menu-link">
-              <div data-i18n="Admins">Roles</div>
-            </a>
-          </li>
-        </ul>
       </li>
-      <li class="menu-item">
-        <a href="sign_up_key.php" class="menu-link">
-          <i class="menu-icon tf-icons bx bx-key"></i>
-          <div data-i18n="Admin Management">Sign Up Keys</div>
+      <?php } ?>
+      <?php if (in_array($_SESSION['nivas_adminRole'], [1, 2])) { ?>
+      <li class="menu-item <?php echo $current_page == 'audit_logs.php' ? 'active' : ''; ?>">
+        <a href="audit_logs.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-clipboard"></i>
+          <div data-i18n="Admin Logs">Admin Logs</div>
         </a>
       </li>
+      <?php } ?>
     <?php } ?>
 
     <?php if ($grant_mgt_menu){ ?>
@@ -272,16 +264,6 @@ $admin_faculty = $admin_['faculty'] ?? 0;
         <a href="material_grants.php" class="menu-link">
           <i class="menu-icon tf-icons bx bx-check-shield"></i>
           <div data-i18n="Material Grants">Material Grants</div>
-        </a>
-      </li>
-    <?php } ?>
-
-    <?php if (in_array($_SESSION['nivas_adminRole'], [1, 2])) { ?>
-      <li class="menu-header small text-uppercase"><span class="menu-header-text">System</span></li>
-      <li class="menu-item <?php echo $current_page == 'audit_logs.php' ? 'active' : ''; ?>">
-        <a href="audit_logs.php" class="menu-link">
-          <i class="menu-icon tf-icons bx bx-clipboard"></i>
-          <div data-i18n="Audit Logs">Audit Logs</div>
         </a>
       </li>
     <?php } ?>

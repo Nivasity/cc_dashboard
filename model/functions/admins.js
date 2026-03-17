@@ -204,7 +204,7 @@ $(document).ready(function () {
     adminModal.show();
   });
 
-  $('.editAdmin').on('click', function () {
+  $(document).on('click', '.editAdmin', function () {
     const dropdownToggle = $(this).closest('.dropdown').find('[data-bs-toggle="dropdown"]')[0];
     if (dropdownToggle) {
       bootstrap.Dropdown.getOrCreateInstance(dropdownToggle).hide();
@@ -313,7 +313,7 @@ $(document).ready(function () {
     });
   });
 
-  $('.toggleAdminStatus').on('click', function () {
+  $(document).on('click', '.toggleAdminStatus', function () {
     const id = $(this).data('id');
     const currentStatus = ($(this).data('status') || '').toString().toLowerCase();
     const activating = currentStatus !== 'active';
