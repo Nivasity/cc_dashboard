@@ -191,14 +191,16 @@ $(document).on('click', '.reassignDeptStudents', function () {
         const schoolId = $(this).data('school_id');
         const sourceDeptName = $(this).data('name');
         const totalStudents = Number($(this).data('students') || 0);
+        const totalHocs = Number($(this).data('hocs') || 0);
+        const totalAssignedUsers = totalStudents + totalHocs;
 
         $('#reassignDeptForm')[0].reset();
         $('#reassignDeptForm [name="source_dept_id"]').val(sourceDeptId);
         $('#reassignDeptForm [name="school_id"]').val(schoolId);
         $('#reassignDeptSourceName').val(sourceDeptName);
-        $('#reassignDeptHelpText').text(totalStudents > 0
-                ? totalStudents + ' student record(s) will be moved.'
-                : 'No students are currently assigned to this department.');
+        $('#reassignDeptHelpText').text(totalAssignedUsers > 0
+                ? totalAssignedUsers + ' assigned user record(s), including HOCs, will be moved.'
+                : 'No users are currently assigned to this department.');
 
         loadReassignDeptOptions(schoolId, sourceDeptId);
         $('#reassignDeptModal').modal('show');
@@ -437,13 +439,13 @@ function populatedeptTable(Depts, school_id, tableId) {
 									</button>
 									<div class="dropdown-menu">
                                                                                 <a class="dropdown-item viewDept" href="javascript:void(0);" data-id="${dept.id}" data-name="${dept.name}" data-school_id="${school_id}" data-faculty_id="${dept.faculty_id}"><i class="bx bx-edit me-1"></i> Edit</a>
-										<a class="dropdown-item reassignDeptStudents" href="javascript:void(0);" data-id="${dept.id}" data-name="${dept.name}" data-school_id="${school_id}" data-students="${dept.total_students}"><i class="bx bx-transfer-alt me-1"></i> Reassign Students</a>
+										<a class="dropdown-item reassignDeptStudents" href="javascript:void(0);" data-id="${dept.id}" data-name="${dept.name}" data-school_id="${school_id}" data-students="${dept.total_students}" data-hocs="${dept.total_hocs}"><i class="bx bx-transfer-alt me-1"></i> Reassign Students</a>
 										<a href="javascript:void(0);" 
 											class="dropdown-item deactivate_dept" 
 											data-id="${dept.id}" data-school_id="${school_id}"
-											data-status="${dept.status == 'active' ? (dept.total_students == '0' ? 'delete' : 'deactivated') : 'active'}">
-											<i class="bx me-1 bx-${dept.status == 'active' ? 'trash' : 'check-circle'}"></i> 
-											${dept.status == 'active' ? (dept.total_students == '0' ? 'Delete' : 'Deactivate') : 'Activate'}
+											data-status="${dept.status == 'active' ? 'deactivated' : 'active'}">
+											<i class="bx me-1 bx-${dept.status == 'active' ? 'block' : 'check-circle'}"></i> 
+											${dept.status == 'active' ? 'Deactivate' : 'Activate'}
 										</a>
 									</div>
 								</div>

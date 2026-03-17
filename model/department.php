@@ -228,20 +228,20 @@ function handleDepartmentReassignment(mysqli $conn, int $user_id, int $admin_rol
     }
   }
 
-  $student_count_query = mysqli_query($conn, "SELECT COUNT(*) AS total_students FROM users WHERE role = 'student' AND dept = $source_dept_id");
+  $student_count_query = mysqli_query($conn, "SELECT COUNT(*) AS total_students FROM users WHERE dept = $source_dept_id");
   $student_count_row = $student_count_query ? mysqli_fetch_assoc($student_count_query) : null;
   $total_students = isset($student_count_row['total_students']) ? (int) $student_count_row['total_students'] : 0;
 
   if ($total_students <= 0) {
     $statusRes = 'success';
-    $messageRes = 'No students are currently assigned to this department.';
+    $messageRes = 'No users are currently assigned to this department.';
     $responseData['moved_students'] = 0;
     return;
   }
 
   mysqli_begin_transaction($conn);
   try {
-    $update_query = mysqli_query($conn, "UPDATE users SET dept = $target_dept_id WHERE role = 'student' AND dept = $source_dept_id");
+    $update_query = mysqli_query($conn, "UPDATE users SET dept = $target_dept_id WHERE dept = $source_dept_id");
     if (!$update_query) {
       throw new Exception('Failed to update student department assignments.');
     }

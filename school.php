@@ -242,7 +242,7 @@ if ($admin_role == 5) {
                 <input type="hidden" name="school_id" value="0" required>
                 <div class="modal-body">
                   <div class="alert alert-warning py-2 px-3">
-                    This moves all student records assigned to the selected department into another active department.
+                    This moves all users assigned to the selected department, including HOCs, into another active department.
                   </div>
                   <div class="mb-3">
                     <label for="reassignDeptSourceName" class="form-label">From Department</label>
