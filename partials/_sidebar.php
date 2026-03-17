@@ -184,6 +184,25 @@ $admin_faculty = $admin_['faculty'] ?? 0;
       <?php } ?>
     <?php } ?>
     
+    <?php if ($resource_mgt_menu){ ?>
+      <!-- Resources Management -->
+      <li class="menu-header small text-uppercase"><span class="menu-header-text">Resources</span></li>
+      <li class="menu-item <?php echo $current_page == 'course_materials.php' ? 'active' : ''; ?>">
+        <a href="course_materials.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-book"></i>
+          <div data-i18n="Course Materials">Course Materials</div>
+        </a>
+      </li>
+      <?php if (in_array($_SESSION['nivas_adminRole'], [1, 2, 3])) { ?>
+      <li class="menu-item <?php echo $current_page == 'notifications.php' ? 'active' : ''; ?>">
+        <a href="notifications.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-bell"></i>
+          <div data-i18n="Notifications">Notifications</div>
+        </a>
+      </li>
+      <?php } ?>
+    <?php } ?>
+
     <?php if ($finance_mgt_menu){ ?>
       <!-- Financial report -->
       <li class="menu-header small text-uppercase"><span class="menu-header-text">Finances</span></li>
@@ -213,25 +232,6 @@ $admin_faculty = $admin_['faculty'] ?? 0;
           <div data-i18n="Gateway Checker">Gateway Checker</div>
         </a>
       </li>
-    <?php } ?>
-
-    <?php if ($resource_mgt_menu){ ?>
-      <!-- Resources Management -->
-      <li class="menu-header small text-uppercase"><span class="menu-header-text">Resources</span></li>
-      <li class="menu-item <?php echo $current_page == 'course_materials.php' ? 'active' : ''; ?>">
-        <a href="course_materials.php" class="menu-link">
-          <i class="menu-icon tf-icons bx bx-book"></i>
-          <div data-i18n="Course Materials">Course Materials</div>
-        </a>
-      </li>
-      <?php if (in_array($_SESSION['nivas_adminRole'], [1, 2, 3])) { ?>
-      <li class="menu-item <?php echo $current_page == 'notifications.php' ? 'active' : ''; ?>">
-        <a href="notifications.php" class="menu-link">
-          <i class="menu-icon tf-icons bx bx-bell"></i>
-          <div data-i18n="Notifications">Notifications</div>
-        </a>
-      </li>
-      <?php } ?>
     <?php } ?>
 
     <?php if ($admin_mgt_menu){ ?>
