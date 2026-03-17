@@ -19,7 +19,7 @@ $school = intval($_GET['school'] ?? 0);
 $faculty = intval($_GET['faculty'] ?? 0);
 $dept = intval($_GET['dept'] ?? 0);
 $material_id = intval($_GET['material_id'] ?? 0);
-$date_range = $_GET['date_range'] ?? '7';
+$date_range = $_GET['date_range'] ?? ($material_id > 0 ? 'all' : '7');
 $start_date = $_GET['start_date'] ?? '';
 $end_date = $_GET['end_date'] ?? '';
 
@@ -30,29 +30,63 @@ if ($admin_role == 5) {
   }
 }
 
+if ($material_id > 0 && $admin_role == 5) {
+  $material_scope_sql = "SELECT school_id, host_faculty, faculty FROM manuals WHERE id = $material_id LIMIT 1";
+  $material_scope_query = mysqli_query($conn, $material_scope_sql);
+  $material_scope = $material_scope_query ? mysqli_fetch_assoc($material_scope_query) : null;
+
+  if (!$material_scope) {
+    http_response_code(404);
+    echo 'Material not found.';
+    exit;
+  }
+
+  $material_school = (int) ($material_scope['school_id'] ?? 0);
+  $material_host_faculty = (int) ($material_scope['host_faculty'] ?? 0);
+  $material_faculty = (int) ($material_scope['faculty'] ?? 0);
+  $effective_material_faculty = $material_host_faculty > 0 ? $material_host_faculty : $material_faculty;
+
+  if ($admin_school > 0 && $material_school !== $admin_school) {
+    http_response_code(403);
+    echo 'Unauthorized: Material is outside your school scope.';
+    exit;
+  }
+
+  if ($admin_faculty > 0 && $effective_material_faculty !== $admin_faculty) {
+    http_response_code(403);
+    echo 'Unauthorized: Material is outside your faculty scope.';
+    exit;
+  }
+
+  // Single-material exports should include every successful buyer of that material.
+  $school = 0;
+  $faculty = 0;
+  $dept = 0;
+}
+
 // Always compute the sum of material prices per transaction, but keep the
 // original transaction amount so we can choose which one to export based
 // on context (overall transactions list vs. single-material export).
 $tran_sql = "SELECT t.ref_id, u.first_name, u.last_name, u.matric_no, u.adm_year, " .
-  "COALESCE(s.name, '') AS school_name, COALESCE(f.name, '') AS faculty_name, COALESCE(d.name, '') AS dept_name, " .
+  "COALESCE(s.name, '') AS school_name, COALESCE(uf.name, '') AS faculty_name, COALESCE(ud.name, '') AS dept_name, " .
   "GROUP_CONCAT(CONCAT(m.title, ' - ', m.course_code, ' (', b.price, ')') SEPARATOR ' | ') AS materials, " .
   "SUM(b.price) AS material_amount, t.amount AS transaction_amount, t.status, t.created_at " .
   "FROM transactions t " .
   "JOIN users u ON t.user_id = u.id " .
   "JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
   "JOIN manuals m ON b.manual_id = m.id " .
-  "LEFT JOIN depts d ON m.dept = d.id " .
-  "LEFT JOIN faculties f ON m.faculty = f.id " .
-  "LEFT JOIN schools s ON b.school_id = s.id " .
+  "LEFT JOIN schools s ON u.school = s.id " .
+  "LEFT JOIN depts ud ON u.dept = ud.id " .
+  "LEFT JOIN faculties uf ON ud.faculty_id = uf.id " .
   "WHERE 1=1";
 if ($school > 0) {
-  $tran_sql .= " AND b.school_id = $school";
+  $tran_sql .= " AND u.school = $school";
 }
 if ($faculty != 0) {
-  $tran_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
+  $tran_sql .= " AND ud.faculty_id = $faculty";
 }
 if ($dept > 0) {
-  $tran_sql .= " AND m.dept = $dept";
+  $tran_sql .= " AND u.dept = $dept";
 }
 if ($material_id > 0) {
   $tran_sql .= " AND m.id = $material_id";
@@ -60,7 +94,7 @@ if ($material_id > 0) {
 
 $tran_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date);
 
-$tran_sql .= " GROUP BY t.id, t.ref_id, t.amount, t.status, t.created_at, u.first_name, u.last_name, u.matric_no, u.adm_year, s.name, f.name, d.name ORDER BY t.created_at DESC";
+$tran_sql .= " GROUP BY t.id, t.ref_id, t.amount, t.status, t.created_at, u.first_name, u.last_name, u.matric_no, u.adm_year, s.name, uf.name, ud.name ORDER BY t.created_at DESC";
 $tran_query = mysqli_query($conn, $tran_sql);
 
 header('Content-Type: text/csv; charset=utf-8');

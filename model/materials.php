@@ -46,6 +46,45 @@ function buildMaterialDateFilter($conn, $date_range, $start_date, $end_date) {
 }
 
 /**
+ * Build SQL clause for faculty filter using host_faculty first, then faculty.
+ *
+ * @param int $faculty_id
+ * @return string
+ */
+function buildMaterialFacultyFilterClause($faculty_id) {
+  $faculty_id = intval($faculty_id);
+  if ($faculty_id <= 0) {
+    return '';
+  }
+
+  return " AND (
+    CASE
+      WHEN m.host_faculty IS NOT NULL AND m.host_faculty <> 0 THEN m.host_faculty
+      ELSE IFNULL(m.faculty, 0)
+    END = $faculty_id
+  )";
+}
+
+/**
+ * Build SQL clause for department filter using dept first, then depts when dept is 0.
+ *
+ * @param int $dept_id
+ * @return string
+ */
+function buildMaterialDeptFilterClause($dept_id) {
+  $dept_id = intval($dept_id);
+  if ($dept_id <= 0) {
+    return '';
+  }
+
+  return " AND (
+    (IFNULL(m.dept, 0) <> 0 AND m.dept = $dept_id)
+    OR
+    (IFNULL(m.dept, 0) = 0 AND m.depts IS NOT NULL AND m.depts <> '' AND FIND_IN_SET($dept_id, m.depts))
+  )";
+}
+
+/**
  * Parse comma-separated department IDs into unique integer array.
  *
  * @param string|null $csv
@@ -313,20 +352,10 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
     $material_sql .= " AND m.school_id = $school";
   }
   if ($faculty != 0) {
-    $material_sql .= " AND (
-      (m.depts IS NOT NULL AND m.depts <> '' AND EXISTS (
-        SELECT 1 FROM depts df WHERE df.school_id = m.school_id AND df.faculty_id = $faculty AND FIND_IN_SET(df.id, m.depts)
-      ))
-      OR
-      ((m.depts IS NULL OR m.depts = '') AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty)))
-    )";
+    $material_sql .= buildMaterialFacultyFilterClause($faculty);
   }
   if ($dept > 0) {
-    $material_sql .= " AND (
-      (m.depts IS NOT NULL AND m.depts <> '' AND FIND_IN_SET($dept, m.depts))
-      OR
-      ((m.depts IS NULL OR m.depts = '') AND m.dept = $dept)
-    )";
+    $material_sql .= buildMaterialDeptFilterClause($dept);
   }
   // Add date filter
   $material_sql .= buildMaterialDateFilter($conn, $date_range, $start_date, $end_date);
@@ -447,34 +476,18 @@ if(isset($_GET['fetch'])){
     if($admin_role == 5){
       $material_sql .= " AND m.school_id = $admin_school";
       if($admin_faculty != 0){
-        $material_sql .= " AND (
-          (m.depts IS NOT NULL AND m.depts <> '' AND EXISTS (
-            SELECT 1 FROM depts df WHERE df.school_id = m.school_id AND df.faculty_id = $admin_faculty AND FIND_IN_SET(df.id, m.depts)
-          ))
-          OR
-          ((m.depts IS NULL OR m.depts = '') AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty)))
-        )";
+        $material_sql .= buildMaterialFacultyFilterClause($admin_faculty);
       }
     } else {
       if($school > 0){
         $material_sql .= " AND m.school_id = $school";
       }
       if($faculty != 0){
-        $material_sql .= " AND (
-          (m.depts IS NOT NULL AND m.depts <> '' AND EXISTS (
-            SELECT 1 FROM depts df WHERE df.school_id = m.school_id AND df.faculty_id = $faculty AND FIND_IN_SET(df.id, m.depts)
-          ))
-          OR
-          ((m.depts IS NULL OR m.depts = '') AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty)))
-        )";
+        $material_sql .= buildMaterialFacultyFilterClause($faculty);
       }
     }
     if($dept > 0){
-      $material_sql .= " AND (
-        (m.depts IS NOT NULL AND m.depts <> '' AND FIND_IN_SET($dept, m.depts))
-        OR
-        ((m.depts IS NULL OR m.depts = '') AND m.dept = $dept)
-      )";
+      $material_sql .= buildMaterialDeptFilterClause($dept);
     }
     // Add date filter
     $material_sql .= buildMaterialDateFilter($conn, $date_range, $start_date, $end_date);
