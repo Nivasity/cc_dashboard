@@ -544,7 +544,6 @@ $(document).ready(function () {
       method: 'POST',
       dataType: 'json',
       data: payload,
-      traditional: true,
       success: function (res) {
         if (res.status === 'success') {
           showToast('bg-success', res.message || 'Refund created successfully.');
