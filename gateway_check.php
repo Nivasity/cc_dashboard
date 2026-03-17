@@ -4,6 +4,11 @@ include('model/config.php');
 include('model/page_config.php');
 require_once __DIR__ . '/config/fw.php';
 
+if ((int)($_SESSION['nivas_adminRole'] ?? 0) === 5) {
+  header('Location: transactions.php');
+  exit;
+}
+
 // Defaults
 $today = new DateTime('now', new DateTimeZone('Africa/Lagos'));
 $default_to = $today->format('Y-m-d');
@@ -449,8 +454,6 @@ function h($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
     <title>Gateway Checker | Nivasity Command Center</title>
     <meta name="description" content="Check Flutterwave & Paystack transactions/refunds against local records" />
     <?php include('partials/_head.php') ?>
-    <script src="assets/vendor/js/bootstrap.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
   </head>
   <body>
     <div class="layout-wrapper layout-content-navbar">
@@ -584,6 +587,13 @@ function h($v) { return htmlspecialchars((string)$v, ENT_QUOTES, 'UTF-8'); }
         </div>
       </div>
     </div>
+    <div class="layout-overlay layout-menu-toggle"></div>
+    <script src="assets/vendor/libs/jquery/jquery.min.js"></script>
+    <script src="assets/vendor/js/bootstrap.min.js"></script>
+    <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
+    <script src="assets/vendor/libs/popper/popper.min.js"></script>
+    <script src="assets/vendor/js/menu.min.js"></script>
+    <script src="assets/js/main.js"></script>
     <script>
       (function() {
         const $form = $('#fetchForm');

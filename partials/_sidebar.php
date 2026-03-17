@@ -226,12 +226,14 @@ $admin_faculty = $admin_['faculty'] ?? 0;
           <div data-i18n="Batch Payments">Batch Payments</div>
         </a>
       </li>
+      <?php if (!in_array((int) $_SESSION['nivas_adminRole'], [5], true)) { ?>
       <li class="menu-item <?php echo $current_page == 'gateway_check.php' ? 'active' : ''; ?>">
         <a href="gateway_check.php" class="menu-link">
           <i class="menu-icon tf-icons bx bx-check-circle"></i>
           <div data-i18n="Gateway Checker">Gateway Checker</div>
         </a>
       </li>
+      <?php } ?>
     <?php } ?>
 
     <?php if ($admin_mgt_menu){ ?>
