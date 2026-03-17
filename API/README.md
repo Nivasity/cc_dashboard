@@ -44,6 +44,9 @@ If `table` is omitted, the endpoint returns all allowed table names from `API/ni
 - `filter_lt[field]=value`: less than
 - `filter_lte[field]=value`: less than or equal
 - `filter_like[field]=value`: contains search
+- `search=value`: shorthand LIKE search for supported tables only
+  - `manuals`: searches `title`, `course_code`, `code`
+  - `depts`: searches `name`
 - `filter_in[field]=a,b,c`: IN filter
 - `sort`: comma list, prefix column with `-` for descending (example: `sort=-id,created_at`)
 - `limit`: rows per page, min `1`, max `500` (default `10`)
@@ -115,6 +118,14 @@ curl -H "Authorization: Bearer YOUR_TOKEN" "http://localhost/cc_dashboard/API/re
 
 ```bash
 curl -H "Authorization: Bearer YOUR_TOKEN" "http://localhost/cc_dashboard/API/reference?table=transactions&filter_gte[amount]=1000&filter_like[status]=success"
+```
+
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" "http://localhost/cc_dashboard/API/reference?table=manuals&search=CSC&sort=-id&limit=20"
+```
+
+```bash
+curl -H "Authorization: Bearer YOUR_TOKEN" "http://localhost/cc_dashboard/API/reference?table=depts&search=engin"
 ```
 
 ## Users Endpoint

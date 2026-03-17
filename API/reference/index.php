@@ -76,6 +76,7 @@ if ($table === '') {
             'filter_lt[field]' => 'Less-than filter',
             'filter_lte[field]' => 'Less-than-or-equal filter',
             'filter_like[field]' => 'Contains filter',
+            'search' => 'Shorthand LIKE search for supported tables (`manuals`, `depts`)',
             'filter_in[field]' => 'IN filter using comma-separated values',
             'sort' => 'Comma list. Prefix with - for DESC (example: sort=-id,created_at)',
             'limit' => 'Rows per request (1 - 500, default: 10)',
@@ -107,6 +108,7 @@ appendFilters($whereClauses, $types, $params, $columnSet, $_GET['filter_gte'] ??
 appendFilters($whereClauses, $types, $params, $columnSet, $_GET['filter_lt'] ?? null, '<');
 appendFilters($whereClauses, $types, $params, $columnSet, $_GET['filter_lte'] ?? null, '<=');
 appendLikeFilters($whereClauses, $types, $params, $columnSet, $_GET['filter_like'] ?? null);
+appendReferenceSearchFilter($whereClauses, $types, $params, $table, $columnSet, $_GET['search'] ?? null);
 appendInFilters($whereClauses, $types, $params, $columnSet, $_GET['filter_in'] ?? null);
 
 $orderByClause = buildSortClause($_GET['sort'] ?? '', $columnSet);
@@ -312,6 +314,52 @@ function appendLikeFilters(array &$whereClauses, string &$types, array &$params,
         $types .= 's';
         $params[] = '%' . (string) $value . '%';
     }
+}
+
+function appendReferenceSearchFilter(
+    array &$whereClauses,
+    string &$types,
+    array &$params,
+    string $table,
+    array $columnSet,
+    $search
+): void {
+    if ($search === null) {
+        return;
+    }
+
+    if (is_array($search)) {
+        badRequest('search must be a single scalar value.');
+    }
+
+    $term = trim((string) $search);
+    if ($term === '') {
+        return;
+    }
+
+    $searchableColumnsByTable = [
+        'manuals' => ['title', 'course_code', 'code'],
+        'depts' => ['name'],
+    ];
+
+    if (!isset($searchableColumnsByTable[$table])) {
+        badRequest('search is only supported for `manuals` and `depts`.');
+    }
+
+    $searchableColumns = [];
+    foreach ($searchableColumnsByTable[$table] as $column) {
+        if (isset($columnSet[$column])) {
+            $searchableColumns[] = '`' . str_replace('`', '``', $column) . '` LIKE ?';
+            $types .= 's';
+            $params[] = '%' . $term . '%';
+        }
+    }
+
+    if ($searchableColumns === []) {
+        badRequest('search columns are not available for the selected table.');
+    }
+
+    $whereClauses[] = '(' . implode(' OR ', $searchableColumns) . ')';
 }
 
 function appendInFilters(array &$whereClauses, string &$types, array &$params, array $columnSet, $filters): void
