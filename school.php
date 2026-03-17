@@ -175,6 +175,12 @@ if ($admin_role == 5) {
                               <option value="0">All Faculties</option>
                             </select>
                           </div>
+                          <div class="col-md-2 d-flex align-items-center">
+                            <div class="form-check mt-2">
+                              <input class="form-check-input" type="checkbox" id="showInactiveDepartments" name="show_inactive" value="1">
+                              <label class="form-check-label" for="showInactiveDepartments">Show inactive</label>
+                            </div>
+                          </div>
                           <div class="col-md-2">
                             <button id="submitBtn2" type="submit" class="btn btn-secondary w-100">Search</button>
                           </div>
@@ -188,6 +194,19 @@ if ($admin_role == 5) {
                     <form id="selectSchoolForm">
                       <input type="hidden" id="school" name="school" value="<?php echo $admin_school; ?>">
                     </form>
+                    <div class="card-header">
+                      <div class="row g-3 align-items-center">
+                        <div class="col-md-6">
+                          <div class="form-check">
+                            <input class="form-check-input" type="checkbox" id="showInactiveDepartments" name="show_inactive" value="1">
+                            <label class="form-check-label" for="showInactiveDepartments">Show inactive</label>
+                          </div>
+                        </div>
+                        <div class="col-md-6 text-md-end">
+                          <button type="button" id="downloadDepts" class="btn btn-success">Download CSV</button>
+                        </div>
+                      </div>
+                    </div>
                     <?php } ?>
                     <hr class="my-0" />
                     <div class="card-body">
@@ -206,11 +225,47 @@ if ($admin_role == 5) {
 
                           </tbody>
                         </table>
-                      </div>
-                    </div>
-                  </div>
+        </div>
+        </div>
+        </div>
 
+        <div class="modal fade" id="reassignDeptModal" tabindex="-1" aria-labelledby="reassignDeptModalLabel"
+          aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="reassignDeptModalLabel">Reassign Department Students</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+              </div>
+              <form id="reassignDeptForm">
+                <input type="hidden" name="source_dept_id" value="0" required>
+                <input type="hidden" name="school_id" value="0" required>
+                <div class="modal-body">
+                  <div class="alert alert-warning py-2 px-3">
+                    This moves all student records assigned to the selected department into another active department.
+                  </div>
+                  <div class="mb-3">
+                    <label for="reassignDeptSourceName" class="form-label">From Department</label>
+                    <input type="text" id="reassignDeptSourceName" class="form-control" readonly>
+                  </div>
+                  <div class="mb-3">
+                    <label for="reassignDeptTarget" class="form-label">To Department</label>
+                    <select id="reassignDeptTarget" name="target_dept_id" class="form-select no-select2" required>
+                      <option value="">Select target department</option>
+                    </select>
+                  </div>
+                  <div class="form-text" id="reassignDeptHelpText"></div>
                 </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                  <button id="submitBtnReassignDept" type="submit" class="btn btn-primary">Reassign Students</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+      </div>
               </div>
             </div>
           </div>

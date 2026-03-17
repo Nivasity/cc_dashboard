@@ -48,6 +48,14 @@ function fetchSchools2() {
         });
 }
 
+function shouldIncludeInactiveDepts() {
+        return $('#showInactiveDepartments').is(':checked') ? 1 : 0;
+}
+
+function getDeptSearchSchoolId() {
+        return $('#selectSchoolForm [name="school"]').val() || $('#school').val() || 0;
+}
+
 
 function fetchSchools() {
         $.ajax({
@@ -178,6 +186,24 @@ $(document).on('click', '.viewDept', function () {
         $('#newDeptModal').modal('show');
 });
 
+$(document).on('click', '.reassignDeptStudents', function () {
+        const sourceDeptId = $(this).data('id');
+        const schoolId = $(this).data('school_id');
+        const sourceDeptName = $(this).data('name');
+        const totalStudents = Number($(this).data('students') || 0);
+
+        $('#reassignDeptForm')[0].reset();
+        $('#reassignDeptForm [name="source_dept_id"]').val(sourceDeptId);
+        $('#reassignDeptForm [name="school_id"]').val(schoolId);
+        $('#reassignDeptSourceName').val(sourceDeptName);
+        $('#reassignDeptHelpText').text(totalStudents > 0
+                ? totalStudents + ' student record(s) will be moved.'
+                : 'No students are currently assigned to this department.');
+
+        loadReassignDeptOptions(schoolId, sourceDeptId);
+        $('#reassignDeptModal').modal('show');
+});
+
 
 $(document).on('submit', '#newDeptForm', function (e) {
         e.preventDefault();
@@ -264,7 +290,7 @@ function fetchDepts(school_id, faculty_id = 0) {
         $.ajax({
                 method: 'POST',
                 url: 'model/getInfo.php',
-                data: { get_data: 'depts', school: school_id, faculty: faculty_id },
+                data: { get_data: 'depts', school: school_id, faculty: faculty_id, include_inactive: shouldIncludeInactiveDepts() },
                 success: function (response) {
                         console.log('Response:', response);
 
@@ -362,12 +388,12 @@ $(document).on('click', '#downloadFaculties', function () {
 $(document).on('click', '#downloadDepts', function () {
         var $btn = $(this);
         var original = $btn.html();
-        var school_id = $('#school').val();
+        var school_id = getDeptSearchSchoolId();
         var faculty_id = $('#department_faculty').length ? $('#department_faculty').val() : 0;
         $.ajax({
                 url: 'model/getInfo.php',
                 method: 'GET',
-                data: { download: 'depts', school: school_id, faculty: faculty_id },
+                data: { download: 'depts', school: school_id, faculty: faculty_id, include_inactive: shouldIncludeInactiveDepts() },
                 xhrFields: { responseType: 'blob' },
                 beforeSend: function () { $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Downloading...'); },
                 success: function (blob, status, xhr) {
@@ -411,6 +437,7 @@ function populatedeptTable(Depts, school_id, tableId) {
 									</button>
 									<div class="dropdown-menu">
                                                                                 <a class="dropdown-item viewDept" href="javascript:void(0);" data-id="${dept.id}" data-name="${dept.name}" data-school_id="${school_id}" data-faculty_id="${dept.faculty_id}"><i class="bx bx-edit me-1"></i> Edit</a>
+										<a class="dropdown-item reassignDeptStudents" href="javascript:void(0);" data-id="${dept.id}" data-name="${dept.name}" data-school_id="${school_id}" data-students="${dept.total_students}"><i class="bx bx-transfer-alt me-1"></i> Reassign Students</a>
 										<a href="javascript:void(0);" 
 											class="dropdown-item deactivate_dept" 
 											data-id="${dept.id}" data-school_id="${school_id}"
@@ -424,6 +451,40 @@ function populatedeptTable(Depts, school_id, tableId) {
 						</tr>
 					`;
                 tableBody.append(row);
+        });
+}
+
+function loadReassignDeptOptions(school_id, source_dept_id) {
+        const $target = $('#reassignDeptTarget');
+        $target.empty().append($('<option>', { value: '', text: 'Loading departments...' })).prop('disabled', true);
+
+        $.ajax({
+                method: 'POST',
+                url: 'model/getInfo.php',
+                data: { get_data: 'depts', school: school_id, faculty: 0, include_inactive: 0 },
+                success: function (response) {
+                        $target.empty().append($('<option>', { value: '', text: 'Select target department' }));
+
+                        if (response.status === 'success' && Array.isArray(response.departments)) {
+                                response.departments.forEach(function (dept) {
+                                        if (String(dept.id) === String(source_dept_id)) {
+                                                return;
+                                        }
+
+                                        $target.append($('<option>', {
+                                                value: dept.id,
+                                                text: dept.name
+                                        }));
+                                });
+                        }
+
+                        if ($target.find('option').length === 1) {
+                                $target.append($('<option>', { value: '', text: 'No other active departments available' }));
+                        }
+                },
+                complete: function () {
+                        $target.prop('disabled', false);
+                }
         });
 }
 
@@ -484,6 +545,47 @@ $(document).on('click', '.deactivate_dept', function (e) {
                         } else {
                                 showToast('bg-danger', data.message);
                         }
+                }
+        });
+});
+
+$(document).on('submit', '#reassignDeptForm', function (e) {
+        e.preventDefault();
+
+        const sourceDeptId = $('#reassignDeptForm [name="source_dept_id"]').val();
+        const targetDeptId = $('#reassignDeptForm [name="target_dept_id"]').val();
+        const schoolId = $('#reassignDeptForm [name="school_id"]').val();
+        const submitButton = $('#submitBtnReassignDept');
+
+        if (!sourceDeptId || !targetDeptId) {
+                showToast('bg-danger', 'Select a target department first.');
+                return;
+        }
+
+        submitButton.html('<span class="spinner-border spinner-border-sm mx-auto" role="status" aria-hidden="true"></span>').attr('disabled', true);
+
+        $.ajax({
+                url: 'model/department.php',
+                method: 'POST',
+                data: {
+                        reassign_students: 1,
+                        source_dept_id: sourceDeptId,
+                        target_dept_id: targetDeptId,
+                        school_id: schoolId
+                },
+                success: function (data) {
+                        if (data.status == 'success') {
+                                showToast('bg-success', data.message);
+                                $('#reassignDeptModal').modal('hide');
+
+                                const facultyFilter = $('#department_faculty').length ? ($('#department_faculty').val() || 0) : 0;
+                                fetchDepts(schoolId, facultyFilter);
+                        } else {
+                                showToast('bg-danger', data.message);
+                        }
+                },
+                complete: function () {
+                        submitButton.html('Reassign Students').attr('disabled', false);
                 }
         });
 });
@@ -697,4 +799,14 @@ function loadDeptFacultyFilter(school_id, selected_id = 0) {
 $(document).on('change', '#school', function () {
         const schoolId = $(this).val();
         loadDeptFacultyFilter(schoolId);
+});
+
+$(document).on('change', '#showInactiveDepartments', function () {
+        const schoolId = getDeptSearchSchoolId();
+        const facultyId = $('#department_faculty').length ? ($('#department_faculty').val() || 0) : 0;
+        if (!schoolId || schoolId === '0') {
+                return;
+        }
+
+        fetchDepts(schoolId, facultyId);
 });
