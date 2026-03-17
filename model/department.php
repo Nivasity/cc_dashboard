@@ -55,38 +55,20 @@ function handleDepartmentStatusChange(mysqli $conn, int $user_id, int $admin_rol
     return;
   }
 
-  $allowedStatuses = ['active', 'deactivated', 'delete'];
+  $allowedStatuses = ['active', 'deactivated'];
   if (!in_array($status, $allowedStatuses, true)) {
     $messageRes = 'Invalid department status supplied.';
     return;
   }
 
   $school_condition = ($admin_role == 5) ? " AND school_id = $admin_school" : '';
-
-  if ($status !== 'delete') {
-    mysqli_query($conn, "UPDATE depts SET status = '" . mysqli_real_escape_string($conn, $status) . "' WHERE id = $dept_id$school_condition");
-
-    if (mysqli_affected_rows($conn) >= 1) {
-      $statusRes = 'success';
-      $messageRes = 'Status changed successfully!';
-      log_audit_event($conn, $user_id, 'status_change', 'department', $dept_id, [
-        'new_status' => $status,
-        'restricted_school' => $admin_role == 5 ? $admin_school : null
-      ]);
-      return;
-    }
-
-    $statusRes = 'error';
-    $messageRes = 'Internal Server Error. Please try again later!';
-    return;
-  }
-
-  mysqli_query($conn, "DELETE FROM depts WHERE id = $dept_id$school_condition");
+  mysqli_query($conn, "UPDATE depts SET status = '" . mysqli_real_escape_string($conn, $status) . "' WHERE id = $dept_id$school_condition");
 
   if (mysqli_affected_rows($conn) >= 1) {
     $statusRes = 'success';
-    $messageRes = 'dept deleted successfully!';
-    log_audit_event($conn, $user_id, 'delete', 'department', $dept_id, [
+    $messageRes = 'Status changed successfully!';
+    log_audit_event($conn, $user_id, 'status_change', 'department', $dept_id, [
+      'new_status' => $status,
       'restricted_school' => $admin_role == 5 ? $admin_school : null
     ]);
     return;
