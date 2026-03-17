@@ -51,10 +51,10 @@ if ($school > 0) {
   $stats_sql .= " AND (b.school_id = $school OR (b.school_id IS NULL AND u.school = $school))";
 }
 if ($faculty != 0) {
-  $stats_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
+  $stats_sql .= buildHostedMaterialFacultyFilter('m', $faculty);
 }
 if ($dept > 0) {
-  $stats_sql .= " AND m.dept = $dept";
+  $stats_sql .= buildHostedMaterialDeptFilter('m', $dept);
 }
 
 $stats_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date);
@@ -75,10 +75,10 @@ if ($school > 0) {
   $mode_sql .= " AND (b.school_id = $school OR (b.school_id IS NULL AND u.school = $school))";
 }
 if ($faculty != 0) {
-  $mode_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
+  $mode_sql .= buildHostedMaterialFacultyFilter('m', $faculty);
 }
 if ($dept > 0) {
-  $mode_sql .= " AND m.dept = $dept";
+  $mode_sql .= buildHostedMaterialDeptFilter('m', $dept);
 }
 
 $mode_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date);
@@ -116,10 +116,10 @@ if ($stats_query && $mode_query) {
       $prev_stats_sql .= " AND (b.school_id = $school OR (b.school_id IS NULL AND u.school = $school))";
     }
     if ($faculty != 0) {
-      $prev_stats_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
+      $prev_stats_sql .= buildHostedMaterialFacultyFilter('m', $faculty);
     }
     if ($dept > 0) {
-      $prev_stats_sql .= " AND m.dept = $dept";
+      $prev_stats_sql .= buildHostedMaterialDeptFilter('m', $dept);
     }
     
     // Calculate previous period based on date range

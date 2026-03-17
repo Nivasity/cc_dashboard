@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once(__DIR__ . '/config.php');
+require_once(__DIR__ . '/transactions_helpers.php');
 
 $status = 'failed';
 $message = '';
@@ -28,18 +29,18 @@ if ($user_school > 0) {
 } elseif ($admin_role == 5) {
   $material_sql .= " AND m.school_id = $admin_school";
   if ($admin_faculty != 0) {
-    $material_sql .= " AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))";
+    $material_sql .= buildHostedMaterialFacultyFilter('m', $admin_faculty);
   }
 } else {
   if ($school > 0) {
     $material_sql .= " AND m.school_id = $school";
   }
   if ($faculty != 0) {
-    $material_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
+    $material_sql .= buildHostedMaterialFacultyFilter('m', $faculty);
   }
 }
 if ($dept > 0 && $user_school == 0) {
-  $material_sql .= " AND m.dept = $dept";
+  $material_sql .= buildHostedMaterialDeptFilter('m', $dept);
 }
 $material_sql .= " ORDER BY m.title ASC";
 

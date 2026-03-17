@@ -34,4 +34,56 @@ function buildDateFilter($conn, $date_range, $start_date, $end_date) {
   
   return $date_filter;
 }
+
+/**
+ * Build SQL clause for filtering materials by host faculty, falling back to faculty.
+ *
+ * @param string $manual_alias
+ * @param int $faculty_id
+ * @return string
+ */
+function buildHostedMaterialFacultyFilter($manual_alias, $faculty_id) {
+  $faculty_id = intval($faculty_id);
+  if ($faculty_id <= 0) {
+    return '';
+  }
+
+  $manual_alias = trim((string)$manual_alias);
+  if ($manual_alias === '') {
+    $manual_alias = 'm';
+  }
+
+  return " AND (
+    CASE
+      WHEN {$manual_alias}.host_faculty IS NOT NULL AND {$manual_alias}.host_faculty <> 0 THEN {$manual_alias}.host_faculty
+      ELSE IFNULL({$manual_alias}.faculty, 0)
+    END = {$faculty_id}
+  )";
+}
+
+/**
+ * Build SQL clause for filtering materials by department.
+ * Uses legacy dept when set, otherwise checks membership inside depts.
+ *
+ * @param string $manual_alias
+ * @param int $dept_id
+ * @return string
+ */
+function buildHostedMaterialDeptFilter($manual_alias, $dept_id) {
+  $dept_id = intval($dept_id);
+  if ($dept_id <= 0) {
+    return '';
+  }
+
+  $manual_alias = trim((string)$manual_alias);
+  if ($manual_alias === '') {
+    $manual_alias = 'm';
+  }
+
+  return " AND (
+    (IFNULL({$manual_alias}.dept, 0) <> 0 AND {$manual_alias}.dept = {$dept_id})
+    OR
+    (IFNULL({$manual_alias}.dept, 0) = 0 AND {$manual_alias}.depts IS NOT NULL AND {$manual_alias}.depts <> '' AND FIND_IN_SET({$dept_id}, {$manual_alias}.depts))
+  )";
+}
 ?>

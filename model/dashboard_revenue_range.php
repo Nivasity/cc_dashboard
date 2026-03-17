@@ -1,5 +1,7 @@
 <?php
 
+require_once(__DIR__ . '/transactions_helpers.php');
+
 if (!function_exists('get_dashboard_revenue_range_payload')) {
   function get_dashboard_revenue_range_payload($conn, $admin_role, $admin_school, $admin_faculty, $range_raw)
   {
@@ -67,7 +69,7 @@ if (!function_exists('dashboard_build_amount_base_sql')) {
     if ($admin_role === 5 && $admin_school > 0) {
       $base .= " AND EXISTS (SELECT 1 FROM manuals_bought b JOIN manuals m ON b.manual_id = m.id LEFT JOIN depts d ON m.dept = d.id WHERE b.ref_id = t.ref_id AND b.status='successful' AND b.school_id = {$admin_school}";
       if ($admin_faculty !== 0) {
-        $base .= " AND (m.faculty = {$admin_faculty} OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = {$admin_faculty}))";
+        $base .= buildHostedMaterialFacultyFilter('m', $admin_faculty);
       }
       $base .= ")";
     }

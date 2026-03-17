@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once(__DIR__ . '/config.php');
+require_once(__DIR__ . '/transactions_helpers.php');
 
 $status = 'failed';
 $message = '';
@@ -44,8 +45,7 @@ if ($admin_role == 5 && $admin_school > 0) {
   $school_safe = (int)$admin_school;
   $tran_sql .= " AND (b.school_id = $school_safe OR (b.school_id IS NULL AND u.school = $school_safe))";
   if ($admin_faculty != 0) {
-    $faculty_safe = (int)$admin_faculty;
-    $tran_sql .= " AND (m.faculty = $faculty_safe OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty_safe))";
+    $tran_sql .= buildHostedMaterialFacultyFilter('m', $admin_faculty);
   }
 }
 

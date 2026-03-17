@@ -47,10 +47,10 @@ if ($school > 0) {
   $tran_sql .= " AND (b.school_id = $school OR (b.school_id IS NULL AND u.school = $school))";
 }
 if ($faculty != 0) {
-  $tran_sql .= " AND (m.faculty = $faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $faculty))";
+  $tran_sql .= buildHostedMaterialFacultyFilter('m', $faculty);
 }
 if ($dept > 0) {
-  $tran_sql .= " AND m.dept = $dept";
+  $tran_sql .= buildHostedMaterialDeptFilter('m', $dept);
 }
 
 $tran_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date);

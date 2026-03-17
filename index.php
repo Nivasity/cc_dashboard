@@ -83,7 +83,7 @@ if ($admin_role == 5 && $admin_school > 0) {
   if ($admin_faculty == 0) {
     $open_materials = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS count FROM manuals m WHERE m.status='open' AND m.school_id = $admin_school"))['count'] ?? 0);
   } else {
-    $open_materials = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS count FROM manuals m LEFT JOIN depts d ON m.dept = d.id WHERE m.status='open' AND m.school_id = $admin_school AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))"))['count'] ?? 0);
+    $open_materials = (int) (mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS count FROM manuals m LEFT JOIN depts d ON m.dept = d.id WHERE m.status='open' AND m.school_id = $admin_school AND (CASE WHEN m.host_faculty IS NOT NULL AND m.host_faculty <> 0 THEN m.host_faculty ELSE IFNULL(m.faculty, 0) END = $admin_faculty)"))['count'] ?? 0);
   }
 }
 
@@ -122,7 +122,7 @@ $transactions_where = " WHERE t.status = 'successful' AND YEAR(t.created_at) = Y
 if ($admin_role == 5 && $admin_school > 0) {
   $transactions_where .= " AND EXISTS (SELECT 1 FROM manuals_bought b JOIN manuals m ON b.manual_id = m.id LEFT JOIN depts d ON m.dept = d.id WHERE b.ref_id = t.ref_id AND b.status='successful' AND b.school_id = $admin_school";
   if ($admin_faculty != 0) {
-    $transactions_where .= " AND (m.faculty = $admin_faculty OR ((m.faculty IS NULL OR m.faculty = 0) AND d.faculty_id = $admin_faculty))";
+    $transactions_where .= " AND (CASE WHEN m.host_faculty IS NOT NULL AND m.host_faculty <> 0 THEN m.host_faculty ELSE IFNULL(m.faculty, 0) END = $admin_faculty)";
   }
   $transactions_where .= ")";
 }

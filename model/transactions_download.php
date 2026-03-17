@@ -83,10 +83,10 @@ if ($school > 0) {
   $tran_sql .= " AND u.school = $school";
 }
 if ($faculty != 0) {
-  $tran_sql .= " AND ud.faculty_id = $faculty";
+  $tran_sql .= buildHostedMaterialFacultyFilter('m', $faculty);
 }
 if ($dept > 0) {
-  $tran_sql .= " AND u.dept = $dept";
+  $tran_sql .= buildHostedMaterialDeptFilter('m', $dept);
 }
 if ($material_id > 0) {
   $tran_sql .= " AND m.id = $material_id";
