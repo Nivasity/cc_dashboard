@@ -347,10 +347,10 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
 
       const rows = Array.isArray(data.exports) ? data.exports : [];
       exportsTableBody.innerHTML = rows.map((item) => {
-        const materialLabel = escapeHtml(truncateText(item.title, 25));
+        const materialLabel = escapeHtml(truncateText(item.title, 30));
         const courseCode = escapeHtml(item.course_code || 'N/A');
         const grantedBy = item.granted_by_name ? escapeHtml(item.granted_by_name) : 'N/A';
-        const schoolLabel = escapeHtml(item.school_name);
+        const schoolLabel = escapeHtml(truncateText(item.school_name, 25));
         const facultyLabel = escapeHtml(item.faculty_name || 'N/A');
         return `
           <tr>
