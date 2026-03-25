@@ -82,13 +82,8 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
                     <button type="submit" class="btn btn-secondary">Search</button>
                   </div>
                 </form>
-                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3">
-                  <div>
-                    <h5 class="mb-0">Granted Exports</h5>
-                    <small class="text-muted" id="resultMeta">Loading granted exports...</small>
-                  </div>
-                </div>
-                <div class="table-responsive text-nowrap">
+
+                <div class="table-responsive text-nowrap mt-3">
                   <table class="table table-striped align-middle" id="grantedExportsTable">
                     <thead class="table-secondary">
                       <tr>
@@ -173,7 +168,6 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
     const deptSelect = document.getElementById('dept');
     const dateRangeSelect = document.getElementById('dateRange');
     const customDateRange = document.getElementById('customDateRange');
-    const resultMeta = document.getElementById('resultMeta');
     const exportsTableBody = document.getElementById('exportsTableBody');
     const studentsTableBody = document.getElementById('studentsTableBody');
     const studentsModalTitle = document.getElementById('studentsModalTitle');
@@ -348,11 +342,8 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
 
       if (!data.success) {
         exportsTableBody.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">Failed to load granted exports.</td></tr>';
-        resultMeta.textContent = data.message || 'Failed to load granted exports.';
         return;
       }
-
-      resultMeta.textContent = `${data.count} granted export${data.count === 1 ? '' : 's'} found.`;
 
       const rows = Array.isArray(data.exports) ? data.exports : [];
       exportsTableBody.innerHTML = rows.map((item) => {
