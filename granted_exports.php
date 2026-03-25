@@ -32,7 +32,7 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
           <div class="container-xxl flex-grow-1 container-p-y">
             <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Resources Management /</span> Granted Exports</h4>
 
-            <div class="card mb-4">
+            <div class="card mb-4" id="grantedExportsCard">
               <div class="card-body">
                 <form id="filterForm" class="row g-3 mb-2">
                   <div class="col-md-3">
@@ -82,26 +82,19 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
                     <button type="submit" class="btn btn-secondary">Search</button>
                   </div>
                 </form>
-              </div>
-            </div>
-
-            <div class="card">
-              <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center">
-                <div>
-                  <h5 class="mb-0">Granted Exports</h5>
-                  <small class="text-muted" id="resultMeta">Loading granted exports...</small>
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-3">
+                  <div>
+                    <h5 class="mb-0">Granted Exports</h5>
+                    <small class="text-muted" id="resultMeta">Loading granted exports...</small>
+                  </div>
                 </div>
-              </div>
-              <div class="card-body">
                 <div class="table-responsive text-nowrap">
-                  <table class="table table-striped align-middle">
+                  <table class="table table-striped align-middle" id="grantedExportsTable">
                     <thead class="table-secondary">
                       <tr>
                         <th>Export Code</th>
                         <th>Material</th>
                         <th>School</th>
-                        <th>Faculty</th>
-                        <th>Department</th>
                         <th>No. of Students</th>
                         <th>Date Granted</th>
                         <th>Granted By</th>
@@ -110,7 +103,7 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
                     </thead>
                     <tbody id="exportsTableBody">
                       <tr>
-                        <td colspan="9" class="text-center text-muted py-4">Loading granted exports...</td>
+                        <td colspan="7" class="text-center text-muted py-4">Loading granted exports...</td>
                       </tr>
                     </tbody>
                   </table>
@@ -139,7 +132,7 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
         </div>
         <div class="modal-body">
           <div class="table-responsive text-nowrap">
-            <table class="table table-striped align-middle mb-0">
+            <table class="table table-striped align-middle mb-0" id="studentsModalTable">
               <thead class="table-secondary">
                 <tr>
                   <th>Student Name</th>
@@ -166,6 +159,8 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
 
   <script src="assets/vendor/libs/jquery/jquery.min.js"></script>
   <script src="assets/vendor/js/bootstrap.min.js"></script>
+  <script src="https://cdn.datatables.net/2.1.8/js/dataTables.js"></script>
+  <script src="https://cdn.datatables.net/2.1.8/js/dataTables.bootstrap5.js"></script>
   <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
   <script src="assets/vendor/libs/popper/popper.min.js"></script>
   <script src="assets/vendor/js/menu.min.js"></script>
@@ -186,6 +181,8 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
     const studentsModal = new bootstrap.Modal(document.getElementById('studentsModal'));
     const initialFacultyOptions = facultySelect.innerHTML;
     const initialDeptOptions = deptSelect.innerHTML;
+    let exportsDataTable = null;
+    let studentsDataTable = null;
 
     function escapeHtml(value) {
       return String(value ?? '')
@@ -222,6 +219,54 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
         currency: 'NGN',
         maximumFractionDigits: 0
       }).format(numericAmount);
+    }
+
+    function truncateText(value, length = 25) {
+      const text = String(value ?? '').trim();
+      if (text.length <= length) {
+        return text;
+      }
+
+      return `${text.slice(0, length)}...`;
+    }
+
+    function resetExportsDataTable() {
+      if (exportsDataTable) {
+        exportsDataTable.destroy();
+        exportsDataTable = null;
+      }
+    }
+
+    function initializeExportsDataTable() {
+      resetExportsDataTable();
+      exportsDataTable = new DataTable('#grantedExportsTable', {
+        order: [[4, 'desc']],
+        pageLength: 10,
+        language: {
+          emptyTable: 'No granted exports found for the selected filters.'
+        },
+        columnDefs: [
+          { orderable: false, targets: 6 }
+        ]
+      });
+    }
+
+    function resetStudentsDataTable() {
+      if (studentsDataTable) {
+        studentsDataTable.destroy();
+        studentsDataTable = null;
+      }
+    }
+
+    function initializeStudentsDataTable() {
+      resetStudentsDataTable();
+      studentsDataTable = new DataTable('#studentsModalTable', {
+        order: [[0, 'asc']],
+        pageLength: 10,
+        language: {
+          emptyTable: 'No students found in this export.'
+        }
+      });
     }
 
     function toggleCustomDateRange() {
@@ -299,33 +344,35 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
       const params = new URLSearchParams(new FormData(filterForm));
       const response = await fetch(`model/granted_exports.php?action=list&${params.toString()}`);
       const data = await response.json();
+      resetExportsDataTable();
 
       if (!data.success) {
-        exportsTableBody.innerHTML = '<tr><td colspan="9" class="text-center text-danger py-4">Failed to load granted exports.</td></tr>';
+        exportsTableBody.innerHTML = '<tr><td colspan="7" class="text-center text-danger py-4">Failed to load granted exports.</td></tr>';
         resultMeta.textContent = data.message || 'Failed to load granted exports.';
         return;
       }
 
       resultMeta.textContent = `${data.count} granted export${data.count === 1 ? '' : 's'} found.`;
 
-      if (!Array.isArray(data.exports) || data.exports.length === 0) {
-        exportsTableBody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No granted exports found for the selected filters.</td></tr>';
-        return;
-      }
-
-      exportsTableBody.innerHTML = data.exports.map((item) => {
-        const materialLabel = `${escapeHtml(item.title)} (${escapeHtml(item.course_code)})`;
+      const rows = Array.isArray(data.exports) ? data.exports : [];
+      exportsTableBody.innerHTML = rows.map((item) => {
+        const materialLabel = escapeHtml(truncateText(item.title, 25));
+        const courseCode = escapeHtml(item.course_code || 'N/A');
         const grantedBy = item.granted_by_name ? escapeHtml(item.granted_by_name) : 'N/A';
+        const schoolLabel = escapeHtml(item.school_name);
+        const facultyLabel = escapeHtml(item.faculty_name || 'N/A');
         return `
           <tr>
             <td><span class="badge bg-label-primary">${escapeHtml(item.code)}</span></td>
             <td>
-              <div class="fw-semibold">${materialLabel}</div>
+              <div class="fw-semibold" title="${escapeHtml(item.title)}">${materialLabel}</div>
+              <small class="text-muted d-block">${courseCode}</small>
               <small class="text-muted">HOC: ${escapeHtml(item.hoc_name || 'N/A')}</small>
             </td>
-            <td>${escapeHtml(item.school_name)}</td>
-            <td>${escapeHtml(item.faculty_name)}</td>
-            <td>${escapeHtml(item.dept_name)}</td>
+            <td>
+              <div>${schoolLabel}</div>
+              <small class="text-muted d-block">${facultyLabel}</small>
+            </td>
             <td>${escapeHtml(item.students_count)}</td>
             <td>${escapeHtml(formatDate(item.granted_at))}</td>
             <td>${grantedBy}</td>
@@ -337,11 +384,14 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
           </tr>
         `;
       }).join('');
+
+      initializeExportsDataTable();
     }
 
     async function fetchStudents(exportId, exportCode) {
       studentsModalTitle.textContent = `Export Students - ${exportCode}`;
       studentsModalMeta.textContent = 'Loading students...';
+      resetStudentsDataTable();
       studentsTableBody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">Loading students...</td></tr>';
       studentsModal.show();
 
@@ -357,12 +407,8 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
       const exportMeta = data.export || {};
       studentsModalMeta.textContent = `${exportMeta.students_count || 0} student${Number(exportMeta.students_count || 0) === 1 ? '' : 's'} • Granted ${formatDate(exportMeta.granted_at)} • By ${exportMeta.granted_by_name || 'N/A'}`;
 
-      if (!Array.isArray(data.students) || data.students.length === 0) {
-        studentsTableBody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No students found in this export.</td></tr>';
-        return;
-      }
-
-      studentsTableBody.innerHTML = data.students.map((student) => `
+      const students = Array.isArray(data.students) ? data.students : [];
+      studentsTableBody.innerHTML = students.map((student) => `
         <tr>
           <td>${escapeHtml(student.full_name)}</td>
           <td>${escapeHtml(student.email)}</td>
@@ -374,6 +420,8 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
           <td><span class="badge bg-label-success">${student.is_granted ? 'Granted' : 'Pending'}</span></td>
         </tr>
       `).join('');
+
+      initializeStudentsDataTable();
     }
 
     dateRangeSelect.addEventListener('change', toggleCustomDateRange);
