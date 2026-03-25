@@ -157,11 +157,16 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
   <script src="https://cdn.datatables.net/2.1.8/js/dataTables.js"></script>
   <script src="https://cdn.datatables.net/2.1.8/js/dataTables.bootstrap5.js"></script>
   <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
   <script src="assets/vendor/libs/popper/popper.min.js"></script>
   <script src="assets/vendor/js/menu.min.js"></script>
   <script src="assets/js/ui-toasts.js"></script>
   <script src="assets/js/main.js"></script>
   <script>
+    const $schoolSelect = $('#school');
+    const $facultySelect = $('#faculty');
+    const $deptSelect = $('#dept');
+    const $dateRangeSelect = $('#dateRange');
     const filterForm = document.getElementById('filterForm');
     const schoolSelect = document.getElementById('school');
     const facultySelect = document.getElementById('faculty');
@@ -177,6 +182,21 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
     const initialDeptOptions = deptSelect.innerHTML;
     let exportsDataTable = null;
     let studentsDataTable = null;
+
+    function initializeTopSelect2() {
+      $schoolSelect.select2({ theme: 'bootstrap-5', width: '100%' });
+      $facultySelect.select2({ theme: 'bootstrap-5', width: '100%' });
+      $deptSelect.select2({ theme: 'bootstrap-5', width: '100%' });
+      $dateRangeSelect.select2({ theme: 'bootstrap-5', width: '100%' });
+    }
+
+    function refreshSelect2($element) {
+      if ($element.hasClass('select2-hidden-accessible')) {
+        $element.select2('destroy');
+      }
+
+      $element.select2({ theme: 'bootstrap-5', width: '100%' });
+    }
 
     function escapeHtml(value) {
       return String(value ?? '')
@@ -273,6 +293,7 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
       if (schoolId === '0') {
         facultySelect.innerHTML = initialFacultyOptions;
         facultySelect.value = '0';
+        refreshSelect2($facultySelect);
         return;
       }
 
@@ -299,12 +320,15 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
           );
         });
       }
+
+      refreshSelect2($facultySelect);
     }
 
     async function loadDepartments() {
       if ((schoolSelect.value || '0') === '0') {
         deptSelect.innerHTML = initialDeptOptions;
         deptSelect.value = '0';
+        refreshSelect2($deptSelect);
         return;
       }
 
@@ -332,6 +356,8 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
           );
         });
       }
+
+      refreshSelect2($deptSelect);
     }
 
     async function fetchExports() {
@@ -441,6 +467,7 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
     });
 
     (async function init() {
+      initializeTopSelect2();
       toggleCustomDateRange();
       await fetchExports();
     })();
