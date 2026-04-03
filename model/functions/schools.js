@@ -75,15 +75,15 @@ function fetchSchools() {
                                 return a.name.localeCompare(b.name);
                         });
 
-                        if ($.fn.dataTable.isDataTable('.table')) {
-                                const dataTableInstance = $('.table').DataTable();
+                        if ($.fn.dataTable.isDataTable('.school_table')) {
+                                const dataTableInstance = $('.school_table').DataTable();
                                 dataTableInstance.clear().draw().destroy();
                         }
 
                         populateschoolTable(sortedSchools, '#schools_table');
                 },
                 complete: function () {
-                        InitiateDatatable('.table');
+                        InitiateDatatable('.school_table');
                 }
         });
 }
@@ -96,23 +96,25 @@ function populateschoolTable(Schools, tableId) {
 
         Schools.forEach(school => {
                 const domain = school.domain || '';
+                const statusClass = school.status === 'active' ? 'success' : 'danger';
+                const statusLabel = school.status === 'active' ? 'Active' : 'Deactivated';
                 const row = `
 							<tr>
 								<td>
 									<i class="text-primary me-3"></i> <strong>${school.name}</strong>
 								</td>
 								<td class="text-uppercase">${school.code}</td>
-                                                                <td>${domain || '<span class="text-muted">Not set</span>'}</td>
+								<td>${domain || '<span class="text-muted">Not set</span>'}</td>
 								<td>${school.total_departments}</td>
 								<td>${school.total_students}</td>
-                <td><span class="fw-bold badge bg-label-${school.status == 'active' ? 'success">Active' : 'danger">Deactivated'}</span></td>
+								<td><span class="fw-bold badge bg-label-${statusClass}">${statusLabel}</span></td>
                 <td>
                     <div class="dropstart">
                         <button type="button" class="btn p-0 dropdown-toggle hide-arrow" data-bs-toggle="dropdown" aria-expanded="true">
                             <i class="bx bx-dots-vertical-rounded"></i>
                         </button>
                         <div class="dropdown-menu">
-                                                        <a class="dropdown-item viewSchool" href="javascript:void(0);" data-id="${school.id}" data-name="${school.name}" data-code="${school.code}" data-domain="${domain}"><i class="bx bx-edit me-1"></i> Edit</a>
+                                                                                                                <a class="dropdown-item viewSchool" href="javascript:void(0);" data-id="${school.id}" data-name="${school.name}" data-code="${school.code}" data-domain="${domain}"><i class="bx bx-edit me-1"></i> Edit</a>
                             <a href="javascript:void(0);" 
 															class="dropdown-item deactivate" 
 															data-id="${school.id}" 

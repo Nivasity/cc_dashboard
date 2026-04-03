@@ -95,7 +95,7 @@ if ($admin_role == 5) {
                         <button type="button" id="downloadSchools" class="btn btn-success">Download CSV</button>
                       </div>
                       <div class="table-responsive text-nowrap">
-                        <table class="table">
+                        <table class="table school_table">
                           <thead class="table-secondary">
                             <tr>
                               <th>Name</th>
