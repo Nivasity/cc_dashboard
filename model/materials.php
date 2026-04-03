@@ -85,6 +85,20 @@ function buildMaterialDeptFilterClause($dept_id) {
 }
 
 /**
+ * Build SQL clause for filtering materials by creator type.
+ *
+ * @param string $creator_type
+ * @return string
+ */
+function buildMaterialCreatorFilterClause($creator_type) {
+  if ($creator_type === 'users') {
+    return " AND IFNULL(m.admin_id, 0) = 0 AND IFNULL(m.user_id, 0) <> 0";
+  }
+
+  return " AND IFNULL(m.admin_id, 0) <> 0";
+}
+
+/**
  * Parse comma-separated department IDs into unique integer array.
  *
  * @param string|null $csv
@@ -338,7 +352,11 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
   $school = intval($_GET['school'] ?? 0);
   $faculty = intval($_GET['faculty'] ?? 0);
   $dept = intval($_GET['dept'] ?? 0);
-  $date_range = $_GET['date_range'] ?? '7';
+  $creator_type = $_GET['creator_type'] ?? 'admins';
+  if ($creator_type !== 'users') {
+    $creator_type = 'admins';
+  }
+  $date_range = $_GET['date_range'] ?? 'all';
   $start_date = $_GET['start_date'] ?? '';
   $end_date = $_GET['end_date'] ?? '';
   
@@ -357,8 +375,10 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
   if ($dept > 0) {
     $material_sql .= buildMaterialDeptFilterClause($dept);
   }
-  // Add date filter
-  $material_sql .= buildMaterialDateFilter($conn, $date_range, $start_date, $end_date);
+  $material_sql .= buildMaterialCreatorFilterClause($creator_type);
+  if ($creator_type === 'users') {
+    $material_sql .= buildMaterialDateFilter($conn, $date_range, $start_date, $end_date);
+  }
   $material_sql .= " GROUP BY m.id ORDER BY m.created_at DESC";
   $mat_query = mysqli_query($conn, $material_sql);
 
@@ -468,7 +488,11 @@ if(isset($_GET['fetch'])){
   }
 
   if($fetch == 'materials'){
-    $date_range = $_GET['date_range'] ?? '7';
+    $creator_type = $_GET['creator_type'] ?? 'admins';
+    if ($creator_type !== 'users') {
+      $creator_type = 'admins';
+    }
+    $date_range = $_GET['date_range'] ?? 'all';
     $start_date = $_GET['start_date'] ?? '';
     $end_date = $_GET['end_date'] ?? '';
     
@@ -489,8 +513,10 @@ if(isset($_GET['fetch'])){
     if($dept > 0){
       $material_sql .= buildMaterialDeptFilterClause($dept);
     }
-    // Add date filter
-    $material_sql .= buildMaterialDateFilter($conn, $date_range, $start_date, $end_date);
+    $material_sql .= buildMaterialCreatorFilterClause($creator_type);
+    if ($creator_type === 'users') {
+      $material_sql .= buildMaterialDateFilter($conn, $date_range, $start_date, $end_date);
+    }
     $material_sql .= " GROUP BY m.id ORDER BY m.created_at DESC";
     $mat_query = mysqli_query($conn, $material_sql);
     

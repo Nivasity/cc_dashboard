@@ -2,8 +2,9 @@ $(document).ready(function () {
   // Configuration constants
   var SUCCESS_MESSAGE_DISPLAY_DURATION = 1500; // milliseconds - time to show success message before closing modal
   var UNSELECTED_VALUE = 0; // Value indicating no selection in dropdowns (matches backend constant)
-  var DEFAULT_DATE_RANGE = '30'; // Default date range for filtering (Last 30 Days)
-  
+  var DEFAULT_DATE_RANGE = '30'; // Default date range when filtering user-created materials
+  var DEFAULT_CREATOR_TYPE = 'admins';
+
   var adminRole = window.adminRole || 0;
   var adminSchool = window.adminSchool || 0;
   var adminFaculty = window.adminFaculty || 0;
@@ -33,8 +34,24 @@ $(document).ready(function () {
   }
 
   InitiateDatatable('.table');
-  $('#school, #faculty, #dept, #dateRange').select2({ theme: 'bootstrap-5', width: '100%' });
-  
+  $('#school, #faculty, #dept, #creatorType, #dateRange').select2({ theme: 'bootstrap-5', width: '100%' });
+
+  function getCreatorType() {
+    return $('#creatorType').val() || DEFAULT_CREATOR_TYPE;
+  }
+
+  function isUserMaterialsFilterActive() {
+    return getCreatorType() === 'users';
+  }
+
+  function syncDateRangeVisibility() {
+    var showDateFilter = isUserMaterialsFilterActive();
+    $('#dateRangeFilterGroup').toggleClass('d-none', !showDateFilter);
+    $('#customDateRange').toggleClass('d-none', !showDateFilter || $('#dateRange').val() !== 'custom');
+  }
+
+  syncDateRangeVisibility();
+
   // Fetch materials on page load
   fetchMaterials();
 
@@ -95,9 +112,11 @@ $(document).ready(function () {
     var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
     var deptId = $('#dept').val();
-    var dateRange = $('#dateRange').val() || DEFAULT_DATE_RANGE;
-    var startDate = $('#startDate').val();
-    var endDate = $('#endDate').val();
+    var creatorType = getCreatorType();
+    var isUserMaterials = creatorType === 'users';
+    var dateRange = isUserMaterials ? ($('#dateRange').val() || DEFAULT_DATE_RANGE) : 'all';
+    var startDate = isUserMaterials ? $('#startDate').val() : '';
+    var endDate = isUserMaterials ? $('#endDate').val() : '';
 
     // Show loading state
     showTableLoading();
@@ -105,11 +124,12 @@ $(document).ready(function () {
     $.ajax({
       url: 'model/materials.php',
       method: 'GET',
-      data: { 
-        fetch: 'materials', 
-        school: schoolId, 
-        faculty: facultyId, 
+      data: {
+        fetch: 'materials',
+        school: schoolId,
+        faculty: facultyId,
         dept: deptId,
+        creator_type: creatorType,
         date_range: dateRange,
         start_date: startDate,
         end_date: endDate
@@ -122,7 +142,7 @@ $(document).ready(function () {
         }
         var tbody = $('.table tbody');
         tbody.empty();
-        
+
         // Check for error response
         if (res.status === 'error') {
           console.error('Backend error:', res.message);
@@ -130,7 +150,7 @@ $(document).ready(function () {
           hideTableLoading();
           return;
         }
-        
+
         if (res.status === 'success' && res.materials) {
           $.each(res.materials, function (i, mat) {
             var actionHtml = '<div class="dropstart">' +
@@ -157,21 +177,21 @@ $(document).ready(function () {
 
             actionHtml += '<a href="javascript:void(0);" class="dropdown-item downloadMaterialTransactions" data-id="' + mat.id + '" data-code="' + (mat.code || '') + '"><i class="bx bx-download me-1"></i> Download transactions list</a>' +
               '</div></div>';
-            
+
             // Posted By column - show admin with role badge OR user with matric number
             var postedHtml = '<span class="text-uppercase text-primary">' + (mat.posted_by || 'Unknown') + '</span>';
             if (mat.is_admin) {
               // Show admin role in badge if it's an admin
-              if (mat.role_or_matric && String(mat.role_or_matric).trim()) { 
-                postedHtml += '<br><span class="badge bg-label-secondary">' + mat.role_or_matric + '</span>'; 
+              if (mat.role_or_matric && String(mat.role_or_matric).trim()) {
+                postedHtml += '<br><span class="badge bg-label-secondary">' + mat.role_or_matric + '</span>';
               }
             } else {
               // Show matric number for users
-              if (mat.role_or_matric && String(mat.role_or_matric).trim()) { 
-                postedHtml += '<br>Matric no: ' + mat.role_or_matric; 
+              if (mat.role_or_matric && String(mat.role_or_matric).trim()) {
+                postedHtml += '<br>Matric no: ' + mat.role_or_matric;
               }
             }
-            
+
             // Title column with faculty, dept, and level info
             var titleHtml = '<strong>' + mat.title + ' (' + mat.course_code + ')</strong>';
             var metaInfo = [];
@@ -195,7 +215,7 @@ $(document).ready(function () {
             } else {
               coverageHtml = '<span class="badge bg-label-primary">' + (mat.coverage_label || 'Custom') + '</span>';
             }
-            
+
             var row = '<tr>' +
               '<td class="text-uppercase">' + (mat.code || '') + '</td>' +
               '<td class="text-uppercase">' + titleHtml + '</td>' +
@@ -211,14 +231,14 @@ $(document).ready(function () {
           });
         }
         InitiateDatatable('.table');
-        
+
         // Hide loading state after table is loaded
         hideTableLoading();
       },
-      error: function(xhr, status, error) {
+      error: function (xhr, status, error) {
         console.error('Error fetching materials:', error);
         console.error('Response:', xhr.responseText);
-        
+
         // Show error message
         if (xhr.responseJSON && xhr.responseJSON.message) {
           Swal.fire({
@@ -227,7 +247,7 @@ $(document).ready(function () {
             text: xhr.responseJSON.message
           });
         }
-        
+
         // Hide loading state on error
         hideTableLoading();
       }
@@ -261,7 +281,21 @@ $(document).ready(function () {
     fetchMaterials();
   });
 
+  $('#creatorType').on('change', function () {
+    if (!isUserMaterialsFilterActive()) {
+      $('#dateRange').val(DEFAULT_DATE_RANGE).trigger('change.select2');
+      $('#startDate').val('');
+      $('#endDate').val('');
+    }
+    syncDateRangeVisibility();
+    fetchMaterials();
+  });
+
   $('#dateRange').on('change', function () {
+    if (!isUserMaterialsFilterActive()) {
+      $('#customDateRange').addClass('d-none');
+      return;
+    }
     var dateRange = $(this).val();
     if (dateRange === 'custom') {
       $('#customDateRange').removeClass('d-none');
@@ -272,6 +306,9 @@ $(document).ready(function () {
   });
 
   $('#startDate, #endDate').on('change', function () {
+    if (!isUserMaterialsFilterActive()) {
+      return;
+    }
     var startDate = $('#startDate').val();
     var endDate = $('#endDate').val();
     if (startDate && endDate) {
@@ -334,7 +371,7 @@ $(document).ready(function () {
         link.download = filename;
         document.body.appendChild(link);
         link.click();
-        setTimeout(function(){
+        setTimeout(function () {
           window.URL.revokeObjectURL(url);
           document.body.removeChild(link);
         }, 100);
@@ -360,18 +397,21 @@ $(document).ready(function () {
     var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
     var deptId = $('#dept').val();
-    var dateRange = $('#dateRange').val() || DEFAULT_DATE_RANGE;
-    var startDate = $('#startDate').val();
-    var endDate = $('#endDate').val();
+    var creatorType = getCreatorType();
+    var isUserMaterials = creatorType === 'users';
+    var dateRange = isUserMaterials ? ($('#dateRange').val() || DEFAULT_DATE_RANGE) : 'all';
+    var startDate = isUserMaterials ? $('#startDate').val() : '';
+    var endDate = isUserMaterials ? $('#endDate').val() : '';
 
     $.ajax({
       url: 'model/materials.php',
       method: 'GET',
-      data: { 
-        download: 'csv', 
-        school: schoolId, 
-        faculty: facultyId, 
+      data: {
+        download: 'csv',
+        school: schoolId,
+        faculty: facultyId,
         dept: deptId,
+        creator_type: creatorType,
         date_range: dateRange,
         start_date: startDate,
         end_date: endDate
@@ -379,7 +419,7 @@ $(document).ready(function () {
       xhrFields: { responseType: 'blob' },
       beforeSend: function () {
         $btn.prop('disabled', true)
-            .html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Downloading...');
+          .html('<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Downloading...');
       },
       success: function (data, status, xhr) {
         var blob = data;
@@ -394,7 +434,7 @@ $(document).ready(function () {
         link.download = filename;
         document.body.appendChild(link);
         link.click();
-        setTimeout(function(){
+        setTimeout(function () {
           window.URL.revokeObjectURL(url);
           document.body.removeChild(link);
         }, 100);
@@ -445,14 +485,14 @@ $(document).ready(function () {
     e.preventDefault();
     var materialId = $(this).data('id');
     var materialTitle = $(this).data('title');
-    
+
     if (!materialId) {
       if (typeof showToast === 'function') {
         showToast('bg-danger', 'Invalid material selected.');
       }
       return;
     }
-    
+
     // First confirmation using SweetAlert if available
     if (typeof Swal !== 'undefined') {
       Swal.fire({
@@ -528,19 +568,19 @@ $(document).ready(function () {
     // Change modal title and button text
     $('#materialModalTitle').text('Edit Course Material');
     $('#newMaterialSubmit').text('Update Material');
-    
+
     // Set material ID in hidden field
     $('#materialId').val(material.id);
-    
+
     // Set a flag to prevent the shown.bs.modal event from overwriting our values
     $('#newMaterialModal').data('isEditMode', true);
     $('#newMaterialModal').data('editMaterial', material);
-    
+
     // Populate editable fields
     $('#materialTitle').val(material.title);
     $('#materialCourseCode').val(material.course_code);
     $('#materialPrice').val(material.price);
-    
+
     // Load dropdown data and set selections BEFORE showing modal
     // This prevents select2 from reverting to defaults
     var schoolId = material.school_id;
@@ -557,14 +597,14 @@ $(document).ready(function () {
       deptSelections = [String(material.dept_id)];
     }
     var level = material.level || '';
-    
+
     // Step 1: Fetch school name and make it read-only
     // School cannot be changed during edit as it would invalidate faculty/dept relationships
     $.ajax({
       url: 'model/materials.php',
       method: 'GET',
-      data: { 
-        fetch: 'material_names', 
+      data: {
+        fetch: 'material_names',
         school_id: schoolId,
         host_faculty_id: 0,
         faculty_id: 0,
@@ -576,14 +616,14 @@ $(document).ready(function () {
         if (res.status === 'success') {
           // Destroy select2 on school field
           $('#materialSchool').select2('destroy');
-          
+
           // Replace school select with disabled text input showing the school name
           $('#materialSchool').replaceWith('<input type="text" class="form-control" id="materialSchool" value="' + res.school_name + '" disabled>');
-          
+
           // Add hidden input with school ID for form submission
           $('#newMaterialForm').append('<input type="hidden" class="dynamic-hidden" name="school" value="' + schoolId + '">');
         }
-        
+
         // Step 2: Fetch and populate faculties for this school
         $.ajax({
           url: 'model/materials.php',
@@ -593,11 +633,11 @@ $(document).ready(function () {
           success: function (res) {
             var $hostFac = $('#materialHostFaculty');
             var $fac = $('#materialFaculty');
-            
+
             // Populate both host faculty and faculty dropdowns
             $hostFac.empty();
             $fac.empty();
-            
+
             if (!res.restrict_faculty) {
               $hostFac.append('<option value="">Select Faculty Host</option>');
               $fac.append('<option value="">Select Faculty</option>');
@@ -608,11 +648,11 @@ $(document).ready(function () {
                 $fac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
               });
             }
-            
+
             // Set the selected values and trigger select2 to update display
             $hostFac.val(hostFacultyId).trigger('change.select2');
             $fac.val(facultyId).trigger('change.select2');
-            
+
             // Step 3: Fetch and populate departments
             $.ajax({
               url: 'model/materials.php',
@@ -624,28 +664,28 @@ $(document).ready(function () {
                 var deptList = (res.status === 'success' && res.departments) ? res.departments : [];
                 populateModalDeptOptions($dept, deptList, facultyId);
                 $dept.val(normalizeDepartmentSelection(deptSelections)).trigger('change.select2');
-                
+
                 // Step 4: Set level value and trigger select2 to update display
                 $('#materialLevel').val(level).trigger('change.select2');
-                
+
                 // Step 5: NOW show the modal - all data is loaded and selected
                 $('#newMaterialModal').modal('show');
               },
-              error: function() {
+              error: function () {
                 // On error, still show the modal with whatever data we have
                 $('#materialLevel').val(level).trigger('change.select2');
                 $('#newMaterialModal').modal('show');
               }
             });
           },
-          error: function() {
+          error: function () {
             // On error, still show the modal with basic data
             $('#materialLevel').val(level).trigger('change.select2');
             $('#newMaterialModal').modal('show');
           }
         });
       },
-      error: function() {
+      error: function () {
         // On error, still show the modal without school name replacement
         // Step 2: Fetch and populate faculties for this school
         $.ajax({
@@ -656,11 +696,11 @@ $(document).ready(function () {
           success: function (res) {
             var $hostFac = $('#materialHostFaculty');
             var $fac = $('#materialFaculty');
-            
+
             // Populate both host faculty and faculty dropdowns
             $hostFac.empty();
             $fac.empty();
-            
+
             if (!res.restrict_faculty) {
               $hostFac.append('<option value="">Select Faculty Host</option>');
               $fac.append('<option value="">Select Faculty</option>');
@@ -671,11 +711,11 @@ $(document).ready(function () {
                 $fac.append('<option value="' + fac.id + '">' + fac.name + '</option>');
               });
             }
-            
+
             // Set the selected values and trigger select2 to update display
             $hostFac.val(hostFacultyId).trigger('change.select2');
             $fac.val(facultyId).trigger('change.select2');
-            
+
             // Step 3: Fetch and populate departments
             $.ajax({
               url: 'model/materials.php',
@@ -687,21 +727,21 @@ $(document).ready(function () {
                 var deptList = (res.status === 'success' && res.departments) ? res.departments : [];
                 populateModalDeptOptions($dept, deptList, facultyId);
                 $dept.val(normalizeDepartmentSelection(deptSelections)).trigger('change.select2');
-                
+
                 // Step 4: Set level value and trigger select2 to update display
                 $('#materialLevel').val(level).trigger('change.select2');
-                
+
                 // Step 5: NOW show the modal - all data is loaded and selected
                 $('#newMaterialModal').modal('show');
               },
-              error: function() {
+              error: function () {
                 // On error, still show the modal with whatever data we have
                 $('#materialLevel').val(level).trigger('change.select2');
                 $('#newMaterialModal').modal('show');
               }
             });
           },
-          error: function() {
+          error: function () {
             // On error, still show the modal with basic data
             $('#materialLevel').val(level).trigger('change.select2');
             $('#newMaterialModal').modal('show');
@@ -735,11 +775,11 @@ $(document).ready(function () {
       success: function (res) {
         var $hostFac = $('#materialHostFaculty');
         var $fac = $('#materialFaculty');
-        
+
         // Update both host faculty and faculty dropdowns
         $hostFac.empty();
         $fac.empty();
-        
+
         if (!res.restrict_faculty) {
           $hostFac.append('<option value="">Select Faculty Host</option>');
           $fac.append('<option value="">Select Faculty</option>');
@@ -752,7 +792,7 @@ $(document).ready(function () {
         }
         $hostFac.prop('disabled', res.restrict_faculty);
         $fac.prop('disabled', res.restrict_faculty);
-        
+
         // For restricted admin role 5, use their assigned faculty
         var selected = '';
         if (res.restrict_faculty && adminRole == 5 && adminFaculty !== 0) {
@@ -841,7 +881,7 @@ $(document).ready(function () {
     var $submitBtn = $('#newMaterialSubmit');
     var materialId = $('#materialId').val();
     var isEdit = materialId && materialId !== '';
-    
+
     // Client-side validation
     if (!$form[0].checkValidity()) {
       $form[0].reportValidity();
@@ -853,17 +893,17 @@ $(document).ready(function () {
     var hostFacultyVal = $('#materialHostFaculty').val();
     var facultyVal = $('#materialFaculty').val();
     var deptVals = normalizeDepartmentSelection($('#materialDept').val() || []);
-    
+
     if (!schoolVal || schoolVal == UNSELECTED_VALUE) {
       $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Please select a school');
       return;
     }
-    
+
     if (!hostFacultyVal || hostFacultyVal == UNSELECTED_VALUE) {
       $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Please select a faculty host');
       return;
     }
-    
+
     if (!facultyVal || facultyVal == UNSELECTED_VALUE) {
       $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Please select a faculty (who can buy)');
       return;
@@ -880,7 +920,7 @@ $(document).ready(function () {
     var actionParam = isEdit ? 'update_material=1' : 'create_material=1';
     var buttonText = isEdit ? 'Updating...' : 'Creating...';
     var originalButtonText = isEdit ? 'Update Material' : 'Create Material';
-    
+
     $submitBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>' + buttonText);
     $alert.addClass('d-none');
 
@@ -924,19 +964,19 @@ $(document).ready(function () {
   $('#newMaterialModal').on('hidden.bs.modal', function () {
     $('#newMaterialForm')[0].reset();
     $('#newMaterialAlert').addClass('d-none');
-    
+
     // Reset to create mode
     $('#materialModalTitle').text('Add New Course Material');
     $('#newMaterialSubmit').text('Create Material');
     $('#materialId').val('');
-    
+
     // Clear edit mode flag
     $(this).removeData('isEditMode');
     $(this).removeData('editMaterial');
-    
+
     // Remove any hidden fields added during edit mode
     $('#newMaterialForm').find('input.dynamic-hidden').remove();
-    
+
     // If fields were replaced with disabled inputs during edit, restore them to select2 dropdowns
     // Check if materialSchool is currently a text input (disabled)
     if ($('#materialSchool').is('input[type="text"][disabled]')) {
@@ -946,12 +986,12 @@ $(document).ready(function () {
       $('#materialFaculty').replaceWith('<select class="form-select" id="materialFaculty" name="faculty" required></select>');
       $('#materialDept').replaceWith('<select class="form-select" id="materialDept" name="depts[]" multiple required></select>');
       $('#materialLevel').replaceWith('<select class="form-select" id="materialLevel" name="level"></select>');
-      
+
       // Re-initialize select2 on restored dropdowns
       $('#materialSchool, #materialHostFaculty, #materialFaculty, #materialLevel').select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal') });
       $('#materialDept').select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal'), closeOnSelect: false, placeholder: 'Select departments coverage' });
     }
-    
+
     // For restricted admins (role 5), restore their default values
     if (adminRole == 5) {
       if (adminSchool) {
@@ -969,7 +1009,7 @@ $(document).ready(function () {
       var $school = $('#materialSchool');
       var $hostFaculty = $('#materialHostFaculty');
       var $faculty = $('#materialFaculty');
-      
+
       if ($school.find('option').length > 1) {
         $school.val($school.find('option:first').val()).trigger('change.select2');
       }
@@ -991,7 +1031,7 @@ $(document).ready(function () {
       $(this).removeData('isEditMode');
       return;
     }
-    
+
     var schoolId = adminRole == 5 ? adminSchool : $('#materialSchool').val();
     if (schoolId) {
       fetchModalFaculties(schoolId);

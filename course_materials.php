@@ -72,6 +72,12 @@ if ($admin_role == 5) {
                     </select>
                   </div>
                   <div class="col-md-3">
+                    <select name="creator_type" id="creatorType" class="form-select">
+                      <option value="admins" selected>Admin Materials</option>
+                      <option value="users">User Materials</option>
+                    </select>
+                  </div>
+                  <div class="col-md-3 d-none" id="dateRangeFilterGroup">
                     <select name="date_range" id="dateRange" class="form-select">
                       <option value="7">Last 7 Days</option>
                       <option value="30" selected>Last 30 Days</option>
