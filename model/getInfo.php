@@ -2,6 +2,20 @@
 session_start();
 include('config.php');
 include('functions.php');
+
+function schools_domain_column_exists($conn) {
+  static $hasDomainColumn = null;
+
+  if ($hasDomainColumn !== null) {
+    return $hasDomainColumn;
+  }
+
+  $query = mysqli_query($conn, "SHOW COLUMNS FROM schools LIKE 'domain'");
+  $hasDomainColumn = $query && mysqli_num_rows($query) > 0;
+
+  return $hasDomainColumn;
+}
+
 $statusRes = 'failed';
 $schools = $depts = $faculties = null;
 $admin_role = $_SESSION['nivas_adminRole'] ?? null;
@@ -18,17 +32,20 @@ if (isset($_GET['download'])) {
   $type = $_GET['download'];
   if ($type === 'schools') {
     $where = ($admin_role == 5 && $admin_school) ? "WHERE id = $admin_school" : "";
-    $q = mysqli_query($conn, "SELECT id, name, code, status, created_at FROM schools $where ORDER BY name");
+    $hasDomainColumn = schools_domain_column_exists($conn);
+    $selectDomain = $hasDomainColumn ? ', domain' : '';
+    $q = mysqli_query($conn, "SELECT id, name, code{$selectDomain}, status, created_at FROM schools $where ORDER BY name");
     header('Content-Type: text/csv; charset=utf-8');
     header('Content-Disposition: attachment; filename="schools_' . date('Ymd_His') . '.csv"');
     $out = fopen('php://output', 'w');
-    fputcsv($out, ['Name', 'Short Name', 'Departments', 'Students', 'Status', 'Created At']);
+    fputcsv($out, ['Name', 'Short Name', 'Domain', 'Departments', 'Students', 'Status', 'Created At']);
     while ($s = mysqli_fetch_assoc($q)) {
       $dept_cnt = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM depts WHERE school_id = {$s['id']}"))['c'] ?? 0;
       $stud_cnt = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) AS c FROM users WHERE (role='student' OR role='hoc') AND school = {$s['id']}"))['c'] ?? 0;
       fputcsv($out, [
         $s['name'],
         $s['code'],
+        $hasDomainColumn ? ($s['domain'] ?? '') : '',
         $dept_cnt,
         $stud_cnt,
         $s['status'],
@@ -101,6 +118,7 @@ if (isset($_GET['get_data'])) {
   $get_data = $_GET['get_data'];
 
   if ($get_data == 'schools') {
+    $hasDomainColumn = schools_domain_column_exists($conn);
     if ($admin_role == 5) {
       $school_query = mysqli_query($conn, "SELECT * FROM schools WHERE id = $admin_school AND status = 'active'");
     } else {
@@ -126,6 +144,7 @@ if (isset($_GET['get_data'])) {
           'id' => $school['id'],
           'name' => $school['name'],
           'code' => $school['code'],
+          'domain' => $hasDomainColumn ? ($school['domain'] ?? '') : '',
           'status' => $school['status'],
           'total_students' => $total_students,
           'total_departments' => $total_departments

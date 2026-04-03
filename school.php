@@ -100,6 +100,7 @@ if ($admin_role == 5) {
                             <tr>
                               <th>Name</th>
                               <th>Short Name</th>
+                              <th>Domain</th>
                               <th>Depts</th>
                               <th>Students</th>
                               <th>Status</th>
@@ -309,6 +310,12 @@ if ($admin_role == 5) {
                     <label for="code" class="form-label">Short Name</label>
                     <input type="text" name="code" class="form-control"
                       placeholder="Enter school short name" required>
+                  </div>
+                  <div class="mb-3">
+                    <label for="domain" class="form-label">Domain</label>
+                    <input type="text" name="domain" class="form-control"
+                      placeholder="e.g. funaab.nivasity.com" required>
+                    <div class="form-text">Enter the host only. Do not include https:// or a trailing slash.</div>
                   </div>
                 </div>
                 <div class="modal-footer">

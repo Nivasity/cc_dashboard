@@ -95,12 +95,14 @@ function populateschoolTable(Schools, tableId) {
         tableBody.empty(); // Clear existing rows
 
         Schools.forEach(school => {
+                const domain = school.domain || '';
                 const row = `
 							<tr>
 								<td>
 									<i class="text-primary me-3"></i> <strong>${school.name}</strong>
 								</td>
 								<td class="text-uppercase">${school.code}</td>
+                                                                <td>${domain || '<span class="text-muted">Not set</span>'}</td>
 								<td>${school.total_departments}</td>
 								<td>${school.total_students}</td>
                 <td><span class="fw-bold badge bg-label-${school.status == 'active' ? 'success">Active' : 'danger">Deactivated'}</span></td>
@@ -110,7 +112,7 @@ function populateschoolTable(Schools, tableId) {
                             <i class="bx bx-dots-vertical-rounded"></i>
                         </button>
                         <div class="dropdown-menu">
-                            <a class="dropdown-item viewSchool" href="javascript:void(0);" data-id="${school.id}" data-name="${school.name}" data-code="${school.code}"><i class="bx bx-edit me-1"></i> Edit</a>
+                                                        <a class="dropdown-item viewSchool" href="javascript:void(0);" data-id="${school.id}" data-name="${school.name}" data-code="${school.code}" data-domain="${domain}"><i class="bx bx-edit me-1"></i> Edit</a>
                             <a href="javascript:void(0);" 
 															class="dropdown-item deactivate" 
 															data-id="${school.id}" 
@@ -159,11 +161,13 @@ $(document).on('click', '.viewSchool', function () {
         const school_id = $(this).data('id');
         const school_name = $(this).data('name');
         const school_code = $(this).data('code');
+        const school_domain = $(this).data('domain');
 
         // Populate modal with school data
         $('#newSchoolForm [name="school_id"]').val(school_id);
         $('#newSchoolForm [name="name"]').val(school_name);
         $('#newSchoolForm [name="code"]').val(school_code);
+        $('#newSchoolForm [name="domain"]').val(school_domain);
 
         // Open modal
         $('#newSchoolModal').modal('show');
