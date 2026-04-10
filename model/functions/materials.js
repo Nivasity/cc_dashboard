@@ -665,22 +665,22 @@ $(document).ready(function () {
                 populateModalDeptOptions($dept, deptList, facultyId);
                 $dept.val(normalizeDepartmentSelection(deptSelections)).trigger('change.select2');
 
-                // Step 4: Set level value and trigger select2 to update display
-                $('#materialLevel').val(level).trigger('change.select2');
+                // Step 4: Restore level options and select the current value
+                restoreMaterialLevelSelect(level);
 
                 // Step 5: NOW show the modal - all data is loaded and selected
                 $('#newMaterialModal').modal('show');
               },
               error: function () {
                 // On error, still show the modal with whatever data we have
-                $('#materialLevel').val(level).trigger('change.select2');
+                restoreMaterialLevelSelect(level);
                 $('#newMaterialModal').modal('show');
               }
             });
           },
           error: function () {
             // On error, still show the modal with basic data
-            $('#materialLevel').val(level).trigger('change.select2');
+            restoreMaterialLevelSelect(level);
             $('#newMaterialModal').modal('show');
           }
         });
@@ -728,22 +728,22 @@ $(document).ready(function () {
                 populateModalDeptOptions($dept, deptList, facultyId);
                 $dept.val(normalizeDepartmentSelection(deptSelections)).trigger('change.select2');
 
-                // Step 4: Set level value and trigger select2 to update display
-                $('#materialLevel').val(level).trigger('change.select2');
+                // Step 4: Restore level options and select the current value
+                restoreMaterialLevelSelect(level);
 
                 // Step 5: NOW show the modal - all data is loaded and selected
                 $('#newMaterialModal').modal('show');
               },
               error: function () {
                 // On error, still show the modal with whatever data we have
-                $('#materialLevel').val(level).trigger('change.select2');
+                restoreMaterialLevelSelect(level);
                 $('#newMaterialModal').modal('show');
               }
             });
           },
           error: function () {
             // On error, still show the modal with basic data
-            $('#materialLevel').val(level).trigger('change.select2');
+            restoreMaterialLevelSelect(level);
             $('#newMaterialModal').modal('show');
           }
         });
@@ -758,6 +758,32 @@ $(document).ready(function () {
   // New Material Modal functionality
   $('#materialSchool, #materialHostFaculty, #materialFaculty, #materialLevel').select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal') });
   $('#materialDept').select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal'), closeOnSelect: false, placeholder: 'Select departments coverage' });
+
+  function getMaterialLevelOptions(selectedValue) {
+    var currentValue = selectedValue === null || selectedValue === undefined ? '' : String(selectedValue);
+    var levels = ['', '100', '200', '300', '400', '500', '600', '700'];
+
+    return levels.map(function (levelValue) {
+      var label = levelValue === '' ? 'All Levels' : levelValue + ' Level';
+      var selected = currentValue === levelValue ? ' selected' : '';
+      return '<option value="' + levelValue + '"' + selected + '>' + label + '</option>';
+    }).join('');
+  }
+
+  function restoreMaterialLevelSelect(selectedValue) {
+    var $level = $('#materialLevel');
+    if ($level.length === 0) {
+      return;
+    }
+
+    if ($level.hasClass('select2-hidden-accessible')) {
+      $level.select2('destroy');
+    }
+
+    $level.html(getMaterialLevelOptions(selectedValue));
+    $level.select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal') });
+    $level.val(selectedValue === null || selectedValue === undefined ? '' : String(selectedValue)).trigger('change.select2');
+  }
 
   function fetchModalFaculties(schoolId) {
     if (adminRole == 5) {
@@ -985,12 +1011,14 @@ $(document).ready(function () {
       $('#materialHostFaculty').replaceWith('<select class="form-select" id="materialHostFaculty" name="host_faculty" required></select>');
       $('#materialFaculty').replaceWith('<select class="form-select" id="materialFaculty" name="faculty" required></select>');
       $('#materialDept').replaceWith('<select class="form-select" id="materialDept" name="depts[]" multiple required></select>');
-      $('#materialLevel').replaceWith('<select class="form-select" id="materialLevel" name="level"></select>');
+      $('#materialLevel').replaceWith('<select class="form-select" id="materialLevel" name="level">' + getMaterialLevelOptions('') + '</select>');
 
       // Re-initialize select2 on restored dropdowns
       $('#materialSchool, #materialHostFaculty, #materialFaculty, #materialLevel').select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal') });
       $('#materialDept').select2({ theme: 'bootstrap-5', width: '100%', dropdownParent: $('#newMaterialModal'), closeOnSelect: false, placeholder: 'Select departments coverage' });
     }
+
+    restoreMaterialLevelSelect('');
 
     // For restricted admins (role 5), restore their default values
     if (adminRole == 5) {
