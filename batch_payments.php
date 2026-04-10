@@ -216,7 +216,6 @@ if ($admin_role == 5) {
                   <th>Email</th>
                   <th>Price</th>
                   <th>Ref</th>
-                  <th>Note</th>
                   <th>Status</th>
                 </tr>
               </thead>

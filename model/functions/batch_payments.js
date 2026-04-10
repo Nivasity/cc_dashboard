@@ -21,6 +21,20 @@ $(document).ready(function () {
     var classes = 'alert-success alert-danger alert-warning alert-info alert-secondary';
     if (!message) { $alert.addClass('d-none').removeClass(classes); return; }
     $alert.removeClass('d-none').removeClass(classes).addClass('alert-' + color).text(message);
+
+    if (typeof showToast === 'function') {
+      var toastClass = 'bg-secondary';
+      if (color === 'success') {
+        toastClass = 'bg-success';
+      } else if (color === 'danger') {
+        toastClass = 'bg-danger';
+      } else if (color === 'warning') {
+        toastClass = 'bg-warning';
+      } else if (color === 'info') {
+        toastClass = 'bg-info';
+      }
+      showToast(toastClass, message);
+    }
   }
 
   function num(n) { return Number(n || 0); }
@@ -118,7 +132,7 @@ $(document).ready(function () {
         $txref.val(res.data.tx_ref || '');
         if (Number(res.data.student_count) > 0) { $submit.prop('disabled', false); }
         if (Number(res.data.unmatched_count || 0) > 0) {
-          showAlert('warning', Number(res.data.unmatched_count || 0) + ' matric number(s) were not matched in users. They will be stored with student_id 0.');
+          showAlert('warning', Number(res.data.unmatched_count || 0) + ' matric number(s) were not matched in users.');
         } else if (Number(res.data.duplicates_removed || 0) > 0) {
           showAlert('info', Number(res.data.duplicates_removed || 0) + ' duplicate matric number(s) were ignored from the CSV.');
         }
@@ -292,7 +306,7 @@ $(document).ready(function () {
     $.get('model/batch_payment_items.php', { batch_id: id }).done(function (res) {
       if (res.status === 'success' && Array.isArray(res.items)) {
         if (Number(res.unmatched_count || 0) > 0) {
-          $notice.removeClass('d-none').text(Number(res.unmatched_count || 0) + ' item(s) were not matched in users. Those rows were saved with student_id 0 and only retain the matric number.');
+          $notice.removeClass('d-none').text(Number(res.unmatched_count || 0) + ' item(s) were not matched in users.');
         }
         res.items.forEach(function (it) {
           var badge = 'secondary';
@@ -305,7 +319,6 @@ $(document).ready(function () {
             '<td>' + (it.email || '') + '</td>' +
             '<td>' + Number(it.price).toLocaleString() + '</td>' +
             '<td class="text-monospace">' + it.ref_id + '</td>' +
-            '<td>' + (it.note || '') + '</td>' +
             '<td><span class="badge bg-label-' + badge + '">' + it.status + '</span></td>' +
             '</tr>';
           $tbody.append(row);
