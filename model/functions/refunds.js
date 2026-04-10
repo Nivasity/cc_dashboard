@@ -21,7 +21,8 @@ $(document).ready(function () {
   var createState = {
     student: null,
     sourceValidated: false,
-    sourceMaterials: []
+    sourceMaterials: [],
+    sourceTransaction: null
   };
 
   $('#monitoringSchoolId, #queueSchoolId, #queueStatus').select2({
@@ -136,6 +137,7 @@ $(document).ready(function () {
 
   function invalidateSource(message) {
     createState.sourceValidated = false;
+    createState.sourceTransaction = null;
     clearMaterials();
     setFeedback($sourceLookupFeedback, message ? 'error' : 'muted', message || '');
     updateCreateSubmitState();
@@ -175,6 +177,7 @@ $(document).ready(function () {
 
         createState.sourceValidated = true;
         createState.sourceMaterials = materials;
+        createState.sourceTransaction = res.transaction || null;
 
         $createMaterials.empty();
         materials.forEach(function (material) {
@@ -192,7 +195,10 @@ $(document).ready(function () {
 
         $createMaterials.prop('disabled', false).val([]).trigger('change.select2');
         updateSelectedMaterialsTotal();
-        setFeedback($sourceLookupFeedback, 'success', 'Source ref validated. Select materials to refund.');
+        var refundMode = res.transaction && res.transaction.refund_mode === 'wallet_credit'
+          ? 'Wallet purchase detected. Approved refund will credit the buyer wallet immediately.'
+          : 'Gateway purchase detected. Approved refund remains a settlement offset while the student is refunded manually outside Nivasity.';
+        setFeedback($sourceLookupFeedback, 'success', 'Source ref validated. Select materials to refund. ' + refundMode);
         updateCreateSubmitState();
       },
       error: function (xhr) {
@@ -268,6 +274,7 @@ $(document).ready(function () {
     createState.student = null;
     createState.sourceValidated = false;
     createState.sourceMaterials = [];
+    createState.sourceTransaction = null;
 
     $createForm.trigger('reset');
     $createSourceRef.prop('disabled', true);
@@ -295,7 +302,7 @@ $(document).ready(function () {
     $tbody.empty();
 
     if (!Array.isArray(refunds) || refunds.length === 0) {
-      $tbody.append('<tr><td colspan="9" class="text-center text-muted">No refunds found.</td></tr>');
+      $tbody.append('<tr><td colspan="10" class="text-center text-muted">No refunds found.</td></tr>');
       if (queueTable) {
         queueTable.clear().destroy();
         queueTable = null;
@@ -305,6 +312,7 @@ $(document).ready(function () {
 
     refunds.forEach(function (refund) {
       var reason = escapeHtml(refund.reason || '');
+      var refundMode = refund.refund_mode === 'wallet_credit' ? 'Wallet Credit' : 'Settlement Offset';
       var studentText = refund.student_name ? escapeHtml(refund.student_name) : '-';
       if (refund.student_id) {
         studentText += '<br><small class="text-muted">ID: ' + escapeHtml(refund.student_id) + '</small>';
@@ -314,16 +322,17 @@ $(document).ready(function () {
 
       $tbody.append(
         '<tr>' +
-          '<td class="fw-semibold">' + escapeHtml(refund.ref_id) + '</td>' +
-          '<td>' + studentText + '</td>' +
-          '<td>' + formatCurrency(refund.amount) + '</td>' +
-          '<td>' + formatCurrency(refund.remaining_amount) + '</td>' +
-          '<td>' + formatCurrency(refund.consumed_amount) + '</td>' +
-          '<td><span class="badge bg-label-' + getBadgeClass(refund.status) + '">' +
-            escapeHtml((refund.status || '').replace('_', ' ')) + '</span></td>' +
-          '<td style="max-width: 240px;">' + reason + '</td>' +
-          '<td>' + escapeHtml(refund.created_at || '-') + '</td>' +
-          '<td>' + actions + '</td>' +
+        '<td class="fw-semibold">' + escapeHtml(refund.ref_id) + '</td>' +
+        '<td><span class="badge bg-label-' + (refund.refund_mode === 'wallet_credit' ? 'info' : 'warning') + '">' + escapeHtml(refundMode) + '</span></td>' +
+        '<td>' + studentText + '</td>' +
+        '<td>' + formatCurrency(refund.amount) + '</td>' +
+        '<td>' + formatCurrency(refund.remaining_amount) + '</td>' +
+        '<td>' + formatCurrency(refund.consumed_amount) + '</td>' +
+        '<td><span class="badge bg-label-' + getBadgeClass(refund.status) + '">' +
+        escapeHtml((refund.status || '').replace('_', ' ')) + '</span></td>' +
+        '<td style="max-width: 240px;">' + reason + '</td>' +
+        '<td>' + escapeHtml(refund.created_at || '-') + '</td>' +
+        '<td>' + actions + '</td>' +
         '</tr>'
       );
     });
@@ -335,7 +344,7 @@ $(document).ready(function () {
 
     queueTable = new DataTable('#refundQueueTable', {
       pageLength: 25,
-      order: [[7, 'desc']]
+      order: [[8, 'desc']]
     });
   }
 
@@ -351,9 +360,9 @@ $(document).ready(function () {
     rows.forEach(function (row) {
       $tbody.append(
         '<tr>' +
-          '<td>' + escapeHtml(row.school_name || ('School #' + row.school_id)) + '</td>' +
-          '<td>' + formatCurrency(row.outstanding_amount) + '</td>' +
-          '<td>' + escapeHtml(row.refunds_count || 0) + '</td>' +
+        '<td>' + escapeHtml(row.school_name || ('School #' + row.school_id)) + '</td>' +
+        '<td>' + formatCurrency(row.outstanding_amount) + '</td>' +
+        '<td>' + escapeHtml(row.refunds_count || 0) + '</td>' +
         '</tr>'
       );
     });
@@ -371,10 +380,10 @@ $(document).ready(function () {
     rows.forEach(function (row) {
       $tbody.append(
         '<tr>' +
-          '<td>' + escapeHtml(row.report_date || '-') + '</td>' +
-          '<td>' + escapeHtml(row.school_name || ('School #' + row.school_id)) + '</td>' +
-          '<td>' + formatCurrency(row.total_consumed) + '</td>' +
-          '<td>' + escapeHtml(row.consumed_rows || 0) + '</td>' +
+        '<td>' + escapeHtml(row.report_date || '-') + '</td>' +
+        '<td>' + escapeHtml(row.school_name || ('School #' + row.school_id)) + '</td>' +
+        '<td>' + formatCurrency(row.total_consumed) + '</td>' +
+        '<td>' + escapeHtml(row.consumed_rows || 0) + '</td>' +
         '</tr>'
       );
     });

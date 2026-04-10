@@ -2,6 +2,7 @@
 session_start();
 require_once(__DIR__ . '/config.php');
 require_once(__DIR__ . '/functions.php');
+require_once(__DIR__ . '/../../nivasity/model/refund_engine.php');
 
 header('Content-Type: application/json');
 
@@ -79,13 +80,6 @@ switch ($action) {
       methodNotAllowed('POST, PUT');
     }
     handleCreateRefund($conn, $adminScope, $request, $adminId);
-    break;
-
-  case 'cancel':
-    if (!in_array($method, ['POST', 'PATCH'], true)) {
-      methodNotAllowed('POST, PATCH');
-    }
-    handleCancelRefund($conn, $adminScope, $request, $adminId);
     break;
 
   default:
@@ -211,12 +205,22 @@ function handleQueue(mysqli $conn, array $adminScope, array $request): void
        {$consumedExpr} AS consumed_amount,
        {$statusExpr} AS status,
        r.reason,
+       COALESCE(NULLIF(t.payment_channel, ''), 'gateway') AS payment_channel,
+       COALESCE(NULLIF(t.transaction_context, ''), 'purchase') AS transaction_context,
+       COALESCE(NULLIF(t.medium, ''), 'UNKNOWN') AS medium,
+       CASE
+         WHEN COALESCE(NULLIF(t.payment_channel, ''), 'gateway') = 'wallet'
+           AND COALESCE(NULLIF(t.transaction_context, ''), 'purchase') = 'purchase'
+           THEN 'wallet_credit'
+         ELSE 'settlement_offset'
+       END AS refund_mode,
        r.created_at,
        r.updated_at
      FROM refunds r
      {$reservationAggJoin}
      LEFT JOIN schools s ON s.id = r.school_id
      LEFT JOIN users u ON u.id = r.student_id
+     LEFT JOIN transactions t ON t.ref_id = r.ref_id
      {$whereSql}
      ORDER BY r.created_at DESC, r.id DESC
      LIMIT {$limit} OFFSET {$offset}",
@@ -271,6 +275,15 @@ function handleDetail(mysqli $conn, array $adminScope, array $request): void
        {$consumedExpr} AS consumed_amount,
        {$statusExpr} AS status,
        r.reason,
+       COALESCE(NULLIF(t.payment_channel, ''), 'gateway') AS payment_channel,
+       COALESCE(NULLIF(t.transaction_context, ''), 'purchase') AS transaction_context,
+       COALESCE(NULLIF(t.medium, ''), 'UNKNOWN') AS medium,
+       CASE
+         WHEN COALESCE(NULLIF(t.payment_channel, ''), 'gateway') = 'wallet'
+           AND COALESCE(NULLIF(t.transaction_context, ''), 'purchase') = 'purchase'
+           THEN 'wallet_credit'
+         ELSE 'settlement_offset'
+       END AS refund_mode,
        r.created_at,
        r.updated_at
      FROM refunds r
@@ -284,6 +297,7 @@ function handleDetail(mysqli $conn, array $adminScope, array $request): void
      ) rr_agg ON rr_agg.refund_id = r.id
      LEFT JOIN schools s ON s.id = r.school_id
      LEFT JOIN users u ON u.id = r.student_id
+    LEFT JOIN transactions t ON t.ref_id = r.ref_id
      WHERE r.id = ?
      LIMIT 1",
     'i',
@@ -598,7 +612,16 @@ function handleLookupSource(mysqli $conn, array $adminScope, array $request): vo
        t.user_id,
        t.status,
        t.amount,
-       t.created_at
+       t.created_at,
+       COALESCE(NULLIF(t.payment_channel, ''), 'gateway') AS payment_channel,
+       COALESCE(NULLIF(t.transaction_context, ''), 'purchase') AS transaction_context,
+       COALESCE(NULLIF(t.medium, ''), 'UNKNOWN') AS medium,
+       CASE
+         WHEN COALESCE(NULLIF(t.payment_channel, ''), 'gateway') = 'wallet'
+           AND COALESCE(NULLIF(t.transaction_context, ''), 'purchase') = 'purchase'
+           THEN 'wallet_credit'
+         ELSE 'settlement_offset'
+       END AS refund_mode
      FROM transactions t
      WHERE t.ref_id = ?
      LIMIT 1",
@@ -623,247 +646,233 @@ function handleLookupSource(mysqli $conn, array $adminScope, array $request): vo
     ]);
   }
 
+  $transactionContext = strtolower(trim((string) ($transaction['transaction_context'] ?? 'purchase')));
+  if ($transactionContext !== 'purchase') {
+    respond(409, [
+      'status' => 'failed',
+      'message' => 'Only purchase transactions can be refunded from the admin dashboard.',
+      'transaction_context' => $transaction['transaction_context'] ?? null,
+    ]);
+  }
+
   $transactionUserId = isset($transaction['user_id']) ? (int) $transaction['user_id'] : 0;
   if ($transactionUserId !== $studentId) {
     respond(409, [
       'status' => 'failed',
-      'message' => 'Source transaction does not belong to the selected student.',
-    ]);
-  }
+      function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int $adminId): void
+      {
+        $sourceRefId = trim((string) ($request['source_ref_id'] ?? $request['source_ref'] ?? $request['ref_id'] ?? ''));
+        if ($sourceRefId === '') {
+          badRequest('source_ref_id is required.');
+        }
 
-  $materials = getRefundableMaterialsForRef($conn, $sourceRefId, $studentId);
+        $studentEmail = normalizeEmail($request['student_email'] ?? $request['email'] ?? null);
+        $selectedMaterialIds = normalizePositiveIntArray($request['material_ids'] ?? []);
+        if ($selectedMaterialIds === []) {
+          badRequest('Select at least one material to refund.');
+        }
 
-  if ($studentSchool > 0) {
-    foreach ($materials as $material) {
-      $materialSchoolId = isset($material['school_id']) ? (int) $material['school_id'] : 0;
-      if ($materialSchoolId > 0 && $materialSchoolId !== $studentSchool) {
-        respond(409, [
-          'status' => 'failed',
-          'message' => 'Student school does not match materials purchased for this source transaction.',
-        ]);
-      }
-    }
-  }
+        $reason = trim((string) ($request['reason'] ?? ''));
+        if ($reason === '') {
+          badRequest('reason is required.');
+        }
+        if (strlen($reason) > 2000) {
+          badRequest('reason cannot exceed 2000 characters.');
+        }
 
-  respond(200, [
-    'status' => 'success',
-    'message' => 'Source transaction validated.',
-    'transaction' => normalizeNumericRow($transaction, ['amount']),
-    'materials' => normalizeNumericRows($materials, ['price']),
-    'summary' => [
-      'materials_count' => count($materials),
-      'materials_total' => array_sum(array_map(static function (array $item): float {
-        return (float) ($item['price'] ?? 0);
-      }, $materials)),
-    ],
-  ]);
-}
-
-function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int $adminId): void
-{
-  $sourceRefId = trim((string) ($request['source_ref_id'] ?? $request['source_ref'] ?? $request['ref_id'] ?? ''));
-  if ($sourceRefId === '') {
-    badRequest('source_ref_id is required.');
-  }
-
-  $studentEmail = normalizeEmail($request['student_email'] ?? $request['email'] ?? null);
-  $selectedMaterialIds = normalizePositiveIntArray($request['material_ids'] ?? []);
-  if ($selectedMaterialIds === []) {
-    badRequest('Select at least one material to refund.');
-  }
-
-  $reason = trim((string) ($request['reason'] ?? ''));
-  if ($reason === '') {
-    badRequest('reason is required.');
-  }
-  if (strlen($reason) > 2000) {
-    badRequest('reason cannot exceed 2000 characters.');
-  }
-
-  $lockName = 'cc_refund_create_' . md5($sourceRefId);
-  $lockResult = acquireNamedLock($conn, $lockName, 10);
-  if ($lockResult !== 1) {
-    respond(409, [
-      'status' => 'failed',
-      'message' => 'Another refund creation is in progress for this source ref_id. Please retry.',
-    ]);
-  }
-
-  $httpStatus = 500;
-  $responsePayload = [
-    'status' => 'failed',
-    'message' => 'Failed to create refund.',
-  ];
-  $transactionStarted = false;
-  $preflightDetails = null;
-  $reallocationLogs = [];
-  $refundStateChanges = [];
-  $transactionCapLogs = [];
-  $affectedSourceRefs = [$sourceRefId => true];
-  $affectedRefundIds = [];
-  $postflightWarnings = [];
-  $createdRefund = null;
-
-  try {
-    $transactionRows = dbFetchAll(
-      $conn,
-      "SELECT
-         t.id,
-         t.ref_id,
-         t.user_id,
-         t.status,
-         u.school AS user_school
-       FROM transactions t
-       LEFT JOIN users u ON u.id = t.user_id
-       WHERE t.ref_id = ?
-       LIMIT 1",
-      's',
-      [$sourceRefId]
-    );
-
-    if ($transactionRows === []) {
-      $httpStatus = 404;
-      $responsePayload = [
-        'status' => 'failed',
-        'message' => 'Source transaction not found.',
-      ];
-    } else {
-      $studentRows = dbFetchAll(
-        $conn,
-        'SELECT id, school, first_name, last_name, email FROM users WHERE email = ? LIMIT 1',
-        's',
-        [$studentEmail]
-      );
-
-      if ($studentRows === []) {
-        $httpStatus = 404;
-        $responsePayload = [
-          'status' => 'failed',
-          'message' => 'No student found for the provided email.',
-        ];
-      } else {
-        $student = $studentRows[0];
-        $studentId = (int) ($student['id'] ?? 0);
-        $studentSchool = isset($student['school']) ? (int) $student['school'] : 0;
-        if ($studentSchool <= 0) {
-          $httpStatus = 409;
-          $responsePayload = [
+        $lockName = 'cc_refund_create_' . md5($sourceRefId);
+        $lockResult = acquireNamedLock($conn, $lockName, 10);
+        if ($lockResult !== 1) {
+          respond(409, [
             'status' => 'failed',
-            'message' => 'Student does not have a valid school assignment.',
-          ];
-        } else {
-          $schoolId = $studentSchool;
+            'message' => 'Another refund creation is in progress for this source ref_id. Please retry.',
+          ]);
+        }
+
+        try {
+          $transactionRows = dbFetchAll(
+            $conn,
+            "SELECT
+               t.id,
+               t.ref_id,
+               t.user_id,
+               t.status,
+               COALESCE(NULLIF(t.payment_channel, ''), 'gateway') AS payment_channel,
+               COALESCE(NULLIF(t.transaction_context, ''), 'purchase') AS transaction_context,
+               COALESCE(NULLIF(t.medium, ''), 'UNKNOWN') AS medium,
+               u.school AS user_school
+             FROM transactions t
+             LEFT JOIN users u ON u.id = t.user_id
+             WHERE t.ref_id = ?
+             LIMIT 1",
+            's',
+            [$sourceRefId]
+          );
+
+          if ($transactionRows === []) {
+            respond(404, [
+              'status' => 'failed',
+              'message' => 'Source transaction not found.',
+            ]);
+          }
+
+          $studentRows = dbFetchAll(
+            $conn,
+            'SELECT id, school, first_name, last_name, email FROM users WHERE email = ? LIMIT 1',
+            's',
+            [$studentEmail]
+          );
+          if ($studentRows === []) {
+            respond(404, [
+              'status' => 'failed',
+              'message' => 'No student found for the provided email.',
+            ]);
+          }
+
+          $student = $studentRows[0];
+          $studentId = (int) ($student['id'] ?? 0);
+          $schoolId = isset($student['school']) ? (int) $student['school'] : 0;
+          if ($schoolId <= 0) {
+            respond(409, [
+              'status' => 'failed',
+              'message' => 'Student does not have a valid school assignment.',
+            ]);
+          }
           enforceSchoolScope($adminScope, $schoolId);
+
           $sourceTransaction = $transactionRows[0];
           $sourceStatus = strtolower((string) ($sourceTransaction['status'] ?? ''));
           if (!in_array($sourceStatus, ['successful', 'success'], true)) {
-            $httpStatus = 400;
-            $responsePayload = [
+            respond(400, [
               'status' => 'failed',
               'message' => 'Source transaction must be successful before creating a refund.',
-            ];
-          } else {
-            $transactionUserId = isset($sourceTransaction['user_id']) ? (int) $sourceTransaction['user_id'] : 0;
-            if ($transactionUserId !== $studentId) {
-              $httpStatus = 409;
-              $responsePayload = [
+            ]);
+          }
+
+          if ((int) ($sourceTransaction['user_id'] ?? 0) !== $studentId) {
+            respond(409, [
+              'status' => 'failed',
+              'message' => 'Source transaction does not belong to the selected student.',
+            ]);
+          }
+
+          $transactionContext = strtolower(trim((string) ($sourceTransaction['transaction_context'] ?? 'purchase')));
+          if ($transactionContext !== 'purchase') {
+            respond(409, [
+              'status' => 'failed',
+              'message' => 'Only purchase transactions can be refunded from the admin dashboard.',
+            ]);
+          }
+
+          $refundableMaterials = getRefundableMaterialsForRef($conn, $sourceRefId, $studentId);
+          if ($refundableMaterials === []) {
+            respond(409, [
+              'status' => 'failed',
+              'message' => 'No refundable materials found for this source transaction.',
+            ]);
+          }
+
+          $materialsByManualId = [];
+          foreach ($refundableMaterials as $material) {
+            $manualId = isset($material['manual_id']) ? (int) $material['manual_id'] : 0;
+            if ($manualId > 0) {
+              $materialsByManualId[$manualId] = $material;
+            }
+          }
+
+          $amount = 0.0;
+          foreach ($selectedMaterialIds as $selectedManualId) {
+            if (!isset($materialsByManualId[$selectedManualId])) {
+              respond(400, [
                 'status' => 'failed',
-                'message' => 'Source transaction does not belong to the selected student.',
-              ];
-            } else {
-              $refundableMaterials = getRefundableMaterialsForRef($conn, $sourceRefId, $studentId);
-              if ($refundableMaterials === []) {
-                $httpStatus = 409;
-                $responsePayload = [
-                  'status' => 'failed',
-                  'message' => 'No refundable materials found for this source transaction.',
-                ];
-              } else {
-                $materialsByManualId = [];
-                foreach ($refundableMaterials as $material) {
-                  $manualId = isset($material['manual_id']) ? (int) $material['manual_id'] : 0;
-                  if ($manualId > 0) {
-                    $materialsByManualId[$manualId] = $material;
-                  }
-                }
+                'message' => 'One or more selected materials are invalid for this transaction.',
+              ]);
+            }
 
-                $selectedMaterials = [];
-                foreach ($selectedMaterialIds as $selectedManualId) {
-                  if (!isset($materialsByManualId[$selectedManualId])) {
-                    $httpStatus = 400;
-                    $responsePayload = [
-                      'status' => 'failed',
-                      'message' => 'One or more selected materials are invalid for this transaction.',
-                    ];
-                    break;
-                  }
+            $selectedMaterial = $materialsByManualId[$selectedManualId];
+            $selectedMaterialSchool = isset($selectedMaterial['school_id']) ? (int) $selectedMaterial['school_id'] : 0;
+            if ($selectedMaterialSchool > 0 && $selectedMaterialSchool !== $schoolId) {
+              respond(409, [
+                'status' => 'failed',
+                'message' => 'Selected materials do not match the student school.',
+              ]);
+            }
+            $amount += (float) ($selectedMaterial['price'] ?? 0);
+          }
 
-                  $selectedMaterial = $materialsByManualId[$selectedManualId];
-                  $selectedMaterialSchool = isset($selectedMaterial['school_id']) ? (int) $selectedMaterial['school_id'] : 0;
-                  if ($selectedMaterialSchool > 0 && $selectedMaterialSchool !== $schoolId) {
-                    $httpStatus = 409;
-                    $responsePayload = [
-                      'status' => 'failed',
-                      'message' => 'Selected materials do not match the student school.',
-                    ];
-                    break;
-                  }
+          if ($amount <= 0) {
+            respond(400, [
+              'status' => 'failed',
+              'message' => 'Selected materials produce a zero refund amount.',
+            ]);
+          }
 
-                  $selectedMaterials[] = $selectedMaterial;
-                }
+          $refundResult = createMaterialRefund(
+            $conn,
+            $sourceRefId,
+            $schoolId,
+            $studentId,
+            $selectedMaterialIds,
+            $reason
+          );
 
-                if ($httpStatus === 500) {
-                  $amount = 0.0;
-                  foreach ($selectedMaterials as $selectedMaterial) {
-                    $amount += (float) ($selectedMaterial['price'] ?? 0);
-                  }
+          if (empty($refundResult['status'])) {
+            $message = (string) ($refundResult['message'] ?? 'Refund creation failed.');
+            $statusCode = 422;
+            if (stripos($message, 'already have an active/completed refund') !== false || stripos($message, 'not valid for this source transaction') !== false) {
+              $statusCode = 409;
+            }
+            respond($statusCode, [
+              'status' => 'failed',
+              'message' => $message,
+            ]);
+          }
 
-                  if ($amount <= 0) {
-                    $httpStatus = 400;
-                    $responsePayload = [
-                      'status' => 'failed',
-                      'message' => 'Selected materials produce a zero refund amount.',
-                    ];
-                  } else {
-                    mysqli_begin_transaction($conn);
-                    $transactionStarted = true;
+          $refundId = (int) ($refundResult['refund_id'] ?? 0);
+          $createdRows = fetchRefundById($conn, $refundId, refundsHasMaterialsColumn($conn));
+          $createdRefund = $createdRows[0] ?? [
+            'id' => $refundId,
+            'school_id' => $schoolId,
+            'student_id' => $studentId,
+            'ref_id' => $sourceRefId,
+            'amount' => $amount,
+            'remaining_amount' => $amount,
+            'status' => 'pending',
+            'reason' => $reason,
+          ];
+          $createdRefund['refund_mode'] = (string) ($refundResult['refund_mode'] ?? (($sourceTransaction['payment_channel'] ?? 'gateway') === 'wallet' ? 'wallet_credit' : 'settlement_offset'));
+          $createdRefund['payment_channel'] = (string) ($sourceTransaction['payment_channel'] ?? 'gateway');
+          $createdRefund['transaction_context'] = (string) ($sourceTransaction['transaction_context'] ?? 'purchase');
+          $createdRefund['medium'] = (string) ($sourceTransaction['medium'] ?? 'UNKNOWN');
 
-                    $preflightDetails = reconcileSourceRefWithFallback($conn, $sourceRefId);
-                    if (isset($preflightDetails['affected_source_refs']) && is_array($preflightDetails['affected_source_refs'])) {
-                      foreach ($preflightDetails['affected_source_refs'] as $affectedSourceRef) {
-                        $affectedSourceRef = trim((string) $affectedSourceRef);
-                        if ($affectedSourceRef !== '') {
-                          $affectedSourceRefs[$affectedSourceRef] = true;
-                        }
-                      }
-                    }
-                    if (isset($preflightDetails['affected_refund_ids']) && is_array($preflightDetails['affected_refund_ids'])) {
-                      foreach ($preflightDetails['affected_refund_ids'] as $affectedRefundId) {
-                        $affectedRefundId = (int) $affectedRefundId;
-                        if ($affectedRefundId > 0) {
-                          $affectedRefundIds[$affectedRefundId] = true;
-                        }
-                      }
-                    }
+          if (function_exists('log_audit_event')) {
+            log_audit_event($conn, $adminId, 'create', 'refund', (string) $refundId, [
+              'before' => null,
+              'after' => $createdRefund,
+              'source_ref_id' => $sourceRefId,
+              'student_email' => $studentEmail,
+              'selected_materials_count' => count($selectedMaterialIds),
+              'selected_manual_ids' => array_values($selectedMaterialIds),
+              'refund_mode' => $createdRefund['refund_mode'],
+              'payment_channel' => $createdRefund['payment_channel'],
+            ]);
+          }
 
-                    $existingRows = dbFetchAll(
-                      $conn,
-                      "SELECT id, status, amount, remaining_amount, created_at
-                       FROM refunds
-                       WHERE school_id = ?
-                         AND ref_id = ?
-                         AND status <> 'cancelled'
-                       ORDER BY id DESC
-                       LIMIT 1",
-                      'is',
-                      [$schoolId, $sourceRefId]
-                    );
-
-                    if ($existingRows !== []) {
-                      mysqli_rollback($conn);
-                      $transactionStarted = false;
-                      $httpStatus = 409;
-                      $responsePayload = [
+          respond(201, [
+            'status' => 'success',
+            'message' => 'Refund created successfully.',
+            'refund' => normalizeNumericRow($createdRefund, ['amount', 'remaining_amount']),
+          ]);
+        } catch (Throwable $throwable) {
+          respond(500, [
+            'status' => 'failed',
+            'message' => 'Failed to create refund.',
+            'error' => $throwable->getMessage(),
+          ]);
+        } finally {
+          releaseNamedLock($conn, $lockName);
+        }
+      }
                         'status' => 'failed',
                         'message' => 'A non-cancelled refund already exists for this source transaction for the student school.',
                         'existing_refund' => normalizeNumericRow($existingRows[0], ['amount', 'remaining_amount']),
@@ -2112,7 +2121,7 @@ function normalizePositiveIntArray($value): array
 
 function getRefundableMaterialsForRef(mysqli $conn, string $sourceRefId, int $studentId): array
 {
-  return dbFetchAll(
+  $materials = dbFetchAll(
     $conn,
     "SELECT
        mb.manual_id,
@@ -2131,6 +2140,59 @@ function getRefundableMaterialsForRef(mysqli $conn, string $sourceRefId, int $st
     'si',
     [$sourceRefId, $studentId]
   );
+
+  if (!refundsHasMaterialsColumn($conn)) {
+    return $materials;
+  }
+
+  $activeRefundRows = dbFetchAll(
+    $conn,
+    "SELECT materials
+     FROM refunds
+     WHERE ref_id = ?
+       AND student_id = ?
+       AND status <> 'cancelled'",
+    'si',
+    [$sourceRefId, $studentId]
+  );
+
+  $excludedManualIds = [];
+  foreach ($activeRefundRows as $refundRow) {
+    foreach (parseRefundMaterialIdsFromJson($refundRow['materials'] ?? null) as $manualId) {
+      $excludedManualIds[$manualId] = true;
+    }
+  }
+
+  if ($excludedManualIds === []) {
+    return $materials;
+  }
+
+  return array_values(array_filter($materials, static function (array $material) use ($excludedManualIds): bool {
+    $manualId = isset($material['manual_id']) ? (int) $material['manual_id'] : 0;
+    return $manualId > 0 && !isset($excludedManualIds[$manualId]);
+  }));
+}
+
+function parseRefundMaterialIdsFromJson($materialsJson): array
+{
+  if ($materialsJson === null || $materialsJson === '') {
+    return [];
+  }
+
+  $decoded = json_decode((string) $materialsJson, true);
+  if (!is_array($decoded)) {
+    return [];
+  }
+
+  $materialIds = [];
+  foreach ($decoded as $materialId) {
+    $materialId = (int) $materialId;
+    if ($materialId > 0) {
+      $materialIds[$materialId] = true;
+    }
+  }
+
+  return array_keys($materialIds);
 }
 
 function refundsHasMaterialsColumn(mysqli $conn): bool

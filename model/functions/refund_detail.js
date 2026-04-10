@@ -48,11 +48,14 @@ $(document).ready(function () {
     $('#summarySchool').text(refund.school_name || ('School #' + (refund.school_id || '-')));
     $('#summaryStudent').text(refund.student_name || (refund.student_id ? ('ID ' + refund.student_id) : '-'));
     $('#summaryRefId').text(refund.ref_id || '-');
+    $('#summaryRefundMode').text(refund.refund_mode === 'wallet_credit' ? 'Wallet Credit' : 'Settlement Offset');
     $('#summaryStatus').html('<span class="badge bg-label-' + badgeClass(refund.status) + '">' +
       escapeHtml((refund.status || '').replace('_', ' ')) + '</span>');
     $('#summaryAmount').text(formatCurrency(refund.amount));
     $('#summaryRemaining').text(formatCurrency(refund.remaining_amount));
     $('#summaryConsumed').text(formatCurrency(refund.consumed_amount));
+    $('#summaryPaymentChannel').text(refund.payment_channel || '-');
+    $('#summaryMedium').text(refund.medium || '-');
     $('#summaryReason').text(refund.reason || '-');
 
     $('#totalReserved').text(formatCurrency(totals.total_reserved));
@@ -77,14 +80,14 @@ $(document).ready(function () {
     rows.forEach(function (row) {
       $tbody.append(
         '<tr>' +
-          '<td>' + escapeHtml(row.split_sequence || '-') + '</td>' +
-          '<td>' + escapeHtml(row.ref_id || '-') + '</td>' +
-          '<td>' + formatCurrency(row.amount) + '</td>' +
-          '<td><span class="badge bg-label-' + badgeClass(row.status) + '">' + escapeHtml(row.status || '-') + '</span></td>' +
-          '<td>' + escapeHtml(row.reserved_at || '-') + '</td>' +
-          '<td>' + escapeHtml(row.consumed_at || '-') + '</td>' +
-          '<td>' + escapeHtml(row.released_at || '-') + '</td>' +
-          '<td>' + escapeHtml(row.release_reason || '-') + '</td>' +
+        '<td>' + escapeHtml(row.split_sequence || '-') + '</td>' +
+        '<td>' + escapeHtml(row.ref_id || '-') + '</td>' +
+        '<td>' + formatCurrency(row.amount) + '</td>' +
+        '<td><span class="badge bg-label-' + badgeClass(row.status) + '">' + escapeHtml(row.status || '-') + '</span></td>' +
+        '<td>' + escapeHtml(row.reserved_at || '-') + '</td>' +
+        '<td>' + escapeHtml(row.consumed_at || '-') + '</td>' +
+        '<td>' + escapeHtml(row.released_at || '-') + '</td>' +
+        '<td>' + escapeHtml(row.release_reason || '-') + '</td>' +
         '</tr>'
       );
     });

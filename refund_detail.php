@@ -49,10 +49,13 @@ if ($refund_id <= 0) {
                     <div class="col-md-3"><span class="text-muted d-block">School</span><span id="summarySchool">-</span></div>
                     <div class="col-md-3"><span class="text-muted d-block">Student</span><span id="summaryStudent">-</span></div>
                     <div class="col-md-3"><span class="text-muted d-block">Source Ref ID</span><span id="summaryRefId">-</span></div>
+                    <div class="col-md-3"><span class="text-muted d-block">Refund Mode</span><span id="summaryRefundMode">-</span></div>
                     <div class="col-md-3"><span class="text-muted d-block">Status</span><span id="summaryStatus">-</span></div>
                     <div class="col-md-3"><span class="text-muted d-block">Amount</span><span id="summaryAmount">-</span></div>
                     <div class="col-md-3"><span class="text-muted d-block">Remaining</span><span id="summaryRemaining">-</span></div>
                     <div class="col-md-3"><span class="text-muted d-block">Consumed</span><span id="summaryConsumed">-</span></div>
+                    <div class="col-md-3"><span class="text-muted d-block">Payment Channel</span><span id="summaryPaymentChannel">-</span></div>
+                    <div class="col-md-3"><span class="text-muted d-block">Medium</span><span id="summaryMedium">-</span></div>
                     <div class="col-md-12"><span class="text-muted d-block">Reason</span><span id="summaryReason">-</span></div>
                   </div>
                 </div>

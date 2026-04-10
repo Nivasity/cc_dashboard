@@ -142,7 +142,6 @@ $thirtyDaysAgo = date('Y-m-d', strtotime('-29 days'));
                         <option value="pending">Pending</option>
                         <option value="partially_applied">Partially Applied</option>
                         <option value="applied">Applied</option>
-                        <option value="cancelled">Cancelled</option>
                       </select>
                     </div>
                     <div class="col-md-2">
@@ -165,6 +164,7 @@ $thirtyDaysAgo = date('Y-m-d', strtotime('-29 days'));
                       <thead class="table-secondary">
                         <tr>
                           <th>Source Ref</th>
+                          <th>Mode</th>
                           <th>Student</th>
                           <th>Amount</th>
                           <th>Remaining</th>
