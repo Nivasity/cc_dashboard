@@ -67,7 +67,15 @@ $(document).ready(function () {
   }
 
   function initSelect2() {
-    $('#bp_school, #bp_faculty, #bp_dept, #bp_manual, #filter_school, #filter_faculty, #filter_dept').select2({ theme: 'bootstrap-5', width: '100%' });
+    $('#filter_school, #filter_faculty, #filter_dept').select2({ theme: 'bootstrap-5', width: '100%' });
+
+    if (createBatchModalEl) {
+      $('#bp_school, #bp_faculty, #bp_dept, #bp_manual').select2({
+        theme: 'bootstrap-5',
+        width: '100%',
+        dropdownParent: $('#createBatchModal')
+      });
+    }
   }
 
   function loadFaculties($el, schoolId, selected) {
