@@ -193,6 +193,12 @@ $admin_faculty = $admin_['faculty'] ?? 0;
           <div data-i18n="Course Materials">Course Materials</div>
         </a>
       </li>
+      <li class="menu-item <?php echo $current_page == 'material_requests.php' ? 'active' : ''; ?>">
+        <a href="material_requests.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-message-square-detail"></i>
+          <div data-i18n="Material Requests">Material Requests</div>
+        </a>
+      </li>
       <?php if (in_array((int) $_SESSION['nivas_adminRole'], [1, 2, 3], true)) { ?>
       <li class="menu-item <?php echo $current_page == 'granted_exports.php' ? 'active' : ''; ?>">
         <a href="granted_exports.php" class="menu-link">
