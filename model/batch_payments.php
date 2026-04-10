@@ -81,30 +81,35 @@ function parse_uploaded_student_csv($field_name) {
 
   while (($row = fgetcsv($handle)) !== false) {
     $row_number++;
-    $matric = '';
+    $row_values = [];
     foreach ((array)$row as $cell) {
       $candidate = normalize_matric($cell);
       if ($candidate !== '') {
-        $matric = $candidate;
-        break;
+        $row_values[] = $candidate;
       }
     }
 
-    if ($matric === '') {
+    if (count($row_values) === 0) {
       continue;
     }
 
-    if ($row_number === 1 && is_csv_header_value($matric)) {
+    if ($row_number === 1 && count($row_values) === 1 && is_csv_header_value($row_values[0])) {
       continue;
     }
 
-    if (isset($seen[$matric])) {
-      $duplicates_removed++;
-      continue;
-    }
+    foreach ($row_values as $matric) {
+      if ($row_number === 1 && is_csv_header_value($matric)) {
+        continue;
+      }
 
-    $seen[$matric] = true;
-    $matrics[] = $matric;
+      if (isset($seen[$matric])) {
+        $duplicates_removed++;
+        continue;
+      }
+
+      $seen[$matric] = true;
+      $matrics[] = $matric;
+    }
   }
 
   fclose($handle);
