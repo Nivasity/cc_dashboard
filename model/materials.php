@@ -333,18 +333,32 @@ $messageRes = '';
 $faculties = $departments = $materials = null;
 $restrict_faculty = false;
 
-$admin_role = $_SESSION['nivas_adminRole'] ?? null;
-$admin_id = $_SESSION['nivas_adminId'] ?? null;
+$admin_role = isset($_SESSION['nivas_adminRole']) ? (int) $_SESSION['nivas_adminRole'] : 0;
+$admin_id = isset($_SESSION['nivas_adminId']) ? (int) $_SESSION['nivas_adminId'] : 0;
 $admin_school = $admin_faculty = UNSELECTED_VALUE;
-if ($admin_role == 5 && $admin_id) {
+$admin_exists = false;
+if ($admin_id > 0) {
   $stmt = mysqli_prepare($conn, "SELECT school, faculty FROM admins WHERE id = ?");
   mysqli_stmt_bind_param($stmt, 'i', $admin_id);
   mysqli_stmt_execute($stmt);
   $result = mysqli_stmt_get_result($stmt);
   $info = mysqli_fetch_assoc($result);
-  $admin_school = $info['school'];
-  $admin_faculty = $info['faculty'];
+  if ($info) {
+    $admin_exists = true;
+    $admin_school = intval($info['school'] ?? UNSELECTED_VALUE);
+    $admin_faculty = intval($info['faculty'] ?? UNSELECTED_VALUE);
+  }
   mysqli_stmt_close($stmt);
+}
+
+function ensureValidMaterialAdminSession($admin_id, $admin_exists, &$statusRes, &$messageRes) {
+  if (intval($admin_id) > 0 && $admin_exists) {
+    return true;
+  }
+
+  $statusRes = 'error';
+  $messageRes = 'Your admin session is invalid. Sign in again and retry.';
+  return false;
 }
 
 // Handle CSV download for filtered materials
@@ -638,6 +652,10 @@ if(isset($_GET['fetch'])){
 }
 
 if(isset($_POST['toggle_id'])){
+  if (!ensureValidMaterialAdminSession($admin_id, $admin_exists, $statusRes, $messageRes)) {
+    goto materials_response;
+  }
+
   $id = intval($_POST['toggle_id']);
   $manual_res = mysqli_fetch_assoc(mysqli_query($conn, "SELECT m.status, m.school_id, m.faculty, m.dept, m.depts, m.coverage, m.title, m.course_code FROM manuals m WHERE m.id = $id"));
   if($manual_res){
@@ -684,6 +702,10 @@ if(isset($_POST['toggle_id'])){
 
 // Handle new material creation
 if(isset($_POST['create_material'])){
+  if (!ensureValidMaterialAdminSession($admin_id, $admin_exists, $statusRes, $messageRes)) {
+    goto materials_response;
+  }
+
   $school = intval($_POST['school'] ?? UNSELECTED_VALUE);
   $host_faculty = intval($_POST['host_faculty'] ?? UNSELECTED_VALUE);
   $faculty = intval($_POST['faculty'] ?? UNSELECTED_VALUE);
@@ -844,6 +866,10 @@ if(isset($_POST['create_material'])){
 
 // Handle material update
 if(isset($_POST['update_material'])){
+  if (!ensureValidMaterialAdminSession($admin_id, $admin_exists, $statusRes, $messageRes)) {
+    goto materials_response;
+  }
+
   $material_id = intval($_POST['material_id'] ?? 0);
   $school = intval($_POST['school'] ?? UNSELECTED_VALUE);
   $host_faculty = intval($_POST['host_faculty'] ?? UNSELECTED_VALUE);
@@ -1001,6 +1027,10 @@ if(isset($_POST['update_material'])){
 
 // Handle material deletion
 if(isset($_POST['delete_material'])){
+  if (!ensureValidMaterialAdminSession($admin_id, $admin_exists, $statusRes, $messageRes)) {
+    goto materials_response;
+  }
+
   $material_id = intval($_POST['material_id'] ?? 0);
   
   // Validate material ID
@@ -1058,6 +1088,7 @@ if(isset($_POST['delete_material'])){
   }
 }
 
+materials_response:
 $responseData = array(
   'status' => $statusRes,
   'message' => $messageRes,
