@@ -59,6 +59,36 @@ function ccMaterialRequestDeptNames($conn, $deptIdsJson) {
   return $resolved;
 }
 
+function ccMaterialRequestFacultyNames($conn, $facultyIdsJson) {
+  $facultyIds = json_decode((string) $facultyIdsJson, true);
+  if (!is_array($facultyIds) || empty($facultyIds)) {
+    return [];
+  }
+
+  $facultyIds = array_values(array_unique(array_filter(array_map('intval', $facultyIds))));
+  if (empty($facultyIds)) {
+    return [];
+  }
+
+  $facultyList = implode(',', $facultyIds);
+  $names = [];
+  $rs = mysqli_query($conn, "SELECT id, name FROM faculties WHERE id IN ($facultyList)");
+  if ($rs) {
+    while ($row = mysqli_fetch_assoc($rs)) {
+      $names[(int) $row['id']] = (string) ($row['name'] ?? '');
+    }
+  }
+
+  $resolved = [];
+  foreach ($facultyIds as $facultyId) {
+    if (isset($names[$facultyId]) && $names[$facultyId] !== '') {
+      $resolved[] = $names[$facultyId];
+    }
+  }
+
+  return $resolved;
+}
+
 function ccMaterialRequestAudienceLabel($conn, array $row) {
   $scope = (string) ($row['scope'] ?? 'school');
   if ($scope === 'school') {
@@ -67,6 +97,10 @@ function ccMaterialRequestAudienceLabel($conn, array $row) {
   if ($scope === 'faculty') {
     $facultyName = trim((string) ($row['target_faculty_name'] ?? ''));
     return $facultyName !== '' ? 'All students in ' . $facultyName : 'Selected faculty';
+  }
+  if ($scope === 'selected_faculties') {
+    $facultyNames = ccMaterialRequestFacultyNames($conn, $row['target_faculty_ids_json'] ?? '[]');
+    return empty($facultyNames) ? 'Selected faculties' : implode(', ', $facultyNames);
   }
   if ($scope === 'my_department') {
     $deptName = trim((string) ($row['target_department_name'] ?? ''));
