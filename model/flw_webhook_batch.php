@@ -43,7 +43,7 @@ if (!in_array($tx_status, ['successful', 'completed'])) {
 }
 
 // Look up the batch by tx_ref
-$stmt = $conn->prepare('SELECT id, manual_id, hoc_id, school_id, dept_id, total_amount, status FROM manual_payment_batches WHERE tx_ref = ? LIMIT 1');
+$stmt = $conn->prepare('SELECT id, manual_id, hoc_id, school_id, dept_id, total_amount, status, gateway FROM manual_payment_batches WHERE tx_ref = ? LIMIT 1');
 if (!$stmt) { exit('stmt'); }
 $stmt->bind_param('s', $tx_ref);
 $stmt->execute();
@@ -55,13 +55,16 @@ if (!$batch) {
   exit('no-batch');
 }
 
+if (normalizeGateway((string)($batch['gateway'] ?? 'FLUTTERWAVE')) !== 'FLUTTERWAVE') {
+  exit('wrong-gateway');
+}
+
 if ($batch['status'] !== 'pending') {
   exit('done');
 }
 
 // Optional: verify amount matches
-if ($amount > 0 && (int)$batch['total_amount'] !== (int)$amount) {
-  // Amount mismatch; do not process
+if (!isAllowedLegacyFlutterwaveAmount((int)$batch['total_amount'], (int)$amount)) {
   exit('amt-mismatch');
 }
 
@@ -115,13 +118,14 @@ try {
   mysqli_commit($conn);
   log_audit_event($conn, (int)$batch['hoc_id'], 'update', 'manual_payment_batch', $bid, [
     'tx_ref' => $tx_ref,
-    'flw_tx_id' => $flw_tx_id,
+    'gateway' => 'FLUTTERWAVE',
+    'gateway_tx_id' => $flw_tx_id,
     'status' => 'paid'
   ]);
   // Send success email notification
   try {
     $subject = "Batch payment successful: {$tx_ref}";
-    $body = "<p>Batch ID: {$bid}</p><p>tx_ref: {$tx_ref}</p><p>Flutterwave TX ID: {$flw_tx_id}</p><p>Amount: {$amount}</p><p>Status: paid</p>";
+    $body = "<p>Batch ID: {$bid}</p><p>tx_ref: {$tx_ref}</p><p>Gateway: FLUTTERWAVE</p><p>Gateway TX ID: {$flw_tx_id}</p><p>Amount: {$amount}</p><p>Status: paid</p>";
     sendMail($subject, $body, 'akinyemisamuel170@gmail.com');
   } catch (Exception $ee) {
     // swallow mail errors
@@ -142,5 +146,39 @@ try {
 }
 
 echo 'ok';
+
+function calculateBatchProcessingFee(int $baseAmount): int
+{
+  if ($baseAmount <= 0) {
+    return 0;
+  }
+
+  return (int)ceil($baseAmount * 0.02);
+}
+
+function isAllowedLegacyFlutterwaveAmount(int $baseAmount, int $amount): bool
+{
+  if ($amount <= 0) {
+    return false;
+  }
+
+  $acceptable = [
+    $baseAmount,
+    $baseAmount + calculateBatchProcessingFee($baseAmount),
+    $baseAmount + (int)ceil($baseAmount * 0.03),
+  ];
+
+  return in_array($amount, array_values(array_unique($acceptable)), true);
+}
+
+function normalizeGateway(string $gateway): string
+{
+  $normalized = strtoupper(trim($gateway));
+  if (in_array($normalized, ['PAYSTACK', 'FLUTTERWAVE'], true)) {
+    return $normalized;
+  }
+
+  return 'FLUTTERWAVE';
+}
 ?>
 

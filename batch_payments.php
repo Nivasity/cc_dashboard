@@ -49,7 +49,7 @@ if ($admin_role == 5) {
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body text-center">
-          <p class="mb-3">Share this link with the HOC to complete payment.</p>
+          <p class="mb-3">Share this link with the HOC to complete payment. The checkout amount includes a 2% processing fee.</p>
           <div class="d-flex justify-content-center align-items-center mb-3">
             <a href="#" id="paymentLinkHref" target="_blank" class="text-break fs-5 fw-bold" style="word-break:break-all;">&nbsp;</a>
           </div>
@@ -160,6 +160,7 @@ if ($admin_role == 5) {
                     <thead class="table-secondary">
                       <tr>
                         <th>tx_ref</th>
+                        <th>Gateway</th>
                         <th>Material</th>
                         <th>Dept</th>
                         <th>School</th>

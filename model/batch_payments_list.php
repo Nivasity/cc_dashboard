@@ -26,7 +26,7 @@ if ($admin_role == 5) {
   if ($admin_faculty != 0) { $faculty = $admin_faculty; }
 }
 
-$sql = "SELECT b.id, b.tx_ref, b.total_students, b.total_amount, b.status, b.created_at, 
+$sql = "SELECT b.id, b.tx_ref, b.gateway, b.total_students, b.total_amount, b.status, b.created_at, 
                m.title AS manual_title, m.course_code, d.name AS dept_name, s.name AS school_name
         FROM manual_payment_batches b
         JOIN manuals m ON b.manual_id = m.id
@@ -44,6 +44,7 @@ if ($res) {
     $batches[] = [
       'id' => (int)$row['id'],
       'tx_ref' => $row['tx_ref'],
+      'gateway' => strtoupper((string)($row['gateway'] ?? 'PAYSTACK')),
       'manual' => $row['manual_title'] . ' - ' . $row['course_code'],
       'dept' => $row['dept_name'],
       'school' => $row['school_name'],

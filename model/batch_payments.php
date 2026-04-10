@@ -123,6 +123,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             } while ($exists && $attempts < 5);
             }
 
+            $gateway = 'PAYSTACK';
+
             // Lookup HOC for the selected school and dept (use selected school/dept, not current session admin)
             $hoc_id = 0;
             $hres = mysqli_query($conn, "SELECT id FROM users WHERE role = 'hoc' AND status = 'verified' AND school = $school_id AND dept = $dept_id LIMIT 1");
@@ -159,14 +161,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($exists) { throw new Exception('Failed to generate unique tx_ref after 5 attempts.'); }
 
                 // Insert batch with the generated tx_ref
-                $stmt = $conn->prepare('INSERT INTO manual_payment_batches (manual_id, hoc_id, dept_id, school_id, total_students, total_amount, tx_ref, status) VALUES (?, ?, ?, ?, ?, ?, ?, "pending")');
-                $stmt->bind_param('iiiiiss', $manual_id, $hoc_id, $dept_id, $school_id, $total_students, $total_amount, $tx_ref);
+                $stmt = $conn->prepare('INSERT INTO manual_payment_batches (manual_id, hoc_id, dept_id, school_id, total_students, total_amount, tx_ref, gateway, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, "pending")');
+                $stmt->bind_param('iiiiiiss', $manual_id, $hoc_id, $dept_id, $school_id, $total_students, $total_amount, $tx_ref, $gateway);
                 if (!$stmt->execute()) { throw new Exception('Failed to create batch.'); }
                 $batch_id = $stmt->insert_id;
                 $stmt->close();
 
               $item_stmt = $conn->prepare('INSERT INTO manual_payment_batch_items (batch_id, manual_id, student_id, price, ref_id, status) VALUES (?, ?, ?, ?, ?, "pending")');
-              $txn_stmt = $conn->prepare('INSERT INTO transactions (ref_id, user_id, batch_id, amount, status, medium) VALUES (?, ?, ?, ?, "pending", "FLUTTERWAVE")');
+              $txn_stmt = $conn->prepare('INSERT INTO transactions (ref_id, user_id, batch_id, amount, status, medium) VALUES (?, ?, ?, ?, "pending", "PAYSTACK")');
 
               $now = time();
               foreach ($students as $student_id) {
@@ -191,12 +193,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'school_id' => $school_id,
                 'total_students' => $total_students,
                 'total_amount' => $total_amount,
-                'tx_ref' => $tx_ref
+                'tx_ref' => $tx_ref,
+                'gateway' => $gateway
               ]);
 
               $status = 'success';
               $message = 'Batch created successfully.';
-              $data = [ 'batch_id' => $batch_id, 'tx_ref' => $tx_ref, 'total_students' => $total_students, 'total_amount' => $total_amount ];
+              $data = [ 'batch_id' => $batch_id, 'tx_ref' => $tx_ref, 'total_students' => $total_students, 'total_amount' => $total_amount, 'gateway' => $gateway ];
             } catch (Exception $e) {
               mysqli_rollback($conn);
               $message = $e->getMessage();

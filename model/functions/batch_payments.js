@@ -151,6 +151,7 @@ $(document).ready(function () {
 
       var row = '<tr>' +
         '<td class="fw-semibold">' + b.tx_ref + '</td>' +
+        '<td><span class="badge bg-label-info">' + (b.gateway || 'PAYSTACK') + '</span></td>' +
         '<td>' + b.manual + '</td>' +
         '<td>' + b.dept + '</td>' +
         '<td>' + b.school + '</td>' +
@@ -176,7 +177,7 @@ $(document).ready(function () {
     $.post('model/create_payment_link.php', { batch_id: batchId, tx_ref: txref, amount: amount }).done(function (res) {
       if (res.status === 'success' && res.data && res.data.link) {
         var link = res.data.link;
-        showAlert('success', 'Payment link created.');
+        showAlert('success', 'Payment link created. Checkout will add a 2% processing fee.');
         // Show link in modal for admin to copy/share
         $('#paymentLinkHref').attr('href', link).text(link);
         var plModal = new bootstrap.Modal(document.getElementById('paymentLinkModal'));

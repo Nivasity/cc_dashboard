@@ -531,6 +531,7 @@ CREATE TABLE `manual_payment_batches` (
   `total_students` INT(11) NOT NULL,
   `total_amount` INT(11) NOT NULL,
   `tx_ref` VARCHAR(50) NOT NULL,
+  `gateway` VARCHAR(20) NOT NULL DEFAULT 'PAYSTACK',
   `flw_tx_id` VARCHAR(100) DEFAULT NULL,
   `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -717,6 +718,7 @@ ALTER TABLE `manual_payment_batches`
   ADD KEY `manual_id` (`manual_id`),
   ADD KEY `dept_id` (`dept_id`),
   ADD KEY `school_id` (`school_id`),
+  ADD KEY `gateway` (`gateway`),
   ADD KEY `status` (`status`),
   ADD KEY `created_at` (`created_at`);
 
