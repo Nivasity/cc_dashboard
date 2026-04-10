@@ -5,6 +5,7 @@ $(document).ready(function () {
   var $manual = $('#bp_manual');
   var $alert = $('#bp_alert');
   var $studentsFile = $('#bp_students_file');
+  var $paystackSubaccount = $('#bp_paystack_subaccount');
   var $price = $('#bp_price');
   var $students = $('#bp_students');
   var $matched = $('#bp_matched');
@@ -12,6 +13,8 @@ $(document).ready(function () {
   var $total = $('#bp_total');
   var $txref = $('#bp_txref');
   var $submit = $('#bp_submit');
+  var createBatchModalEl = document.getElementById('createBatchModal');
+  var createBatchModal = createBatchModalEl ? bootstrap.Modal.getOrCreateInstance(createBatchModalEl) : null;
 
   var $filterSchool = $('#filter_school');
   var $filterFaculty = $('#filter_faculty');
@@ -47,6 +50,20 @@ $(document).ready(function () {
     $total.val('0');
     $txref.val('');
     $submit.prop('disabled', true);
+  }
+
+  function resetCreateForm() {
+    var defaultSchool = adminRole == 5 ? String(adminSchool) : (($school.find('option:first').val() || '0'));
+    $school.val(defaultSchool).trigger('change.select2');
+    if (!(adminRole == 5 && adminFaculty !== 0)) {
+      $faculty.val('0').trigger('change.select2');
+    }
+    $dept.val('0').trigger('change.select2');
+    $manual.val('0').trigger('change.select2');
+    $studentsFile.val('');
+    $paystackSubaccount.val('');
+    showAlert(null, null);
+    resetPreview();
   }
 
   function initSelect2() {
@@ -155,6 +172,10 @@ $(document).ready(function () {
       showAlert('danger', 'Upload the CSV file containing student matric numbers.');
       return;
     }
+    if (!(($paystackSubaccount.val() || '').trim())) {
+      showAlert('danger', 'Provide the school Paystack subaccount code.');
+      return;
+    }
 
     var payload = new FormData();
     payload.append('action', 'create_batch');
@@ -163,6 +184,7 @@ $(document).ready(function () {
     payload.append('dept', num($dept.val()));
     payload.append('tx_ref', ($txref.val() || '').trim());
     payload.append('total_amount', totalAmount);
+    payload.append('paystack_subaccount', ($paystackSubaccount.val() || '').trim());
     payload.append('students_csv', file);
 
     $submit.prop('disabled', true).text('Creating...');
@@ -179,6 +201,10 @@ $(document).ready(function () {
           successMessage += ' Unmatched matric-only items: ' + Number(res.data.unmatched_count || 0) + '.';
         }
         showAlert('success', successMessage);
+        if (createBatchModal) {
+          createBatchModal.hide();
+        }
+        resetCreateForm();
         loadBatches();
       } else {
         showAlert('danger', res.message || 'Failed to create batch.');
@@ -344,6 +370,12 @@ $(document).ready(function () {
   $dept.on('change', function () { loadManuals(); setTimeout(updatePreview, 150); });
   $manual.on('change', updatePreview);
   $studentsFile.on('change', updatePreview);
+
+  if (createBatchModalEl) {
+    createBatchModalEl.addEventListener('hidden.bs.modal', function () {
+      resetCreateForm();
+    });
+  }
 
   $filterSchool.on('change', function () {
     var sid = adminRole == 5 ? adminSchool : num($filterSchool.val());

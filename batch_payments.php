@@ -61,87 +61,12 @@ if ($admin_role == 5) {
       </div>
     </div>
   </div>
-            <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Payments /</span> Batch Payments</h4>
-
-            <?php if (!in_array((int)$admin_role, [3, 5], true)) { ?>
-            <div class="card mb-4">
-              <div class="card-header d-flex align-items-center justify-content-between">
-                <h5 class="mb-0">Create Batch</h5>
-              </div>
-              <div class="card-body">
-                <form id="batchCreateForm" class="row g-3" enctype="multipart/form-data">
-                  <div class="col-md-3">
-                    <label for="bp_school" class="form-label">School</label>
-                    <select id="bp_school" class="form-select" <?php if($admin_role == 5) echo 'disabled'; ?>>
-                      <?php if($admin_role != 5) { ?><option value="0">Select School</option><?php } ?>
-                      <?php while($school = mysqli_fetch_array($schools_query)) { ?>
-                        <option value="<?php echo $school['id']; ?>" <?php if($admin_role == 5) echo 'selected'; ?>><?php echo $school['name']; ?></option>
-                      <?php } ?>
-                    </select>
-                  </div>
-                  <div class="col-md-3">
-                    <label for="bp_faculty" class="form-label">Faculty</label>
-                    <select id="bp_faculty" class="form-select">
-                      <?php if(!($admin_role == 5 && $admin_faculty != 0)) { ?><option value="0">All Faculties</option><?php } ?>
-                      <?php while($fac = mysqli_fetch_array($faculties_query)) { ?>
-                        <option value="<?php echo $fac['id']; ?>" <?php if($admin_role == 5 && $admin_faculty == $fac['id']) echo 'selected'; ?>><?php echo $fac['name']; ?></option>
-                      <?php } ?>
-                    </select>
-                  </div>
-                  <div class="col-md-3">
-                    <label for="bp_dept" class="form-label">Department</label>
-                    <select id="bp_dept" class="form-select">
-                      <option value="0">Select Department</option>
-                      <?php while($dept = mysqli_fetch_array($depts_query)) { ?>
-                        <option value="<?php echo $dept['id']; ?>"><?php echo $dept['name']; ?></option>
-                      <?php } ?>
-                    </select>
-                  </div>
-                  <div class="col-md-3">
-                    <label for="bp_manual" class="form-label">Course Material</label>
-                    <select id="bp_manual" class="form-select">
-                      <option value="0">Select Material</option>
-                    </select>
-                  </div>
-                  <div class="col-12">
-                    <div id="bp_alert" class="alert d-none" role="alert"></div>
-                  </div>
-                  <div class="col-md-6">
-                    <label for="bp_students_file" class="form-label">Students CSV</label>
-                    <input type="file" id="bp_students_file" name="students_csv" class="form-control" accept=".csv,text/csv" />
-                    <div class="form-text">Upload a CSV containing matric numbers. The first non-empty value on each row is used, duplicates are ignored, and unmatched matric numbers are stored without a linked student record.</div>
-                  </div>
-                  <div class="col-md-2">
-                    <label class="form-label">Price/Student</label>
-                    <input type="text" id="bp_price" class="form-control" readonly value="0" />
-                  </div>
-                  <div class="col-md-2">
-                    <label class="form-label">Students in CSV</label>
-                    <input type="text" id="bp_students" class="form-control" readonly value="0" />
-                  </div>
-                  <div class="col-md-2">
-                    <label class="form-label">Matched</label>
-                    <input type="text" id="bp_matched" class="form-control" readonly value="0" />
-                  </div>
-                  <div class="col-md-2">
-                    <label class="form-label">Unmatched</label>
-                    <input type="text" id="bp_unmatched" class="form-control" readonly value="0" />
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label">Total Amount (Editable)</label>
-                    <input type="number" id="bp_total" class="form-control" value="0" min="0" />
-                  </div>
-                  <div class="col-md-3">
-                    <label class="form-label">Batch tx_ref</label>
-                    <input type="text" id="bp_txref" class="form-control" readonly />
-                  </div>
-                  <div class="col-12">
-                    <button type="submit" class="btn btn-primary" id="bp_submit" disabled>Create Batch</button>
-                  </div>
-                </form>
-              </div>
+            <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-3 mb-4">
+              <h4 class="fw-bold mb-0"><span class="text-muted fw-light">Payments /</span> Batch Payments</h4>
+              <?php if (!in_array((int)$admin_role, [3, 5], true)) { ?>
+              <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createBatchModal">Create Batch</button>
+              <?php } ?>
             </div>
-            <?php } ?>
 
             <div class="card">
               <div class="card-header">
@@ -226,6 +151,97 @@ if ($admin_role == 5) {
       </div>
     </div>
   </div>
+
+  <?php if (!in_array((int)$admin_role, [3, 5], true)) { ?>
+  <div class="modal fade" id="createBatchModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Create Batch</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="batchCreateForm" class="row g-3" enctype="multipart/form-data">
+            <div class="col-md-3">
+              <label for="bp_school" class="form-label">School</label>
+              <select id="bp_school" class="form-select" <?php if($admin_role == 5) echo 'disabled'; ?>>
+                <?php if($admin_role != 5) { ?><option value="0">Select School</option><?php } ?>
+                <?php while($school = mysqli_fetch_array($schools_query)) { ?>
+                  <option value="<?php echo $school['id']; ?>" <?php if($admin_role == 5) echo 'selected'; ?>><?php echo $school['name']; ?></option>
+                <?php } ?>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label for="bp_faculty" class="form-label">Faculty</label>
+              <select id="bp_faculty" class="form-select">
+                <?php if(!($admin_role == 5 && $admin_faculty != 0)) { ?><option value="0">All Faculties</option><?php } ?>
+                <?php while($fac = mysqli_fetch_array($faculties_query)) { ?>
+                  <option value="<?php echo $fac['id']; ?>" <?php if($admin_role == 5 && $admin_faculty == $fac['id']) echo 'selected'; ?>><?php echo $fac['name']; ?></option>
+                <?php } ?>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label for="bp_dept" class="form-label">Department</label>
+              <select id="bp_dept" class="form-select">
+                <option value="0">Select Department</option>
+                <?php while($dept = mysqli_fetch_array($depts_query)) { ?>
+                  <option value="<?php echo $dept['id']; ?>"><?php echo $dept['name']; ?></option>
+                <?php } ?>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label for="bp_manual" class="form-label">Course Material</label>
+              <select id="bp_manual" class="form-select">
+                <option value="0">Select Material</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <div id="bp_alert" class="alert d-none mb-0" role="alert"></div>
+            </div>
+            <div class="col-md-6">
+              <label for="bp_students_file" class="form-label">Students CSV</label>
+              <input type="file" id="bp_students_file" name="students_csv" class="form-control" accept=".csv,text/csv" />
+              <div class="form-text">Upload a CSV containing matric numbers. The first non-empty value on each row is used, duplicates are ignored, and unmatched matric numbers are stored without a linked student record.</div>
+            </div>
+            <div class="col-md-6">
+              <label for="bp_paystack_subaccount" class="form-label">School Paystack Subaccount</label>
+              <input type="text" id="bp_paystack_subaccount" class="form-control" placeholder="ACCT_xxxxxxxxxxxxx" />
+              <div class="form-text">The batch subtotal will be committed to this Paystack subaccount. The 2% checkout fee remains outside the school subtotal.</div>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Price/Student</label>
+              <input type="text" id="bp_price" class="form-control" readonly value="0" />
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Students in CSV</label>
+              <input type="text" id="bp_students" class="form-control" readonly value="0" />
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Matched</label>
+              <input type="text" id="bp_matched" class="form-control" readonly value="0" />
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Unmatched</label>
+              <input type="text" id="bp_unmatched" class="form-control" readonly value="0" />
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Total Amount (Editable)</label>
+              <input type="number" id="bp_total" class="form-control" value="0" min="0" />
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Batch tx_ref</label>
+              <input type="text" id="bp_txref" class="form-control" readonly />
+            </div>
+            <div class="col-12 d-flex justify-content-end gap-2">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-primary" id="bp_submit" disabled>Create Batch</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  <?php } ?>
 
   <script src="assets/vendor/libs/jquery/jquery.min.js"></script>
   <script src="assets/vendor/js/bootstrap.min.js"></script>

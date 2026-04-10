@@ -21,7 +21,7 @@ if ($batch_id <= 0 || $tx_ref === '' || $amount <= 0) {
   respondJson('failed', 'Invalid request parameters.');
 }
 
-$stmt = $conn->prepare('SELECT id, tx_ref, total_amount, status, hoc_id, school_id, gateway FROM manual_payment_batches WHERE id = ? LIMIT 1');
+$stmt = $conn->prepare('SELECT id, tx_ref, total_amount, status, hoc_id, school_id, gateway, paystack_subaccount_code FROM manual_payment_batches WHERE id = ? LIMIT 1');
 $stmt->bind_param('i', $batch_id);
 $stmt->execute();
 $res = $stmt->get_result();
@@ -71,6 +71,11 @@ if ($gateway === 'PAYSTACK') {
     respondJson('failed', 'The HOC must have a valid email before initializing a Paystack payment.');
   }
 
+  $paystack_subaccount_code = strtoupper(trim((string)($batch['paystack_subaccount_code'] ?? '')));
+  if ($paystack_subaccount_code === '') {
+    respondJson('failed', 'This batch does not have a school Paystack subaccount code. Create a new batch with the school subaccount code.');
+  }
+
   $secret = defined('PAYSTACK_SECRET_KEY') ? trim((string)PAYSTACK_SECRET_KEY) : '';
   if ($secret === '') {
     respondJson('failed', 'Paystack secret is not configured.');
@@ -87,9 +92,14 @@ if ($gateway === 'PAYSTACK') {
       'gateway' => $gateway,
       'amount_before_fee' => $base_amount,
       'fee' => $fee,
+      'settlement_subtotal' => $base_amount,
       'customer_name' => $hoc_name,
       'customer_phone' => $hoc_phone,
+      'assigned_subaccount' => $paystack_subaccount_code,
     ],
+    'subaccount' => $paystack_subaccount_code,
+    'transaction_charge' => $fee * 100,
+    'bearer' => 'account',
   ];
 
   $json = executeGatewayJsonRequest(
@@ -196,6 +206,8 @@ log_audit_event($conn, $admin_id, 'create', 'manual_payment_link', $batch_id, [
   'link' => $link,
   'amount' => $final_amount,
   'fee' => $fee,
+  'settlement_subtotal' => $base_amount,
+  'assigned_subaccount' => strtoupper(trim((string)($batch['paystack_subaccount_code'] ?? ''))),
 ]);
 
 respondJson('success', 'Payment link created.', [

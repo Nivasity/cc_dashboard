@@ -532,6 +532,7 @@ CREATE TABLE `manual_payment_batches` (
   `total_amount` INT(11) NOT NULL,
   `tx_ref` VARCHAR(50) NOT NULL,
   `gateway` VARCHAR(20) NOT NULL DEFAULT 'PAYSTACK',
+  `paystack_subaccount_code` VARCHAR(100) DEFAULT NULL,
   `flw_tx_id` VARCHAR(100) DEFAULT NULL,
   `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
   `created_at` DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
