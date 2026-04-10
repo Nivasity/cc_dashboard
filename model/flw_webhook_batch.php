@@ -86,13 +86,14 @@ try {
 
   // Get items
   $items = [];
-  $ires = mysqli_query($conn, "SELECT id, manual_id, student_id, price, ref_id FROM manual_payment_batch_items WHERE batch_id = $bid");
+  $ires = mysqli_query($conn, "SELECT id, manual_id, student_id, student_matric, price, ref_id FROM manual_payment_batch_items WHERE batch_id = $bid");
   while ($ires && $row = mysqli_fetch_assoc($ires)) { $items[] = $row; }
 
   // Prepare statements
   $up_item = $conn->prepare('UPDATE manual_payment_batch_items SET status = "paid" WHERE id = ?');
   $up_tx = $conn->prepare('UPDATE transactions SET status = "successful" WHERE ref_id = ?');
   $ins_mb = $conn->prepare('INSERT INTO manuals_bought (manual_id, price, seller, buyer, school_id, ref_id, status) VALUES (?, ?, ?, ?, ?, ?, "successful")');
+  $unmatched_count = 0;
 
   foreach ($items as $it) {
     $iid = (int)$it['id'];
@@ -107,6 +108,11 @@ try {
     $up_tx->bind_param('s', $ref_id);
     if (!$up_tx->execute()) { throw new Exception('tx-update'); }
 
+    if ($student_id <= 0) {
+      $unmatched_count++;
+      continue;
+    }
+
     $ins_mb->bind_param('iiiiis', $manual_id, $price, $seller, $student_id, $school_id, $ref_id);
     if (!$ins_mb->execute()) { throw new Exception('mb-insert'); }
   }
@@ -120,12 +126,17 @@ try {
     'tx_ref' => $tx_ref,
     'gateway' => 'FLUTTERWAVE',
     'gateway_tx_id' => $flw_tx_id,
+    'unmatched_count' => $unmatched_count,
     'status' => 'paid'
   ]);
   // Send success email notification
   try {
     $subject = "Batch payment successful: {$tx_ref}";
-    $body = "<p>Batch ID: {$bid}</p><p>tx_ref: {$tx_ref}</p><p>Gateway: FLUTTERWAVE</p><p>Gateway TX ID: {$flw_tx_id}</p><p>Amount: {$amount}</p><p>Status: paid</p>";
+    $body = "<p>Batch ID: {$bid}</p><p>tx_ref: {$tx_ref}</p><p>Gateway: FLUTTERWAVE</p><p>Gateway TX ID: {$flw_tx_id}</p><p>Amount: {$amount}</p>";
+    if ($unmatched_count > 0) {
+      $body .= "<p>Unmatched matric-only items: {$unmatched_count}</p>";
+    }
+    $body .= "<p>Status: paid</p>";
     sendMail($subject, $body, 'akinyemisamuel170@gmail.com');
   } catch (Exception $ee) {
     // swallow mail errors

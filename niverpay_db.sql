@@ -548,6 +548,7 @@ CREATE TABLE `manual_payment_batch_items` (
   `batch_id` INT(11) NOT NULL,
   `manual_id` INT(11) NOT NULL,
   `student_id` INT(11) NOT NULL,
+  `student_matric` VARCHAR(50) DEFAULT NULL,
   `price` INT(11) NOT NULL,
   `ref_id` VARCHAR(50) NOT NULL,
   `status` VARCHAR(20) NOT NULL DEFAULT 'pending',

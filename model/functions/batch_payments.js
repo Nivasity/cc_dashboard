@@ -4,8 +4,11 @@ $(document).ready(function () {
   var $dept = $('#bp_dept');
   var $manual = $('#bp_manual');
   var $alert = $('#bp_alert');
+  var $studentsFile = $('#bp_students_file');
   var $price = $('#bp_price');
   var $students = $('#bp_students');
+  var $matched = $('#bp_matched');
+  var $unmatched = $('#bp_unmatched');
   var $total = $('#bp_total');
   var $txref = $('#bp_txref');
   var $submit = $('#bp_submit');
@@ -21,6 +24,16 @@ $(document).ready(function () {
   }
 
   function num(n) { return Number(n || 0); }
+
+  function resetPreview() {
+    $price.val('0');
+    $students.val('0');
+    $matched.val('0');
+    $unmatched.val('0');
+    $total.val('0');
+    $txref.val('');
+    $submit.prop('disabled', true);
+  }
 
   function initSelect2() {
     $('#bp_school, #bp_faculty, #bp_dept, #bp_manual, #filter_school, #filter_faculty, #filter_dept').select2({ theme: 'bootstrap-5', width: '100%' });
@@ -75,24 +88,39 @@ $(document).ready(function () {
 
   function updatePreview() {
     showAlert(null, null);
-    $price.val('0');
-    $students.val('0');
-    $total.val('0');
-    $txref.val('');
-    $submit.prop('disabled', true);
+    resetPreview();
     var mid = num($manual.val());
     var sid = adminRole == 5 ? adminSchool : num($school.val());
     var did = num($dept.val());
-    if (!mid || !sid || !did) return;
-    $.get('model/batch_payments.php', { fetch: 'preview', manual_id: mid, school: sid, dept: did }).done(function (res) {
+    var file = $studentsFile[0] && $studentsFile[0].files ? $studentsFile[0].files[0] : null;
+    if (!mid || !sid || !did || !file) return;
+
+    var formData = new FormData();
+    formData.append('action', 'preview_batch_csv');
+    formData.append('manual_id', mid);
+    formData.append('school', sid);
+    formData.append('dept', did);
+    formData.append('students_csv', file);
+
+    $.ajax({
+      url: 'model/batch_payments.php',
+      method: 'POST',
+      data: formData,
+      processData: false,
+      contentType: false
+    }).done(function (res) {
       if (res.status === 'success' && res.data) {
         $price.val(Number(res.data.price_per_student).toLocaleString());
         $students.val(Number(res.data.student_count).toLocaleString());
-        $total.val(Number(res.data.total_amount).toLocaleString());
+        $matched.val(Number(res.data.matched_count || 0).toLocaleString());
+        $unmatched.val(Number(res.data.unmatched_count || 0).toLocaleString());
+        $total.val(Number(res.data.total_amount || 0));
         $txref.val(res.data.tx_ref || '');
         if (Number(res.data.student_count) > 0) { $submit.prop('disabled', false); }
-        if (Number(res.data.student_count) === 0) {
-          showAlert('warning', 'No active students found for the selected department.');
+        if (Number(res.data.unmatched_count || 0) > 0) {
+          showAlert('warning', Number(res.data.unmatched_count || 0) + ' matric number(s) were not matched in users. They will be stored with student_id 0.');
+        } else if (Number(res.data.duplicates_removed || 0) > 0) {
+          showAlert('info', Number(res.data.duplicates_removed || 0) + ' duplicate matric number(s) were ignored from the CSV.');
         }
       } else {
         showAlert('danger', res.message || 'Unable to prepare preview.');
@@ -108,18 +136,35 @@ $(document).ready(function () {
       showAlert('danger', 'Total amount must be greater than 0.');
       return;
     }
-    var payload = {
-      action: 'create_batch',
-      manual_id: num($manual.val()),
-      school: adminRole == 5 ? adminSchool : num($school.val()),
-      dept: num($dept.val()),
-      tx_ref: ($txref.val() || '').trim(),
-      total_amount: totalAmount
-    };
+    var file = $studentsFile[0] && $studentsFile[0].files ? $studentsFile[0].files[0] : null;
+    if (!file) {
+      showAlert('danger', 'Upload the CSV file containing student matric numbers.');
+      return;
+    }
+
+    var payload = new FormData();
+    payload.append('action', 'create_batch');
+    payload.append('manual_id', num($manual.val()));
+    payload.append('school', adminRole == 5 ? adminSchool : num($school.val()));
+    payload.append('dept', num($dept.val()));
+    payload.append('tx_ref', ($txref.val() || '').trim());
+    payload.append('total_amount', totalAmount);
+    payload.append('students_csv', file);
+
     $submit.prop('disabled', true).text('Creating...');
-    $.post('model/batch_payments.php', payload).done(function (res) {
+    $.ajax({
+      url: 'model/batch_payments.php',
+      method: 'POST',
+      data: payload,
+      processData: false,
+      contentType: false
+    }).done(function (res) {
       if (res.status === 'success') {
-        showAlert('success', 'Batch created. tx_ref: ' + (res.data && res.data.tx_ref ? res.data.tx_ref : ''));
+        var successMessage = 'Batch created. tx_ref: ' + (res.data && res.data.tx_ref ? res.data.tx_ref : '');
+        if (res.data && Number(res.data.unmatched_count || 0) > 0) {
+          successMessage += ' Unmatched matric-only items: ' + Number(res.data.unmatched_count || 0) + '.';
+        }
+        showAlert('success', successMessage);
         loadBatches();
       } else {
         showAlert('danger', res.message || 'Failed to create batch.');
@@ -240,10 +285,15 @@ $(document).ready(function () {
   $(document).on('click', '.view-items', function () {
     var id = Number($(this).data('id'));
     var $tbody = $('#batchItemsTable tbody');
+    var $notice = $('#batchItemsNotice');
     $tbody.empty();
+    $notice.addClass('d-none').text('');
     $('#batchItemsModal').modal('show');
     $.get('model/batch_payment_items.php', { batch_id: id }).done(function (res) {
       if (res.status === 'success' && Array.isArray(res.items)) {
+        if (Number(res.unmatched_count || 0) > 0) {
+          $notice.removeClass('d-none').text(Number(res.unmatched_count || 0) + ' item(s) were not matched in users. Those rows were saved with student_id 0 and only retain the matric number.');
+        }
         res.items.forEach(function (it) {
           var badge = 'secondary';
           if (it.status === 'paid') badge = 'success';
@@ -255,6 +305,7 @@ $(document).ready(function () {
             '<td>' + (it.email || '') + '</td>' +
             '<td>' + Number(it.price).toLocaleString() + '</td>' +
             '<td class="text-monospace">' + it.ref_id + '</td>' +
+            '<td>' + (it.note || '') + '</td>' +
             '<td><span class="badge bg-label-' + badge + '">' + it.status + '</span></td>' +
             '</tr>';
           $tbody.append(row);
@@ -279,6 +330,7 @@ $(document).ready(function () {
   });
   $dept.on('change', function () { loadManuals(); setTimeout(updatePreview, 150); });
   $manual.on('change', updatePreview);
+  $studentsFile.on('change', updatePreview);
 
   $filterSchool.on('change', function () {
     var sid = adminRole == 5 ? adminSchool : num($filterSchool.val());

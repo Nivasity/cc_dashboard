@@ -69,7 +69,7 @@ if ($admin_role == 5) {
                 <h5 class="mb-0">Create Batch</h5>
               </div>
               <div class="card-body">
-                <form id="batchCreateForm" class="row g-3">
+                <form id="batchCreateForm" class="row g-3" enctype="multipart/form-data">
                   <div class="col-md-3">
                     <label for="bp_school" class="form-label">School</label>
                     <select id="bp_school" class="form-select" <?php if($admin_role == 5) echo 'disabled'; ?>>
@@ -106,13 +106,26 @@ if ($admin_role == 5) {
                   <div class="col-12">
                     <div id="bp_alert" class="alert d-none" role="alert"></div>
                   </div>
-                  <div class="col-md-3">
+                  <div class="col-md-6">
+                    <label for="bp_students_file" class="form-label">Students CSV</label>
+                    <input type="file" id="bp_students_file" name="students_csv" class="form-control" accept=".csv,text/csv" />
+                    <div class="form-text">Upload a CSV containing matric numbers. The first non-empty value on each row is used, duplicates are ignored, and unmatched matric numbers are stored without a linked student record.</div>
+                  </div>
+                  <div class="col-md-2">
                     <label class="form-label">Price/Student</label>
                     <input type="text" id="bp_price" class="form-control" readonly value="0" />
                   </div>
-                  <div class="col-md-3">
-                    <label class="form-label">Students</label>
+                  <div class="col-md-2">
+                    <label class="form-label">Students in CSV</label>
                     <input type="text" id="bp_students" class="form-control" readonly value="0" />
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Matched</label>
+                    <input type="text" id="bp_matched" class="form-control" readonly value="0" />
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Unmatched</label>
+                    <input type="text" id="bp_unmatched" class="form-control" readonly value="0" />
                   </div>
                   <div class="col-md-3">
                     <label class="form-label">Total Amount (Editable)</label>
@@ -193,6 +206,7 @@ if ($admin_role == 5) {
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
+          <div id="batchItemsNotice" class="alert alert-warning d-none" role="alert"></div>
           <div class="table-responsive">
             <table class="table" id="batchItemsTable">
               <thead>
@@ -202,6 +216,7 @@ if ($admin_role == 5) {
                   <th>Email</th>
                   <th>Price</th>
                   <th>Ref</th>
+                  <th>Note</th>
                   <th>Status</th>
                 </tr>
               </thead>
