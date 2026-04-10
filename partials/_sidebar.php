@@ -208,6 +208,14 @@ $admin_faculty = $admin_['faculty'] ?? 0;
       </li>
       <?php } ?>
       <?php if (in_array($_SESSION['nivas_adminRole'], [1, 2, 3])) { ?>
+      <li class="menu-item <?php echo $current_page == 'system_alerts.php' ? 'active' : ''; ?>">
+        <a href="system_alerts.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-error-circle"></i>
+          <div data-i18n="System Alerts">System Alerts</div>
+        </a>
+      </li>
+      <?php } ?>
+      <?php if (in_array($_SESSION['nivas_adminRole'], [1, 2, 3])) { ?>
       <li class="menu-item <?php echo $current_page == 'notifications.php' ? 'active' : ''; ?>">
         <a href="notifications.php" class="menu-link">
           <i class="menu-icon tf-icons bx bx-bell"></i>
