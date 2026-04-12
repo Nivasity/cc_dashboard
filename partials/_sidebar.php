@@ -216,6 +216,14 @@ $admin_faculty = $admin_['faculty'] ?? 0;
       </li>
       <?php } ?>
       <?php if (in_array($_SESSION['nivas_adminRole'], [1, 2, 3])) { ?>
+      <li class="menu-item <?php echo $current_page == 'app_update_configs.php' ? 'active' : ''; ?>">
+        <a href="app_update_configs.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-mobile-alt"></i>
+          <div data-i18n="App Updates">App Updates</div>
+        </a>
+      </li>
+      <?php } ?>
+      <?php if (in_array($_SESSION['nivas_adminRole'], [1, 2, 3])) { ?>
       <li class="menu-item <?php echo $current_page == 'notifications.php' ? 'active' : ''; ?>">
         <a href="notifications.php" class="menu-link">
           <i class="menu-icon tf-icons bx bx-bell"></i>
