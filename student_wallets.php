@@ -365,7 +365,6 @@ if ($lookupPerformed && $walletTablesReady) {
               <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
                 <div>
                   <h4 class="fw-bold py-3 mb-1"><span class="text-muted fw-light">Finances /</span> Student Wallets</h4>
-                  <p class="mb-0 text-muted">Find a student by exact matric number or email address, then inspect wallet balance, account details, and ledger activity.</p>
                 </div>
               </div>
 
@@ -395,9 +394,6 @@ if ($lookupPerformed && $walletTablesReady) {
                       <?php if ($lookupPerformed) { ?>
                       <a href="student_wallets.php" class="btn btn-outline-secondary">Clear</a>
                       <?php } ?>
-                    </div>
-                    <div class="col-12">
-                      <small class="text-muted">Search uses an exact match on the student email or matric number.</small>
                     </div>
                   </form>
                 </div>
