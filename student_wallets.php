@@ -69,8 +69,7 @@ $initialDateTo = trim((string) ($_GET['date_to'] ?? ''));
             <div class="container-xxl flex-grow-1 container-p-y">
               <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
                 <div>
-                  <h4 class="fw-bold py-3 mb-1"><span class="text-muted fw-light">Finances /</span> Student Wallets</h4>
-                  <p class="mb-0 text-muted">Find a student by exact matric number or email address, then inspect wallet balance, account details, and ledger activity without leaving the page.</p>
+                  <h4 class="fw-bold py-3"><span class="text-muted fw-light">Finances /</span> Student Wallets</h4>
                 </div>
               </div>
 
@@ -98,9 +97,6 @@ $initialDateTo = trim((string) ($_GET['date_to'] ?? ''));
                     <div class="col-lg-4 d-flex gap-2">
                       <button type="submit" class="btn btn-primary" id="lookupSubmitBtn" <?php echo !$walletTablesReady ? 'disabled' : ''; ?>>Find Wallet</button>
                       <button type="button" class="btn btn-outline-secondary" id="lookupClearBtn" <?php echo !$walletTablesReady ? 'disabled' : ''; ?>>Clear</button>
-                    </div>
-                    <div class="col-12">
-                      <small class="text-muted" id="walletLookupMeta">Search uses an exact match on the student email or matric number.</small>
                     </div>
                   </form>
                 </div>
@@ -251,7 +247,6 @@ $initialDateTo = trim((string) ($_GET['date_to'] ?? ''));
         var $lookupInput = $('#walletLookup');
         var $lookupSubmitBtn = $('#lookupSubmitBtn');
         var $lookupClearBtn = $('#lookupClearBtn');
-        var $lookupMeta = $('#walletLookupMeta');
         var $alertWrap = $('#walletAjaxAlert');
         var $summaryRow = $('#walletSummaryRow');
         var $contentRow = $('#walletContentRow');
@@ -321,7 +316,6 @@ $initialDateTo = trim((string) ($_GET['date_to'] ?? ''));
           $walletDetailsBody.html('<div class="text-muted">Run a lookup to load wallet details.</div>');
           $ledgerBody.html('<tr><td colspan="8" class="text-center text-muted py-4">' + escapeHtml(message || 'Search for a student to see wallet ledger entries.') + '</td></tr>');
           $filterSummary.text('Filters become available after a wallet is loaded.');
-          $lookupMeta.text('Search uses an exact match on the student email or matric number.');
         }
 
         function renderStudent(student) {
@@ -429,7 +423,6 @@ $initialDateTo = trim((string) ($_GET['date_to'] ?? ''));
         function renderResponse(response) {
           $contentRow.removeClass('d-none');
           renderStudent(response.student || {});
-          $lookupMeta.text(response.message || 'Wallet details loaded successfully.');
 
           if (!response.has_wallet) {
             $summaryRow.addClass('d-none');
