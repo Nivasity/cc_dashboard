@@ -11,19 +11,6 @@ if (!$finance_mgt_menu || !in_array($admin_role, $allowedRoles, true)) {
   exit();
 }
 
-$admin_school = (int) ($admin_['school'] ?? 0);
-$admin_faculty = (int) ($admin_['faculty'] ?? 0);
-$lookup = trim((string) ($_GET['lookup'] ?? ''));
-$lookupPerformed = $lookup !== '';
-$allowedEntryTypes = ['all', 'credit', 'debit', 'refund', 'fee', 'adjustment'];
-$entryTypeFilter = strtolower(trim((string) ($_GET['entry_type'] ?? 'all')));
-if (!in_array($entryTypeFilter, $allowedEntryTypes, true)) {
-  $entryTypeFilter = 'all';
-}
-
-$dateFromFilter = trim((string) ($_GET['date_from'] ?? ''));
-$dateToFilter = trim((string) ($_GET['date_to'] ?? ''));
-
 function ccStudentWalletTableExists($conn, $tableName) {
   static $cache = [];
 
@@ -44,252 +31,6 @@ function ccStudentWalletTableExists($conn, $tableName) {
   return $cache[$tableName];
 }
 
-function ccStudentWalletFormatAmount($amount) {
-  return number_format((int) $amount);
-}
-
-function ccStudentWalletFormatDate($value) {
-  $value = trim((string) $value);
-  if ($value === '') {
-    return '-';
-  }
-
-  $timestamp = strtotime($value);
-  if ($timestamp === false) {
-    return $value;
-  }
-
-  return date('d M Y, h:i A', $timestamp);
-}
-
-function ccStudentWalletIsValidDate($value) {
-  $value = trim((string) $value);
-  if ($value === '') {
-    return false;
-  }
-
-  $date = DateTime::createFromFormat('Y-m-d', $value);
-  return $date instanceof DateTime && $date->format('Y-m-d') === $value;
-}
-
-function ccStudentWalletStatusBadge($status) {
-  $status = strtolower(trim((string) $status));
-
-  if (in_array($status, ['active', 'posted', 'successful', 'verified'], true)) {
-    return 'success';
-  }
-
-  if (in_array($status, ['pending', 'processing'], true)) {
-    return 'warning';
-  }
-
-  if (in_array($status, ['suspended', 'closed', 'failed', 'reversed', 'inactive'], true)) {
-    return 'danger';
-  }
-
-  return 'secondary';
-}
-
-function ccStudentWalletEntryTypeBadge($entryType) {
-  $entryType = strtolower(trim((string) $entryType));
-
-  if (in_array($entryType, ['credit', 'refund'], true)) {
-    return 'success';
-  }
-
-  if (in_array($entryType, ['debit', 'fee'], true)) {
-    return 'danger';
-  }
-
-  return 'secondary';
-}
-
-function ccStudentWalletBindParams($stmt, $types, array &$params) {
-  $bindValues = [$stmt, $types];
-
-  foreach ($params as $index => $value) {
-    $bindValues[] = &$params[$index];
-  }
-
-  return call_user_func_array('mysqli_stmt_bind_param', $bindValues);
-}
-
-function ccStudentWalletFindStudent($conn, $lookup, $adminRole, $adminSchool, $adminFaculty) {
-  $lookup = trim((string) $lookup);
-  if ($lookup === '') {
-    return null;
-  }
-
-  $sql = "SELECT u.id, u.first_name, u.last_name, u.email, u.phone, u.gender, u.status AS user_status,
-                 u.matric_no, u.school, u.dept, u.role, u.adm_year,
-                 s.name AS school_name, d.name AS dept_name, f.name AS faculty_name
-          FROM users u
-          LEFT JOIN schools s ON s.id = u.school
-          LEFT JOIN depts d ON d.id = u.dept
-          LEFT JOIN faculties f ON f.id = d.faculty_id
-          WHERE (LOWER(u.email) = LOWER(?) OR u.matric_no = ?)";
-
-  if ((int) $adminRole === 5 && $adminSchool > 0) {
-    $sql .= " AND u.school = " . (int) $adminSchool;
-  }
-
-  if ((int) $adminRole === 5 && $adminFaculty > 0) {
-    $sql .= " AND d.faculty_id = " . (int) $adminFaculty;
-  }
-
-  $sql .= " LIMIT 1";
-
-  $stmt = mysqli_prepare($conn, $sql);
-  if (!$stmt) {
-    return null;
-  }
-
-  mysqli_stmt_bind_param($stmt, 'ss', $lookup, $lookup);
-  mysqli_stmt_execute($stmt);
-  $result = mysqli_stmt_get_result($stmt);
-  $student = $result ? mysqli_fetch_assoc($result) : null;
-  mysqli_stmt_close($stmt);
-
-  return $student ?: null;
-}
-
-function ccStudentWalletFetchWallet($conn, $userId) {
-  $userId = (int) $userId;
-  if ($userId <= 0) {
-    return null;
-  }
-
-  $sql = "SELECT w.*, va.provider, va.provider_account_id, va.provider_customer_code, va.account_name,
-                 va.account_number, va.bank_name, va.bank_slug, va.status AS virtual_account_status
-          FROM user_wallets w
-          LEFT JOIN wallet_virtual_accounts va ON va.wallet_id = w.id
-          WHERE w.user_id = ?
-          LIMIT 1";
-  $stmt = mysqli_prepare($conn, $sql);
-  if (!$stmt) {
-    return null;
-  }
-
-  mysqli_stmt_bind_param($stmt, 'i', $userId);
-  mysqli_stmt_execute($stmt);
-  $result = mysqli_stmt_get_result($stmt);
-  $wallet = $result ? mysqli_fetch_assoc($result) : null;
-  mysqli_stmt_close($stmt);
-
-  return $wallet ?: null;
-}
-
-function ccStudentWalletFetchOverview($conn, $walletId) {
-  $walletId = (int) $walletId;
-  $overview = [
-    'entries_count' => 0,
-    'credits_total' => 0,
-    'debits_total' => 0,
-    'refunds_total' => 0,
-    'fees_total' => 0,
-  ];
-
-  if ($walletId <= 0) {
-    return $overview;
-  }
-
-  $sql = "SELECT
-            COUNT(*) AS entries_count,
-            COALESCE(SUM(CASE WHEN entry_type IN ('credit', 'refund') THEN amount ELSE 0 END), 0) AS credits_total,
-            COALESCE(SUM(CASE WHEN entry_type IN ('debit', 'fee') THEN amount ELSE 0 END), 0) AS debits_total,
-            COALESCE(SUM(CASE WHEN entry_type = 'refund' THEN amount ELSE 0 END), 0) AS refunds_total,
-            COALESCE(SUM(CASE WHEN entry_type = 'fee' THEN amount ELSE 0 END), 0) AS fees_total
-          FROM wallet_ledger_entries
-          WHERE wallet_id = ?";
-  $stmt = mysqli_prepare($conn, $sql);
-  if (!$stmt) {
-    return $overview;
-  }
-
-  mysqli_stmt_bind_param($stmt, 'i', $walletId);
-  mysqli_stmt_execute($stmt);
-  $result = mysqli_stmt_get_result($stmt);
-  $row = $result ? mysqli_fetch_assoc($result) : null;
-  mysqli_stmt_close($stmt);
-
-  if ($row) {
-    $overview = [
-      'entries_count' => (int) ($row['entries_count'] ?? 0),
-      'credits_total' => (int) ($row['credits_total'] ?? 0),
-      'debits_total' => (int) ($row['debits_total'] ?? 0),
-      'refunds_total' => (int) ($row['refunds_total'] ?? 0),
-      'fees_total' => (int) ($row['fees_total'] ?? 0),
-    ];
-  }
-
-  return $overview;
-}
-
-function ccStudentWalletFetchEntries($conn, $walletId, $filters = [], $limit = 50) {
-  $walletId = (int) $walletId;
-  $limit = max(1, min(100, (int) $limit));
-  $entries = [];
-
-  if ($walletId <= 0) {
-    return $entries;
-  }
-
-  $entryType = strtolower(trim((string) ($filters['entry_type'] ?? 'all')));
-  $dateFrom = trim((string) ($filters['date_from'] ?? ''));
-  $dateTo = trim((string) ($filters['date_to'] ?? ''));
-  $sql = "SELECT id, entry_type, amount, balance_before, balance_after, status, reference,
-                 provider_reference, description, created_at
-          FROM wallet_ledger_entries
-          WHERE wallet_id = ?";
-  $paramTypes = 'i';
-  $params = [$walletId];
-
-  if (in_array($entryType, ['credit', 'debit', 'refund', 'fee', 'adjustment'], true)) {
-    $sql .= " AND entry_type = ?";
-    $paramTypes .= 's';
-    $params[] = $entryType;
-  }
-
-  if (ccStudentWalletIsValidDate($dateFrom)) {
-    $sql .= " AND created_at >= ?";
-    $paramTypes .= 's';
-    $params[] = $dateFrom . ' 00:00:00';
-  }
-
-  if (ccStudentWalletIsValidDate($dateTo)) {
-    $sql .= " AND created_at <= ?";
-    $paramTypes .= 's';
-    $params[] = $dateTo . ' 23:59:59';
-  }
-
-  $sql .= " ORDER BY created_at DESC, id DESC LIMIT ?";
-  $paramTypes .= 'i';
-  $params[] = $limit;
-  $stmt = mysqli_prepare($conn, $sql);
-  if (!$stmt) {
-    return $entries;
-  }
-
-  ccStudentWalletBindParams($stmt, $paramTypes, $params);
-  mysqli_stmt_execute($stmt);
-  $result = mysqli_stmt_get_result($stmt);
-
-  if ($result) {
-    while ($row = mysqli_fetch_assoc($result)) {
-      $entryType = strtolower((string) ($row['entry_type'] ?? 'adjustment'));
-      $isCredit = in_array($entryType, ['credit', 'refund'], true);
-      $isDebit = in_array($entryType, ['debit', 'fee'], true);
-
-      $row['direction'] = $isCredit ? 'credit' : ($isDebit ? 'debit' : 'neutral');
-      $row['amount_sign'] = $isCredit ? '+' : ($isDebit ? '-' : '');
-      $entries[] = $row;
-    }
-  }
-
-  mysqli_stmt_close($stmt);
-  return $entries;
-}
-
 $requiredTables = ['users', 'schools', 'depts', 'faculties', 'user_wallets', 'wallet_virtual_accounts', 'wallet_ledger_entries'];
 $missingTables = [];
 
@@ -300,50 +41,14 @@ foreach ($requiredTables as $requiredTable) {
 }
 
 $walletTablesReady = empty($missingTables);
-$student = null;
-$wallet = null;
-$walletOverview = [
-  'entries_count' => 0,
-  'credits_total' => 0,
-  'debits_total' => 0,
-  'refunds_total' => 0,
-  'fees_total' => 0,
-];
-$walletEntries = [];
-$lookupError = '';
-$filterError = '';
-
-if ($dateFromFilter !== '' && !ccStudentWalletIsValidDate($dateFromFilter)) {
-  $filterError = 'Start date must use the YYYY-MM-DD format.';
+$initialLookup = trim((string) ($_GET['lookup'] ?? ''));
+$allowedEntryTypes = ['all', 'credit', 'debit', 'refund', 'fee', 'adjustment'];
+$initialEntryType = strtolower(trim((string) ($_GET['entry_type'] ?? 'all')));
+if (!in_array($initialEntryType, $allowedEntryTypes, true)) {
+  $initialEntryType = 'all';
 }
-
-if ($filterError === '' && $dateToFilter !== '' && !ccStudentWalletIsValidDate($dateToFilter)) {
-  $filterError = 'End date must use the YYYY-MM-DD format.';
-}
-
-if ($filterError === '' && $dateFromFilter !== '' && $dateToFilter !== '' && $dateFromFilter > $dateToFilter) {
-  $filterError = 'Start date cannot be later than end date.';
-}
-
-if ($lookupPerformed && $walletTablesReady) {
-  $student = ccStudentWalletFindStudent($conn, $lookup, $admin_role, $admin_school, $admin_faculty);
-
-  if ($student) {
-    $wallet = ccStudentWalletFetchWallet($conn, (int) ($student['id'] ?? 0));
-    if ($wallet) {
-      $walletOverview = ccStudentWalletFetchOverview($conn, (int) ($wallet['id'] ?? 0));
-      if ($filterError === '') {
-        $walletEntries = ccStudentWalletFetchEntries($conn, (int) ($wallet['id'] ?? 0), [
-          'entry_type' => $entryTypeFilter,
-          'date_from' => $dateFromFilter,
-          'date_to' => $dateToFilter,
-        ], 50);
-      }
-    }
-  } else {
-    $lookupError = 'No student matched that matric number or email address.';
-  }
-}
+$initialDateFrom = trim((string) ($_GET['date_from'] ?? ''));
+$initialDateTo = trim((string) ($_GET['date_to'] ?? ''));
 ?>
 <!DOCTYPE html>
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/" data-template="vertical-menu-template-free">
@@ -365,6 +70,7 @@ if ($lookupPerformed && $walletTablesReady) {
               <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
                 <div>
                   <h4 class="fw-bold py-3 mb-1"><span class="text-muted fw-light">Finances /</span> Student Wallets</h4>
+                  <p class="mb-0 text-muted">Find a student by exact matric number or email address, then inspect wallet balance, account details, and ledger activity without leaving the page.</p>
                 </div>
               </div>
 
@@ -376,48 +82,38 @@ if ($lookupPerformed && $walletTablesReady) {
 
               <div class="card mb-4">
                 <div class="card-body">
-                  <form method="get" class="row g-3 align-items-end">
+                  <form id="walletLookupForm" class="row g-3 align-items-end">
                     <div class="col-lg-8">
-                      <label for="lookup" class="form-label">Matric Number or Email Address</label>
+                      <label for="walletLookup" class="form-label">Matric Number or Email Address</label>
                       <input
                         type="text"
                         class="form-control"
-                        id="lookup"
+                        id="walletLookup"
                         name="lookup"
-                        value="<?php echo htmlspecialchars($lookup); ?>"
+                        value="<?php echo htmlspecialchars($initialLookup); ?>"
                         placeholder="e.g. 19/1234 or student@example.com"
                         <?php echo !$walletTablesReady ? 'disabled' : ''; ?>
                       />
                     </div>
                     <div class="col-lg-4 d-flex gap-2">
-                      <button type="submit" class="btn btn-primary" <?php echo !$walletTablesReady ? 'disabled' : ''; ?>>Find Wallet</button>
-                      <?php if ($lookupPerformed) { ?>
-                      <a href="student_wallets.php" class="btn btn-outline-secondary">Clear</a>
-                      <?php } ?>
+                      <button type="submit" class="btn btn-primary" id="lookupSubmitBtn" <?php echo !$walletTablesReady ? 'disabled' : ''; ?>>Find Wallet</button>
+                      <button type="button" class="btn btn-outline-secondary" id="lookupClearBtn" <?php echo !$walletTablesReady ? 'disabled' : ''; ?>>Clear</button>
+                    </div>
+                    <div class="col-12">
+                      <small class="text-muted" id="walletLookupMeta">Search uses an exact match on the student email or matric number.</small>
                     </div>
                   </form>
                 </div>
               </div>
 
-              <?php if ($lookupError !== '') { ?>
-              <div class="alert alert-danger" role="alert">
-                <?php echo htmlspecialchars($lookupError); ?>
-              </div>
-              <?php } ?>
+              <div id="walletAjaxAlert"></div>
 
-              <?php if ($filterError !== '') { ?>
-              <div class="alert alert-danger" role="alert">
-                <?php echo htmlspecialchars($filterError); ?>
-              </div>
-              <?php } ?>
-
-              <?php if ($student) { ?>
-              <div class="row mb-4">
+              <div class="row mb-4 d-none" id="walletSummaryRow">
                 <div class="col-xl-4 col-md-6 mb-4">
                   <div class="card h-100">
                     <div class="card-body">
                       <span class="text-muted d-block mb-1">Current Balance</span>
-                      <h3 class="mb-0">&#8358;<?php echo htmlspecialchars(ccStudentWalletFormatAmount($wallet['balance'] ?? 0)); ?></h3>
+                      <h3 class="mb-0" id="walletCurrentBalance">&#8358;0</h3>
                       <small class="text-muted">Stored in <strong>user_wallets.balance</strong></small>
                     </div>
                   </div>
@@ -426,7 +122,7 @@ if ($lookupPerformed && $walletTablesReady) {
                   <div class="card h-100">
                     <div class="card-body">
                       <span class="text-muted d-block mb-1">Total Credits</span>
-                      <h3 class="mb-0 text-success">&#8358;<?php echo htmlspecialchars(ccStudentWalletFormatAmount($walletOverview['credits_total'])); ?></h3>
+                      <h3 class="mb-0 text-success" id="walletTotalCredits">&#8358;0</h3>
                       <small class="text-muted">Credit + refund entries</small>
                     </div>
                   </div>
@@ -435,99 +131,30 @@ if ($lookupPerformed && $walletTablesReady) {
                   <div class="card h-100">
                     <div class="card-body">
                       <span class="text-muted d-block mb-1">Total Debits</span>
-                      <h3 class="mb-0 text-danger">&#8358;<?php echo htmlspecialchars(ccStudentWalletFormatAmount($walletOverview['debits_total'])); ?></h3>
-                      <small class="text-muted"><?php echo (int) $walletOverview['entries_count']; ?> ledger entr<?php echo (int) $walletOverview['entries_count'] === 1 ? 'y' : 'ies'; ?></small>
+                      <h3 class="mb-0 text-danger" id="walletTotalDebits">&#8358;0</h3>
+                      <small class="text-muted" id="walletEntriesCount">0 ledger entries</small>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div class="row g-4">
+              <div class="row g-4 d-none" id="walletContentRow">
                 <div class="col-xl-4">
                   <div class="card mb-4">
                     <div class="card-header">
                       <h5 class="mb-1">Student Details</h5>
                     </div>
-                    <div class="card-body">
-                      <dl class="row mb-0">
-                        <dt class="col-sm-4">Name</dt>
-                        <dd class="col-sm-8"><?php echo htmlspecialchars(trim(($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? '')) ?: '-'); ?></dd>
-
-                        <dt class="col-sm-4">Matric</dt>
-                        <dd class="col-sm-8"><?php echo htmlspecialchars((string) ($student['matric_no'] ?? '-')); ?></dd>
-
-                        <dt class="col-sm-4">Email</dt>
-                        <dd class="col-sm-8"><?php echo htmlspecialchars((string) ($student['email'] ?? '-')); ?></dd>
-
-                        <dt class="col-sm-4">Phone</dt>
-                        <dd class="col-sm-8"><?php echo htmlspecialchars((string) ($student['phone'] ?? '-')); ?></dd>
-
-                        <dt class="col-sm-4">School</dt>
-                        <dd class="col-sm-8"><?php echo htmlspecialchars((string) ($student['school_name'] ?? '-')); ?></dd>
-
-                        <dt class="col-sm-4">Faculty</dt>
-                        <dd class="col-sm-8"><?php echo htmlspecialchars((string) ($student['faculty_name'] ?? '-')); ?></dd>
-
-                        <dt class="col-sm-4">Department</dt>
-                        <dd class="col-sm-8"><?php echo htmlspecialchars((string) ($student['dept_name'] ?? '-')); ?></dd>
-
-                        <dt class="col-sm-4">Status</dt>
-                        <dd class="col-sm-8">
-                          <span class="badge bg-label-<?php echo htmlspecialchars(ccStudentWalletStatusBadge($student['user_status'] ?? '')); ?>">
-                            <?php echo htmlspecialchars(ucfirst((string) ($student['user_status'] ?? 'unknown'))); ?>
-                          </span>
-                        </dd>
-                      </dl>
+                    <div class="card-body" id="studentDetailsBody">
+                      <div class="text-muted">Search for a student to see details.</div>
                     </div>
                   </div>
 
                   <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="card-header">
                       <h5 class="mb-1">Wallet Details</h5>
-                      <?php if ($wallet) { ?>
-                      <span class="badge bg-label-<?php echo htmlspecialchars(ccStudentWalletStatusBadge($wallet['status'] ?? '')); ?>">
-                        <?php echo htmlspecialchars(ucfirst((string) ($wallet['status'] ?? 'unknown'))); ?>
-                      </span>
-                      <?php } ?>
                     </div>
-                    <div class="card-body">
-                      <?php if ($wallet) { ?>
-                      <dl class="row mb-0">
-                        <dt class="col-sm-5">Wallet ID</dt>
-                        <dd class="col-sm-7"><?php echo (int) ($wallet['id'] ?? 0); ?></dd>
-
-                        <dt class="col-sm-5">Requested Via</dt>
-                        <dd class="col-sm-7"><?php echo htmlspecialchars((string) ($wallet['requested_via'] ?? '-')); ?></dd>
-
-                        <dt class="col-sm-5">Currency</dt>
-                        <dd class="col-sm-7"><?php echo htmlspecialchars((string) ($wallet['currency'] ?? 'NGN')); ?></dd>
-
-                        <dt class="col-sm-5">Account Name</dt>
-                        <dd class="col-sm-7"><?php echo htmlspecialchars((string) ($wallet['account_name'] ?? '-')); ?></dd>
-
-                        <dt class="col-sm-5">Account Number</dt>
-                        <dd class="col-sm-7"><?php echo htmlspecialchars((string) ($wallet['account_number'] ?? '-')); ?></dd>
-
-                        <dt class="col-sm-5">Bank</dt>
-                        <dd class="col-sm-7"><?php echo htmlspecialchars((string) ($wallet['bank_name'] ?? '-')); ?></dd>
-
-                        <dt class="col-sm-5">Provider</dt>
-                        <dd class="col-sm-7"><?php echo htmlspecialchars((string) ($wallet['provider'] ?? '-')); ?></dd>
-
-                        <dt class="col-sm-5">VA Status</dt>
-                        <dd class="col-sm-7"><?php echo htmlspecialchars((string) ($wallet['virtual_account_status'] ?? '-')); ?></dd>
-
-                        <dt class="col-sm-5">Created</dt>
-                        <dd class="col-sm-7"><?php echo htmlspecialchars(ccStudentWalletFormatDate($wallet['created_at'] ?? '')); ?></dd>
-
-                        <dt class="col-sm-5">Updated</dt>
-                        <dd class="col-sm-7"><?php echo htmlspecialchars(ccStudentWalletFormatDate($wallet['updated_at'] ?? '')); ?></dd>
-                      </dl>
-                      <?php } else { ?>
-                      <div class="alert alert-info mb-0" role="alert">
-                        This student exists, but no wallet has been created for the account yet.
-                      </div>
-                      <?php } ?>
+                    <div class="card-body" id="walletDetailsBody">
+                      <div class="text-muted">Run a lookup to load wallet details.</div>
                     </div>
                   </div>
                 </div>
@@ -539,54 +166,35 @@ if ($lookupPerformed && $walletTablesReady) {
                         <h5 class="mb-1">Wallet Ledger</h5>
                         <small class="text-muted">Most recent 50 entries from <strong>wallet_ledger_entries</strong>, with optional date and type filters.</small>
                       </div>
-                      <?php if ($wallet) { ?>
-                      <div class="text-muted small">
-                        Refunds: &#8358;<?php echo htmlspecialchars(ccStudentWalletFormatAmount($walletOverview['refunds_total'])); ?>
-                        <span class="mx-2">|</span>
-                        Fees: &#8358;<?php echo htmlspecialchars(ccStudentWalletFormatAmount($walletOverview['fees_total'])); ?>
-                      </div>
-                      <?php } ?>
+                      <div class="text-muted small d-none" id="walletLedgerMeta"></div>
                     </div>
                     <div class="card-body">
-                      <?php if (!$wallet) { ?>
-                      <div class="text-muted">No wallet ledger is available because the student does not have a wallet yet.</div>
-                      <?php } else { ?>
-                      <form method="get" class="row g-3 align-items-end mb-4">
-                        <input type="hidden" name="lookup" value="<?php echo htmlspecialchars($lookup); ?>" />
+                      <form id="walletFilterForm" class="row g-3 align-items-end mb-4">
                         <div class="col-md-4">
-                          <label for="entry_type" class="form-label">Entry Type</label>
-                          <select class="form-select" id="entry_type" name="entry_type">
-                            <option value="all" <?php echo $entryTypeFilter === 'all' ? 'selected' : ''; ?>>All Types</option>
-                            <option value="credit" <?php echo $entryTypeFilter === 'credit' ? 'selected' : ''; ?>>Credit</option>
-                            <option value="debit" <?php echo $entryTypeFilter === 'debit' ? 'selected' : ''; ?>>Debit</option>
-                            <option value="refund" <?php echo $entryTypeFilter === 'refund' ? 'selected' : ''; ?>>Refund</option>
-                            <option value="fee" <?php echo $entryTypeFilter === 'fee' ? 'selected' : ''; ?>>Fee</option>
-                            <option value="adjustment" <?php echo $entryTypeFilter === 'adjustment' ? 'selected' : ''; ?>>Adjustment</option>
+                          <label for="walletFilterEntryType" class="form-label">Entry Type</label>
+                          <select class="form-select" id="walletFilterEntryType" name="entry_type" disabled>
+                            <option value="all" <?php echo $initialEntryType === 'all' ? 'selected' : ''; ?>>All Types</option>
+                            <option value="credit" <?php echo $initialEntryType === 'credit' ? 'selected' : ''; ?>>Credit</option>
+                            <option value="debit" <?php echo $initialEntryType === 'debit' ? 'selected' : ''; ?>>Debit</option>
+                            <option value="refund" <?php echo $initialEntryType === 'refund' ? 'selected' : ''; ?>>Refund</option>
+                            <option value="fee" <?php echo $initialEntryType === 'fee' ? 'selected' : ''; ?>>Fee</option>
+                            <option value="adjustment" <?php echo $initialEntryType === 'adjustment' ? 'selected' : ''; ?>>Adjustment</option>
                           </select>
                         </div>
                         <div class="col-md-3">
-                          <label for="date_from" class="form-label">From</label>
-                          <input type="date" class="form-control" id="date_from" name="date_from" value="<?php echo htmlspecialchars($dateFromFilter); ?>" />
+                          <label for="walletFilterDateFrom" class="form-label">From</label>
+                          <input type="date" class="form-control" id="walletFilterDateFrom" name="date_from" value="<?php echo htmlspecialchars($initialDateFrom); ?>" disabled />
                         </div>
                         <div class="col-md-3">
-                          <label for="date_to" class="form-label">To</label>
-                          <input type="date" class="form-control" id="date_to" name="date_to" value="<?php echo htmlspecialchars($dateToFilter); ?>" />
+                          <label for="walletFilterDateTo" class="form-label">To</label>
+                          <input type="date" class="form-control" id="walletFilterDateTo" name="date_to" value="<?php echo htmlspecialchars($initialDateTo); ?>" disabled />
                         </div>
                         <div class="col-md-2 d-flex gap-2">
-                          <button type="submit" class="btn btn-primary w-100">Apply</button>
+                          <button type="submit" class="btn btn-primary w-100" id="walletFilterApplyBtn" disabled>Apply</button>
                         </div>
                         <div class="col-12 d-flex justify-content-between align-items-center flex-wrap gap-2">
-                          <small class="text-muted">
-                            Showing <?php echo count($walletEntries); ?> result<?php echo count($walletEntries) === 1 ? '' : 's'; ?>
-                            <?php if ($entryTypeFilter !== 'all' || $dateFromFilter !== '' || $dateToFilter !== '') { ?>
-                            for the active filters.
-                            <?php } else { ?>
-                            without additional filters.
-                            <?php } ?>
-                          </small>
-                          <?php if ($entryTypeFilter !== 'all' || $dateFromFilter !== '' || $dateToFilter !== '') { ?>
-                          <a href="student_wallets.php?lookup=<?php echo urlencode($lookup); ?>" class="btn btn-sm btn-outline-secondary">Reset Filters</a>
-                          <?php } ?>
+                          <small class="text-muted" id="walletFilterSummary">Filters become available after a wallet is loaded.</small>
+                          <button type="button" class="btn btn-sm btn-outline-secondary" id="walletFilterResetBtn" disabled>Reset Filters</button>
                         </div>
                       </form>
                       <div class="table-responsive text-nowrap">
@@ -603,50 +211,17 @@ if ($lookupPerformed && $walletTablesReady) {
                               <th>Description</th>
                             </tr>
                           </thead>
-                          <tbody>
-                            <?php if (empty($walletEntries)) { ?>
+                          <tbody id="walletLedgerBody">
                             <tr>
-                              <td colspan="8" class="text-center text-muted py-4">No wallet ledger entries found for this student.</td>
+                              <td colspan="8" class="text-center text-muted py-4">Search for a student to see wallet ledger entries.</td>
                             </tr>
-                            <?php } ?>
-                            <?php foreach ($walletEntries as $entry) { ?>
-                            <?php
-                              $entryType = strtolower((string) ($entry['entry_type'] ?? 'adjustment'));
-                              $direction = (string) ($entry['direction'] ?? 'neutral');
-                              $amountClass = $direction === 'credit' ? 'text-success' : ($direction === 'debit' ? 'text-danger' : 'text-muted');
-                              $referenceDisplay = trim((string) ($entry['provider_reference'] ?? ''));
-                              if ($referenceDisplay === '') {
-                                $referenceDisplay = (string) ($entry['reference'] ?? '-');
-                              }
-                            ?>
-                            <tr>
-                              <td><?php echo htmlspecialchars(ccStudentWalletFormatDate($entry['created_at'] ?? '')); ?></td>
-                              <td>
-                                <span class="badge bg-label-<?php echo htmlspecialchars(ccStudentWalletEntryTypeBadge($entryType)); ?>">
-                                  <?php echo htmlspecialchars(ucfirst($entryType)); ?>
-                                </span>
-                              </td>
-                              <td class="<?php echo $amountClass; ?> fw-semibold"><?php echo htmlspecialchars((string) ($entry['amount_sign'] ?? '')); ?>&#8358;<?php echo htmlspecialchars(ccStudentWalletFormatAmount($entry['amount'] ?? 0)); ?></td>
-                              <td>&#8358;<?php echo htmlspecialchars(ccStudentWalletFormatAmount($entry['balance_before'] ?? 0)); ?></td>
-                              <td>&#8358;<?php echo htmlspecialchars(ccStudentWalletFormatAmount($entry['balance_after'] ?? 0)); ?></td>
-                              <td>
-                                <span class="badge bg-label-<?php echo htmlspecialchars(ccStudentWalletStatusBadge($entry['status'] ?? '')); ?>">
-                                  <?php echo htmlspecialchars(ucfirst((string) ($entry['status'] ?? 'unknown'))); ?>
-                                </span>
-                              </td>
-                              <td class="text-wrap" style="min-width: 180px;"><?php echo htmlspecialchars($referenceDisplay); ?></td>
-                              <td class="text-wrap" style="min-width: 220px;"><?php echo htmlspecialchars((string) ($entry['description'] ?? '-')); ?></td>
-                            </tr>
-                            <?php } ?>
                           </tbody>
                         </table>
                       </div>
-                      <?php } ?>
                     </div>
                   </div>
                 </div>
               </div>
-              <?php } ?>
             </div>
 
             <?php include('partials/_footer.php') ?>
@@ -663,5 +238,331 @@ if ($lookupPerformed && $walletTablesReady) {
     <script src="assets/vendor/libs/popper/popper.min.js"></script>
     <script src="assets/vendor/js/menu.min.js"></script>
     <script src="assets/js/main.js"></script>
+    <script>
+      $(function() {
+        var walletTablesReady = <?php echo $walletTablesReady ? 'true' : 'false'; ?>;
+        var endpointUrl = 'model/student_wallet_lookup.php';
+        var currentLookup = <?php echo json_encode($initialLookup); ?>;
+        var currentHasWallet = false;
+        var pendingRequest = null;
+        var requestSequence = 0;
+
+        var $lookupForm = $('#walletLookupForm');
+        var $lookupInput = $('#walletLookup');
+        var $lookupSubmitBtn = $('#lookupSubmitBtn');
+        var $lookupClearBtn = $('#lookupClearBtn');
+        var $lookupMeta = $('#walletLookupMeta');
+        var $alertWrap = $('#walletAjaxAlert');
+        var $summaryRow = $('#walletSummaryRow');
+        var $contentRow = $('#walletContentRow');
+        var $currentBalance = $('#walletCurrentBalance');
+        var $totalCredits = $('#walletTotalCredits');
+        var $totalDebits = $('#walletTotalDebits');
+        var $entriesCount = $('#walletEntriesCount');
+        var $studentDetailsBody = $('#studentDetailsBody');
+        var $walletDetailsBody = $('#walletDetailsBody');
+        var $ledgerMeta = $('#walletLedgerMeta');
+        var $filterForm = $('#walletFilterForm');
+        var $filterEntryType = $('#walletFilterEntryType');
+        var $filterDateFrom = $('#walletFilterDateFrom');
+        var $filterDateTo = $('#walletFilterDateTo');
+        var $filterApplyBtn = $('#walletFilterApplyBtn');
+        var $filterResetBtn = $('#walletFilterResetBtn');
+        var $filterSummary = $('#walletFilterSummary');
+        var $ledgerBody = $('#walletLedgerBody');
+
+        function escapeHtml(value) {
+          return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+        }
+
+        function formatCurrency(value) {
+          return '₦' + Number(value || 0).toLocaleString();
+        }
+
+        function clearAlert() {
+          $alertWrap.html('');
+        }
+
+        function showAlert(type, message) {
+          $alertWrap.html('<div class="alert alert-' + type + '" role="alert">' + escapeHtml(message) + '</div>');
+        }
+
+        function setFilterEnabled(enabled) {
+          currentHasWallet = !!enabled;
+          $filterEntryType.prop('disabled', !enabled);
+          $filterDateFrom.prop('disabled', !enabled);
+          $filterDateTo.prop('disabled', !enabled);
+          $filterApplyBtn.prop('disabled', !enabled);
+          $filterResetBtn.prop('disabled', !enabled);
+        }
+
+        function setBusy(isBusy, mode) {
+          mode = mode || 'lookup';
+          $lookupSubmitBtn.prop('disabled', isBusy || !walletTablesReady).text(isBusy && mode === 'lookup' ? 'Loading...' : 'Find Wallet');
+          $lookupClearBtn.prop('disabled', isBusy || !walletTablesReady);
+          $filterEntryType.prop('disabled', isBusy || !currentHasWallet);
+          $filterDateFrom.prop('disabled', isBusy || !currentHasWallet);
+          $filterDateTo.prop('disabled', isBusy || !currentHasWallet);
+          $filterApplyBtn.prop('disabled', isBusy || !currentHasWallet).text(isBusy && mode === 'filter' ? 'Applying...' : 'Apply');
+          $filterResetBtn.prop('disabled', isBusy || !currentHasWallet);
+        }
+
+        function resetResults(message) {
+          $summaryRow.addClass('d-none');
+          $contentRow.addClass('d-none');
+          setFilterEnabled(false);
+          $ledgerMeta.addClass('d-none').text('');
+          $studentDetailsBody.html('<div class="text-muted">Search for a student to see details.</div>');
+          $walletDetailsBody.html('<div class="text-muted">Run a lookup to load wallet details.</div>');
+          $ledgerBody.html('<tr><td colspan="8" class="text-center text-muted py-4">' + escapeHtml(message || 'Search for a student to see wallet ledger entries.') + '</td></tr>');
+          $filterSummary.text('Filters become available after a wallet is loaded.');
+          $lookupMeta.text('Search uses an exact match on the student email or matric number.');
+        }
+
+        function renderStudent(student) {
+          var html = '' +
+            '<dl class="row mb-0">' +
+              '<dt class="col-sm-4">Name</dt>' +
+              '<dd class="col-sm-8">' + escapeHtml(student.full_name || '-') + '</dd>' +
+              '<dt class="col-sm-4">Matric</dt>' +
+              '<dd class="col-sm-8">' + escapeHtml(student.matric_no || '-') + '</dd>' +
+              '<dt class="col-sm-4">Email</dt>' +
+              '<dd class="col-sm-8">' + escapeHtml(student.email || '-') + '</dd>' +
+              '<dt class="col-sm-4">Phone</dt>' +
+              '<dd class="col-sm-8">' + escapeHtml(student.phone || '-') + '</dd>' +
+              '<dt class="col-sm-4">School</dt>' +
+              '<dd class="col-sm-8">' + escapeHtml(student.school_name || '-') + '</dd>' +
+              '<dt class="col-sm-4">Faculty</dt>' +
+              '<dd class="col-sm-8">' + escapeHtml(student.faculty_name || '-') + '</dd>' +
+              '<dt class="col-sm-4">Department</dt>' +
+              '<dd class="col-sm-8">' + escapeHtml(student.dept_name || '-') + '</dd>' +
+              '<dt class="col-sm-4">Status</dt>' +
+              '<dd class="col-sm-8"><span class="badge bg-label-' + escapeHtml(student.status_badge || 'secondary') + '">' + escapeHtml(student.status_label || 'Unknown') + '</span></dd>' +
+            '</dl>';
+          $studentDetailsBody.html(html);
+        }
+
+        function renderWallet(wallet) {
+          if (!wallet) {
+            $walletDetailsBody.html('<div class="alert alert-info mb-0" role="alert">This student exists, but no wallet has been created for the account yet.</div>');
+            return;
+          }
+
+          var html = '' +
+            '<div class="d-flex justify-content-between align-items-center mb-3">' +
+              '<h6 class="mb-0">Wallet Profile</h6>' +
+              '<span class="badge bg-label-' + escapeHtml(wallet.status_badge || 'secondary') + '">' + escapeHtml(wallet.status_label || 'Unknown') + '</span>' +
+            '</div>' +
+            '<dl class="row mb-0">' +
+              '<dt class="col-sm-5">Wallet ID</dt>' +
+              '<dd class="col-sm-7">' + escapeHtml(wallet.id || 0) + '</dd>' +
+              '<dt class="col-sm-5">Requested Via</dt>' +
+              '<dd class="col-sm-7">' + escapeHtml(wallet.requested_via || '-') + '</dd>' +
+              '<dt class="col-sm-5">Currency</dt>' +
+              '<dd class="col-sm-7">' + escapeHtml(wallet.currency || 'NGN') + '</dd>' +
+              '<dt class="col-sm-5">Account Name</dt>' +
+              '<dd class="col-sm-7">' + escapeHtml(wallet.account_name || '-') + '</dd>' +
+              '<dt class="col-sm-5">Account Number</dt>' +
+              '<dd class="col-sm-7">' + escapeHtml(wallet.account_number || '-') + '</dd>' +
+              '<dt class="col-sm-5">Bank</dt>' +
+              '<dd class="col-sm-7">' + escapeHtml(wallet.bank_name || '-') + '</dd>' +
+              '<dt class="col-sm-5">Provider</dt>' +
+              '<dd class="col-sm-7">' + escapeHtml(wallet.provider || '-') + '</dd>' +
+              '<dt class="col-sm-5">VA Status</dt>' +
+              '<dd class="col-sm-7">' + escapeHtml(wallet.virtual_account_status_label || '-') + '</dd>' +
+              '<dt class="col-sm-5">Created</dt>' +
+              '<dd class="col-sm-7">' + escapeHtml(wallet.created_at_display || '-') + '</dd>' +
+              '<dt class="col-sm-5">Updated</dt>' +
+              '<dd class="col-sm-7">' + escapeHtml(wallet.updated_at_display || '-') + '</dd>' +
+            '</dl>';
+          $walletDetailsBody.html(html);
+        }
+
+        function renderOverview(wallet, overview) {
+          $currentBalance.text(formatCurrency(wallet.balance || 0));
+          $totalCredits.text(formatCurrency(overview.credits_total || 0));
+          $totalDebits.text(formatCurrency(overview.debits_total || 0));
+          var entriesCount = Number(overview.entries_count || 0);
+          $entriesCount.text(entriesCount.toLocaleString() + ' ledger ' + (entriesCount === 1 ? 'entry' : 'entries'));
+          $summaryRow.removeClass('d-none');
+          $ledgerMeta.text('Refunds: ' + formatCurrency(overview.refunds_total || 0) + ' | Fees: ' + formatCurrency(overview.fees_total || 0)).removeClass('d-none');
+        }
+
+        function renderEntries(entries, hasWallet, filters) {
+          var hasActiveFilters = !!(filters && filters.has_active_filters);
+          if (!hasWallet) {
+            $ledgerBody.html('<tr><td colspan="8" class="text-center text-muted py-4">No wallet ledger is available because the student does not have a wallet yet.</td></tr>');
+            $filterSummary.text('This student does not have a wallet yet, so there are no wallet transactions to filter.');
+            return;
+          }
+
+          if (!Array.isArray(entries) || entries.length === 0) {
+            $ledgerBody.html('<tr><td colspan="8" class="text-center text-muted py-4">No wallet ledger entries matched the current selection.</td></tr>');
+            $filterSummary.text('No wallet ledger entries matched the current selection.');
+            return;
+          }
+
+          var rows = entries.map(function(entry) {
+            var amountClass = entry.direction === 'credit' ? 'text-success' : (entry.direction === 'debit' ? 'text-danger' : 'text-muted');
+            return '' +
+              '<tr>' +
+                '<td>' + escapeHtml(entry.created_at_display || '-') + '</td>' +
+                '<td><span class="badge bg-label-' + escapeHtml(entry.entry_type_badge || 'secondary') + '">' + escapeHtml(entry.entry_type_label || 'Unknown') + '</span></td>' +
+                '<td class="' + amountClass + ' fw-semibold">' + escapeHtml(entry.amount_sign || '') + formatCurrency(entry.amount || 0) + '</td>' +
+                '<td>' + formatCurrency(entry.balance_before || 0) + '</td>' +
+                '<td>' + formatCurrency(entry.balance_after || 0) + '</td>' +
+                '<td><span class="badge bg-label-' + escapeHtml(entry.status_badge || 'secondary') + '">' + escapeHtml(entry.status_label || 'Unknown') + '</span></td>' +
+                '<td class="text-wrap" style="min-width: 180px;">' + escapeHtml(entry.reference_display || '-') + '</td>' +
+                '<td class="text-wrap" style="min-width: 220px;">' + escapeHtml(entry.description || '-') + '</td>' +
+              '</tr>';
+          }).join('');
+
+          $ledgerBody.html(rows);
+          $filterSummary.text('Showing ' + entries.length + ' result' + (entries.length === 1 ? '' : 's') + (hasActiveFilters ? ' for the active filters.' : ' without additional filters.'));
+        }
+
+        function renderResponse(response) {
+          $contentRow.removeClass('d-none');
+          renderStudent(response.student || {});
+          $lookupMeta.text(response.message || 'Wallet details loaded successfully.');
+
+          if (!response.has_wallet) {
+            $summaryRow.addClass('d-none');
+            $ledgerMeta.addClass('d-none').text('');
+            renderWallet(null);
+            renderEntries([], false, response.filters || {});
+            setFilterEnabled(false);
+            return;
+          }
+
+          renderWallet(response.wallet || {});
+          renderOverview(response.wallet || {}, response.overview || {});
+          renderEntries(response.entries || [], true, response.filters || {});
+          setFilterEnabled(true);
+        }
+
+        function runLookup(mode) {
+          if (!walletTablesReady) {
+            return;
+          }
+
+          var lookupValue = $.trim($lookupInput.val());
+          if (lookupValue === '') {
+            showAlert('warning', 'Enter a matric number or email address.');
+            return;
+          }
+
+          clearAlert();
+          currentLookup = lookupValue;
+
+          if (pendingRequest) {
+            pendingRequest.abort();
+          }
+
+          requestSequence += 1;
+          var currentRequestId = requestSequence;
+          setBusy(true, mode);
+          pendingRequest = $.ajax({
+            url: endpointUrl,
+            method: 'POST',
+            dataType: 'json',
+            data: {
+              lookup: lookupValue,
+              entry_type: $filterEntryType.val(),
+              date_from: $filterDateFrom.val(),
+              date_to: $filterDateTo.val()
+            }
+          });
+
+          pendingRequest.done(function(response) {
+            if (currentRequestId !== requestSequence) {
+              return;
+            }
+            renderResponse(response);
+          }).fail(function(xhr, textStatus) {
+            if (textStatus === 'abort') {
+              return;
+            }
+
+            if (currentRequestId !== requestSequence) {
+              return;
+            }
+
+            var message = 'Unable to load wallet details.';
+            var response = xhr.responseJSON;
+            if (!response && xhr.responseText) {
+              try {
+                response = JSON.parse(xhr.responseText);
+              } catch (error) {
+                response = null;
+              }
+            }
+
+            if (response && response.message) {
+              message = response.message;
+            }
+
+            if (xhr.status === 404) {
+              resetResults(message);
+            }
+
+            showAlert('danger', message);
+          }).always(function() {
+            if (currentRequestId !== requestSequence) {
+              return;
+            }
+            pendingRequest = null;
+            setBusy(false, mode);
+          });
+        }
+
+        $lookupForm.on('submit', function(event) {
+          event.preventDefault();
+          runLookup('lookup');
+        });
+
+        $filterForm.on('submit', function(event) {
+          event.preventDefault();
+          if (!currentHasWallet) {
+            return;
+          }
+          runLookup('filter');
+        });
+
+        $filterResetBtn.on('click', function() {
+          $filterEntryType.val('all');
+          $filterDateFrom.val('');
+          $filterDateTo.val('');
+          if ($.trim($lookupInput.val()) !== '') {
+            runLookup('filter');
+          }
+        });
+
+        $lookupClearBtn.on('click', function() {
+          if (pendingRequest) {
+            pendingRequest.abort();
+            pendingRequest = null;
+          }
+          requestSequence += 1;
+          $lookupInput.val('');
+          $filterEntryType.val('all');
+          $filterDateFrom.val('');
+          $filterDateTo.val('');
+          clearAlert();
+          resetResults('Search for a student to see wallet ledger entries.');
+        });
+
+        resetResults('Search for a student to see wallet ledger entries.');
+
+        if (walletTablesReady && $.trim($lookupInput.val()) !== '') {
+          runLookup('lookup');
+        }
+      });
+    </script>
   </body>
 </html>
