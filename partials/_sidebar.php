@@ -264,6 +264,12 @@ $admin_faculty = $admin_['faculty'] ?? 0;
         </a>
       </li>
       <?php } ?>
+      <li class="menu-item <?php echo $current_page == 'student_wallets.php' ? 'active' : ''; ?>">
+        <a href="student_wallets.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-wallet-alt"></i>
+          <div data-i18n="Student Wallets">Student Wallets</div>
+        </a>
+      </li>
       <?php if (!in_array((int) $_SESSION['nivas_adminRole'], [5], true)) { ?>
       <li class="menu-item <?php echo $current_page == 'gateway_check.php' ? 'active' : ''; ?>">
         <a href="gateway_check.php" class="menu-link">
