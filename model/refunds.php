@@ -2,6 +2,8 @@
 session_start();
 require_once(__DIR__ . '/config.php');
 require_once(__DIR__ . '/functions.php');
+require_once(__DIR__ . '/mail.php');
+require_once(__DIR__ . '/notification_helpers.php');
 
 header('Content-Type: application/json');
 
@@ -753,6 +755,9 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
   $postflightWarnings = [];
   $createdRefund = null;
   $directLedgerAdjustment = null;
+  $walletRefundResult = null;
+  $manualsBoughtRemoval = null;
+  $studentDelivery = [];
 
   try {
     $transactionRows = dbFetchAll(
@@ -762,6 +767,7 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
          t.ref_id,
          t.user_id,
          t.status,
+        COALESCE(NULLIF(t.payment_channel, ''), 'gateway') AS payment_channel,
         t.created_at,
          u.school AS user_school
        FROM transactions t
@@ -965,9 +971,30 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                       ]);
 
                       if (($directLedgerAdjustment['status'] ?? '') === 'adjusted') {
+                        $paymentChannel = strtolower(trim((string) ($sourceTransaction['payment_channel'] ?? 'gateway')));
                         $directAppliedAmount = round((float) ($directLedgerAdjustment['refunded'] ?? 0), 2);
                         if (abs($directAppliedAmount - $amount) > 0.00001) {
                           throw new RuntimeException('Direct ledger refund could not apply the full refund amount.');
+                        }
+
+                        if ($paymentChannel === 'wallet') {
+                          $walletRefundResult = creditStudentWalletRefund(
+                            $conn,
+                            $studentId,
+                            $schoolId,
+                            $sourceRefId,
+                            $refundId,
+                            $amount,
+                            [
+                              'reason' => $reason,
+                              'source' => 'cc_dashboard_refund',
+                              'selected_manual_ids' => array_values($selectedMaterialIds),
+                            ]
+                          );
+
+                          if (!in_array((string) ($walletRefundResult['status'] ?? ''), ['credited', 'exists'], true)) {
+                            throw new RuntimeException('Failed to credit student wallet refund before applying refund.');
+                          }
                         }
 
                         $updateStmt = dbExecute(
@@ -979,6 +1006,16 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                           [$refundId]
                         );
                         mysqli_stmt_close($updateStmt);
+
+                        $manualsBoughtRemoval = removeRefundedMaterialsFromManualsBought(
+                          $conn,
+                          $sourceRefId,
+                          $studentId,
+                          array_values($selectedMaterialIds)
+                        );
+                        if (($manualsBoughtRemoval['deleted_count'] ?? 0) < count($selectedMaterialIds)) {
+                          throw new RuntimeException('Failed to revoke refunded material access from manuals_bought.');
+                        }
 
                         $refundStateChanges[] = [
                           'refund_id' => $refundId,
@@ -1215,6 +1252,8 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                           'selected_manual_ids' => array_values($selectedMaterialIds),
                           'preflight' => $preflightDetails,
                           'direct_ledger_adjustment' => $directLedgerAdjustment,
+                          'wallet_refund' => $walletRefundResult,
+                          'manuals_bought_removal' => $manualsBoughtRemoval,
                           'reallocation' => [
                             'rows' => $reallocationLogs,
                             'moved_total' => array_sum(array_map(static function (array $row): float {
@@ -1225,6 +1264,18 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                           'transaction_refund_caps' => $transactionCapLogs,
                           'postflight_warnings' => $postflightWarnings,
                         ]);
+                      }
+
+                      if (strtolower((string) ($createdRefund['status'] ?? '')) === 'applied') {
+                        $studentDelivery = dispatchRefundAppliedStudentNotifications(
+                          $conn,
+                          $adminId,
+                          $student,
+                          $createdRefund,
+                          $selectedMaterials,
+                          strtolower(trim((string) ($sourceTransaction['payment_channel'] ?? 'gateway'))),
+                          $walletRefundResult
+                        );
                       }
 
                       foreach ($reallocationLogs as $reallocationLog) {
@@ -1246,6 +1297,9 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                         'status' => 'success',
                         'message' => 'Refund created successfully.',
                         'refund' => normalizeNumericRow($createdRefund, ['amount', 'remaining_amount']),
+                        'wallet_refund' => $walletRefundResult,
+                        'manuals_bought_removal' => $manualsBoughtRemoval,
+                        'student_delivery' => $studentDelivery,
                         'reallocation' => [
                           'rows_moved' => count($reallocationLogs),
                           'moved_total' => array_sum(array_map(static function (array $row): float {
@@ -1772,6 +1826,310 @@ function schoolInternalWalletTableExists(mysqli $conn): bool
   $checked = true;
 
   return $exists;
+}
+
+function userWalletTableExists(mysqli $conn): bool
+{
+  static $checked = false;
+  static $exists = false;
+
+  if ($checked) {
+    return $exists;
+  }
+
+  $rows = dbFetchAll($conn, "SHOW TABLES LIKE 'user_wallets'");
+  $exists = $rows !== [];
+  $checked = true;
+
+  return $exists;
+}
+
+function walletLedgerEntriesTableExists(mysqli $conn): bool
+{
+  static $checked = false;
+  static $exists = false;
+
+  if ($checked) {
+    return $exists;
+  }
+
+  $rows = dbFetchAll($conn, "SHOW TABLES LIKE 'wallet_ledger_entries'");
+  $exists = $rows !== [];
+  $checked = true;
+
+  return $exists;
+}
+
+function creditStudentWalletRefund(
+  mysqli $conn,
+  int $userId,
+  int $schoolId,
+  string $sourceRefId,
+  int $refundId,
+  float $refundAmount,
+  array $metadata = []
+): array {
+  $walletAmount = max(0, (int) round($refundAmount));
+  $sourceRefId = trim($sourceRefId);
+
+  if ($userId <= 0 || $refundId <= 0 || $sourceRefId === '' || $walletAmount <= 0) {
+    return [
+      'status' => 'ignored',
+      'credited_amount' => 0,
+    ];
+  }
+
+  if (!userWalletTableExists($conn) || !walletLedgerEntriesTableExists($conn)) {
+    return [
+      'status' => 'missing_table',
+      'credited_amount' => 0,
+    ];
+  }
+
+  $walletRows = dbFetchAll(
+    $conn,
+    'SELECT id, user_id, school_id, balance, status, currency
+     FROM user_wallets
+     WHERE user_id = ?
+     LIMIT 1
+     FOR UPDATE',
+    'i',
+    [$userId]
+  );
+
+  if ($walletRows === []) {
+    return [
+      'status' => 'missing_wallet',
+      'credited_amount' => 0,
+    ];
+  }
+
+  $walletRow = $walletRows[0];
+  $walletId = (int) ($walletRow['id'] ?? 0);
+  $walletStatus = strtolower(trim((string) ($walletRow['status'] ?? 'active')));
+  if ($walletId <= 0 || $walletStatus !== 'active') {
+    return [
+      'status' => 'wallet_unavailable',
+      'credited_amount' => 0,
+      'wallet_id' => $walletId,
+    ];
+  }
+
+  $reference = 'wallet_refund:' . $refundId;
+  $existingEntries = dbFetchAll(
+    $conn,
+    "SELECT id, balance_after
+     FROM wallet_ledger_entries
+     WHERE wallet_id = ?
+       AND entry_type = 'refund'
+       AND reference = ?
+     LIMIT 1
+     FOR UPDATE",
+    'is',
+    [$walletId, $reference]
+  );
+
+  if ($existingEntries !== []) {
+    return [
+      'status' => 'exists',
+      'credited_amount' => $walletAmount,
+      'wallet_id' => $walletId,
+      'ledger_entry_id' => (int) ($existingEntries[0]['id'] ?? 0),
+    ];
+  }
+
+  $balanceBefore = (int) round((float) ($walletRow['balance'] ?? 0));
+  $balanceAfter = $balanceBefore + $walletAmount;
+
+  $updateWalletStmt = dbExecute(
+    $conn,
+    'UPDATE user_wallets
+     SET balance = ?, updated_at = NOW()
+     WHERE id = ?',
+    'ii',
+    [$balanceAfter, $walletId]
+  );
+  mysqli_stmt_close($updateWalletStmt);
+
+  if (!is_array($metadata)) {
+    $metadata = [];
+  }
+  $metadata['refund_id'] = $refundId;
+  $metadata['source_ref_id'] = $sourceRefId;
+  $metadata['school_id'] = $schoolId;
+  $metadataJson = json_encode($metadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+  if ($metadataJson === false) {
+    throw new RuntimeException('Unable to encode wallet refund metadata.');
+  }
+
+  $description = 'Refund for wallet purchase';
+  $insertLedgerStmt = dbExecute(
+    $conn,
+    "INSERT INTO wallet_ledger_entries
+      (wallet_id, entry_type, amount, balance_before, balance_after, status, reference, provider_reference, description, metadata, created_at)
+     VALUES
+      (?, 'refund', ?, ?, ?, 'posted', ?, ?, ?, ?, NOW())",
+    'iiiissss',
+    [$walletId, $walletAmount, $balanceBefore, $balanceAfter, $reference, $sourceRefId, $description, $metadataJson]
+  );
+  $ledgerEntryId = (int) mysqli_insert_id($conn);
+  mysqli_stmt_close($insertLedgerStmt);
+
+  return [
+    'status' => 'credited',
+    'credited_amount' => $walletAmount,
+    'wallet_id' => $walletId,
+    'wallet_balance_before' => $balanceBefore,
+    'wallet_balance_after' => $balanceAfter,
+    'ledger_entry_id' => $ledgerEntryId,
+  ];
+}
+
+function removeRefundedMaterialsFromManualsBought(mysqli $conn, string $sourceRefId, int $studentId, array $manualIds): array
+{
+  $sourceRefId = trim($sourceRefId);
+  $manualIds = array_values(array_filter(array_map('intval', $manualIds), static function (int $manualId): bool {
+    return $manualId > 0;
+  }));
+
+  if ($sourceRefId === '' || $studentId <= 0 || $manualIds === []) {
+    return [
+      'status' => 'ignored',
+      'matched_count' => 0,
+      'deleted_count' => 0,
+    ];
+  }
+
+  $placeholders = implode(',', array_fill(0, count($manualIds), '?'));
+  $types = 'si' . str_repeat('i', count($manualIds));
+  $params = array_merge([$sourceRefId, $studentId], $manualIds);
+
+  $matchedRows = dbFetchAll(
+    $conn,
+    "SELECT COUNT(*) AS matched_count
+     FROM manuals_bought
+     WHERE ref_id = ?
+       AND buyer = ?
+       AND status = 'successful'
+       AND manual_id IN ($placeholders)",
+    $types,
+    $params
+  );
+  $matchedCount = isset($matchedRows[0]['matched_count']) ? (int) $matchedRows[0]['matched_count'] : 0;
+
+  if ($matchedCount <= 0) {
+    return [
+      'status' => 'missing',
+      'matched_count' => 0,
+      'deleted_count' => 0,
+    ];
+  }
+
+  $deleteStmt = dbExecute(
+    $conn,
+    "DELETE FROM manuals_bought
+     WHERE ref_id = ?
+       AND buyer = ?
+       AND status = 'successful'
+       AND manual_id IN ($placeholders)",
+    $types,
+    $params
+  );
+  $deletedCount = mysqli_stmt_affected_rows($deleteStmt);
+  mysqli_stmt_close($deleteStmt);
+
+  return [
+    'status' => $deletedCount > 0 ? 'deleted' : 'missing',
+    'matched_count' => $matchedCount,
+    'deleted_count' => $deletedCount,
+    'manual_ids' => $manualIds,
+  ];
+}
+
+function dispatchRefundAppliedStudentNotifications(
+  mysqli $conn,
+  int $adminId,
+  array $student,
+  array $refund,
+  array $selectedMaterials,
+  string $paymentChannel,
+  ?array $walletRefundResult = null
+): array {
+  $studentId = (int) ($student['id'] ?? 0);
+  $studentEmail = trim((string) ($student['email'] ?? ''));
+  $studentName = trim((string) (($student['first_name'] ?? '') . ' ' . ($student['last_name'] ?? '')));
+  if ($studentName === '') {
+    $studentName = trim((string) ($student['first_name'] ?? 'there'));
+  }
+
+  $refundId = (int) ($refund['id'] ?? 0);
+  $refundAmount = (float) ($refund['amount'] ?? 0);
+  $sourceRefId = trim((string) ($refund['ref_id'] ?? ''));
+  $materialTitles = array_values(array_filter(array_map(static function (array $material): string {
+    $title = trim((string) ($material['title'] ?? ''));
+    if ($title !== '') {
+      return $title;
+    }
+
+    $code = trim((string) ($material['course_code'] ?? $material['code'] ?? ''));
+    return $code;
+  }, $selectedMaterials)));
+
+  $materialText = $materialTitles === [] ? 'your selected materials' : implode(', ', $materialTitles);
+  $walletCredited = in_array(strtolower(trim($paymentChannel)), ['wallet', 'internal_wallet'], true)
+    && in_array((string) ($walletRefundResult['status'] ?? ''), ['credited', 'exists'], true);
+
+  $subject = $walletCredited ? 'Refund Applied And Wallet Credited' : 'Refund Applied';
+  $headline = $walletCredited
+    ? 'Your refund has been applied and the amount has been credited to your Nivasity wallet.'
+    : 'Your refund has been applied successfully.';
+  $body = 'Hi ' . htmlspecialchars($studentName, ENT_QUOTES, 'UTF-8') . ',<br><br>'
+    . htmlspecialchars($headline, ENT_QUOTES, 'UTF-8')
+    . '<br><br>Refund amount: <b>N' . number_format($refundAmount, 2) . '</b>'
+    . '<br>Source reference: <b>' . htmlspecialchars($sourceRefId, ENT_QUOTES, 'UTF-8') . '</b>'
+    . '<br>Refund ID: <b>#' . $refundId . '</b>'
+    . '<br>Refunded materials: <b>' . htmlspecialchars($materialText, ENT_QUOTES, 'UTF-8') . '</b>'
+    . '<br><br>The refunded materials have been removed from your purchased materials list.'
+    . '<br><br>Best regards,<br>Nivasity';
+
+  $notificationBody = $walletCredited
+    ? 'Your refund of N' . number_format($refundAmount, 2) . ' for ' . $materialText . ' has been applied and credited to your wallet.'
+    : 'Your refund of N' . number_format($refundAmount, 2) . ' for ' . $materialText . ' has been applied.';
+
+  $delivery = [
+    'email' => 'skipped',
+    'notification' => [
+      'success' => false,
+      'message' => 'Notification helper unavailable',
+    ],
+  ];
+
+  if ($studentEmail !== '' && function_exists('sendMail')) {
+    $delivery['email'] = sendMail($subject, $body, $studentEmail);
+  }
+
+  if ($studentId > 0 && function_exists('sendNotification')) {
+    $delivery['notification'] = sendNotification(
+      $conn,
+      $adminId,
+      $studentId,
+      'Refund Applied',
+      $notificationBody,
+      'payment',
+      [
+        'action' => 'refund_applied',
+        'refund_id' => $refundId,
+        'ref_id' => $sourceRefId,
+        'amount' => $refundAmount,
+        'status' => (string) ($refund['status'] ?? 'applied'),
+        'payment_channel' => $paymentChannel,
+        'wallet_credited' => $walletCredited,
+        'material_ids' => parseRefundMaterialIdsFromJson($refund['materials'] ?? null),
+      ]
+    );
+  }
+
+  return $delivery;
 }
 
 function applyDirectSchoolPayableRefund(mysqli $conn, string $sourceRefId, float $refundAmount, array $metadata = []): array
