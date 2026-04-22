@@ -4,6 +4,7 @@ require_once(__DIR__ . '/config.php');
 require_once(__DIR__ . '/functions.php');
 require_once(__DIR__ . '/../config/fw.php');
 require_once(__DIR__ . '/mail.php');
+require_once(__DIR__ . '/batch_payment_ledger.php');
 
 http_response_code(200); // Default OK to avoid repeated retries
 
@@ -94,6 +95,8 @@ try {
   $up_tx = $conn->prepare('UPDATE transactions SET status = "successful" WHERE ref_id = ?');
   $ins_mb = $conn->prepare('INSERT INTO manuals_bought (manual_id, price, seller, buyer, school_id, ref_id, status) VALUES (?, ?, ?, ?, ?, ?, "successful")');
   $unmatched_count = 0;
+  $ledger_created_count = 0;
+  $ledger_existing_count = 0;
 
   foreach ($items as $it) {
     $iid = (int)$it['id'];
@@ -107,6 +110,13 @@ try {
 
     $up_tx->bind_param('s', $ref_id);
     if (!$up_tx->execute()) { throw new Exception('tx-update'); }
+
+    $ledgerResult = batchRecordSchoolPayableForItem($conn, $batch, $it, 'FLUTTERWAVE');
+    if (($ledgerResult['status'] ?? '') === 'created') {
+      $ledger_created_count++;
+    } elseif (($ledgerResult['status'] ?? '') === 'exists') {
+      $ledger_existing_count++;
+    }
 
     if ($student_id <= 0) {
       $unmatched_count++;
@@ -127,6 +137,8 @@ try {
     'gateway' => 'FLUTTERWAVE',
     'gateway_tx_id' => $flw_tx_id,
     'unmatched_count' => $unmatched_count,
+    'ledger_created_count' => $ledger_created_count,
+    'ledger_existing_count' => $ledger_existing_count,
     'status' => 'paid'
   ]);
   // Send success email notification
@@ -136,6 +148,8 @@ try {
     if ($unmatched_count > 0) {
       $body .= "<p>Unmatched matric-only items: {$unmatched_count}</p>";
     }
+    $body .= "<p>Ledger rows created: {$ledger_created_count}</p>";
+    $body .= "<p>Ledger rows already existing: {$ledger_existing_count}</p>";
     $body .= "<p>Status: paid</p>";
     sendMail($subject, $body, 'akinyemisamuel170@gmail.com');
   } catch (Exception $ee) {

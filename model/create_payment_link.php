@@ -21,7 +21,7 @@ if ($batch_id <= 0 || $tx_ref === '' || $amount <= 0) {
   respondJson('failed', 'Invalid request parameters.');
 }
 
-$stmt = $conn->prepare('SELECT id, tx_ref, total_amount, status, hoc_id, school_id, gateway, paystack_subaccount_code FROM manual_payment_batches WHERE id = ? LIMIT 1');
+$stmt = $conn->prepare('SELECT id, tx_ref, total_amount, status, hoc_id, school_id, gateway FROM manual_payment_batches WHERE id = ? LIMIT 1');
 $stmt->bind_param('i', $batch_id);
 $stmt->execute();
 $res = $stmt->get_result();
@@ -71,11 +71,6 @@ if ($gateway === 'PAYSTACK') {
     respondJson('failed', 'The HOC must have a valid email before initializing a Paystack payment.');
   }
 
-  $paystack_subaccount_code = strtoupper(trim((string)($batch['paystack_subaccount_code'] ?? '')));
-  if ($paystack_subaccount_code === '') {
-    respondJson('failed', 'This batch does not have a school Paystack subaccount code. Create a new batch with the school subaccount code.');
-  }
-
   $secret = defined('PAYSTACK_SECRET_KEY') ? trim((string)PAYSTACK_SECRET_KEY) : '';
   if ($secret === '') {
     respondJson('failed', 'Paystack secret is not configured.');
@@ -95,11 +90,7 @@ if ($gateway === 'PAYSTACK') {
       'settlement_subtotal' => $base_amount,
       'customer_name' => $hoc_name,
       'customer_phone' => $hoc_phone,
-      'assigned_subaccount' => $paystack_subaccount_code,
     ],
-    'subaccount' => $paystack_subaccount_code,
-    'transaction_charge' => $fee * 100,
-    'bearer' => 'account',
   ];
 
   $json = executeGatewayJsonRequest(
@@ -149,38 +140,6 @@ if ($gateway === 'PAYSTACK') {
     'webhook_url' => $webhookUrl,
   ];
 
-  if (!empty($batch['school_id']) && (int)$batch['school_id'] === 1) {
-    $sub_id = null;
-    $school_id = (int)$batch['school_id'];
-    $sa_res = mysqli_query($conn, "SELECT subaccount_code FROM settlement_accounts WHERE school_id = $school_id LIMIT 1");
-    if ($sa_res && ($sa_row = mysqli_fetch_assoc($sa_res))) {
-      $sub_id = $sa_row['subaccount_code'] ?? null;
-    }
-
-    if (!$sub_id && !empty($batch['hoc_id'])) {
-      $hid = (int)$batch['hoc_id'];
-      $sa_res2 = mysqli_query($conn, "SELECT subaccount_code FROM settlement_accounts WHERE user_id = $hid LIMIT 1");
-      if ($sa_res2 && ($sa_row2 = mysqli_fetch_assoc($sa_res2))) {
-        $sub_id = $sa_row2['subaccount_code'] ?? null;
-      }
-    }
-
-    if (!$sub_id) {
-      $sub_id = 'RS_5E799E345A0720AEB353B331709081E6';
-    }
-
-    $payload['subaccounts'] = [
-      [
-        'id' => $sub_id,
-        'transaction_split_ratio' => 1,
-        'transaction_charge_type' => 'flat_subaccount',
-        'transaction_charge' => (string)$base_amount,
-      ],
-    ];
-    $payload['meta']['assigned_subaccount'] = $sub_id;
-    $payload['meta']['assigned_subaccount_charge'] = $base_amount;
-  }
-
   $json = executeGatewayJsonRequest(
     'https://api.flutterwave.com/v3/payments',
     [
@@ -207,7 +166,7 @@ log_audit_event($conn, $admin_id, 'create', 'manual_payment_link', $batch_id, [
   'amount' => $final_amount,
   'fee' => $fee,
   'settlement_subtotal' => $base_amount,
-  'assigned_subaccount' => strtoupper(trim((string)($batch['paystack_subaccount_code'] ?? ''))),
+  'settlement_mode' => 'school_payable_ledger',
 ]);
 
 respondJson('success', 'Payment link created.', [

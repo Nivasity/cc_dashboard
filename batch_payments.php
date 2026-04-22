@@ -204,9 +204,9 @@ if ($admin_role == 5) {
               <div class="form-text">Upload a CSV containing matric numbers. The first non-empty value on each row is used, duplicates are ignored, and unmatched matric numbers are stored without a linked student record.</div>
             </div>
             <div class="col-md-6">
-              <label for="bp_paystack_subaccount" class="form-label">School Paystack Subaccount</label>
-              <input type="text" id="bp_paystack_subaccount" class="form-control" placeholder="ACCT_xxxxxxxxxxxxx" />
-              <div class="form-text">The batch subtotal will be committed to this Paystack subaccount. The 2% checkout fee remains outside the school subtotal.</div>
+              <label class="form-label">School Settlement Mode</label>
+              <div class="form-control bg-light">Internal ledger settlement</div>
+              <div class="form-text">The batch subtotal will be recorded into <code>school_payable_ledger</code> after payment verification. The 2% checkout fee remains outside the school subtotal.</div>
             </div>
             <div class="col-md-2">
               <label class="form-label">Price/Student</label>

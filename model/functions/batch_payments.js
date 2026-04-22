@@ -5,7 +5,6 @@ $(document).ready(function () {
   var $manual = $('#bp_manual');
   var $alert = $('#bp_alert');
   var $studentsFile = $('#bp_students_file');
-  var $paystackSubaccount = $('#bp_paystack_subaccount');
   var $price = $('#bp_price');
   var $students = $('#bp_students');
   var $matched = $('#bp_matched');
@@ -61,7 +60,6 @@ $(document).ready(function () {
     $dept.val('0').trigger('change.select2');
     $manual.val('0').trigger('change.select2');
     $studentsFile.val('');
-    $paystackSubaccount.val('');
     showAlert(null, null);
     resetPreview();
   }
@@ -180,11 +178,6 @@ $(document).ready(function () {
       showAlert('danger', 'Upload the CSV file containing student matric numbers.');
       return;
     }
-    if (!(($paystackSubaccount.val() || '').trim())) {
-      showAlert('danger', 'Provide the school Paystack subaccount code.');
-      return;
-    }
-
     var payload = new FormData();
     payload.append('action', 'create_batch');
     payload.append('manual_id', num($manual.val()));
@@ -192,7 +185,6 @@ $(document).ready(function () {
     payload.append('dept', num($dept.val()));
     payload.append('tx_ref', ($txref.val() || '').trim());
     payload.append('total_amount', totalAmount);
-    payload.append('paystack_subaccount', ($paystackSubaccount.val() || '').trim());
     payload.append('students_csv', file);
 
     $submit.prop('disabled', true).text('Creating...');

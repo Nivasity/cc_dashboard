@@ -48,10 +48,6 @@ function normalize_matric($value) {
   return $value;
 }
 
-function normalize_paystack_subaccount($value) {
-  return strtoupper(trim((string)$value));
-}
-
 function is_csv_header_value($value) {
   $normalized = preg_replace('/[^A-Z0-9]/', '', strtoupper(trim((string)$value)));
   return in_array($normalized, ['MATRIC', 'MATRICNO', 'MATRICNUMBER', 'STUDENTMATRIC', 'STUDENTMATRICNO'], true);
@@ -312,14 +308,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $dept_id = h_int($_POST['dept'] ?? 0);
       $tx_ref = trim($_POST['tx_ref'] ?? '');
       $total_amount = h_int($_POST['total_amount'] ?? 0);
-      $paystack_subaccount_code = normalize_paystack_subaccount($_POST['paystack_subaccount'] ?? '');
-
       if ($admin_role == 5) { $school_id = $admin_school; }
 
       if ($manual_id <= 0 || $school_id <= 0 || $dept_id <= 0 || $total_amount <= 0) {
         $message = 'Provide manual, school, department, and total amount.';
-      } elseif ($paystack_subaccount_code === '') {
-        $message = 'Provide the school Paystack subaccount code.';
       } else {
         $mres = mysqli_query($conn, "SELECT id, price, user_id AS seller, school_id FROM manuals WHERE id = $manual_id");
         $manual = $mres ? mysqli_fetch_assoc($mres) : null;
@@ -392,8 +384,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($exists) { throw new Exception('Failed to generate unique tx_ref after 5 attempts.'); }
 
                 // Insert batch with the generated tx_ref
-                $stmt = $conn->prepare('INSERT INTO manual_payment_batches (manual_id, hoc_id, dept_id, school_id, total_students, total_amount, tx_ref, gateway, paystack_subaccount_code, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, "pending")');
-                $stmt->bind_param('iiiiiisss', $manual_id, $hoc_id, $dept_id, $school_id, $total_students, $total_amount, $tx_ref, $gateway, $paystack_subaccount_code);
+                $stmt = $conn->prepare('INSERT INTO manual_payment_batches (manual_id, hoc_id, dept_id, school_id, total_students, total_amount, tx_ref, gateway, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, "pending")');
+                $stmt->bind_param('iiiiiiss', $manual_id, $hoc_id, $dept_id, $school_id, $total_students, $total_amount, $tx_ref, $gateway);
                 if (!$stmt->execute()) { throw new Exception('Failed to create batch.'); }
                 $batch_id = $stmt->insert_id;
                 $stmt->close();
@@ -424,7 +416,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'total_amount' => $total_amount,
                 'tx_ref' => $tx_ref,
                 'gateway' => $gateway,
-                'paystack_subaccount_code' => $paystack_subaccount_code,
                 'matched_count' => (int)$student_map['matched_count'],
                 'unmatched_count' => (int)$student_map['unmatched_count'],
                 'duplicates_removed' => (int)$csv['duplicates_removed']
@@ -443,8 +434,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'unmatched_count' => (int)$student_map['unmatched_count'],
                 'duplicates_removed' => (int)$csv['duplicates_removed'],
                 'total_amount' => $total_amount,
-                'gateway' => $gateway,
-                'paystack_subaccount_code' => $paystack_subaccount_code
+                'gateway' => $gateway
               ];
             } catch (Exception $e) {
               mysqli_rollback($conn);
