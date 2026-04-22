@@ -88,6 +88,49 @@ switch ($action) {
     ]);
 }
 
+function getRefundComputedSqlFragments(): array
+{
+  $reservationAggJoin = "LEFT JOIN (
+      SELECT
+        rr.refund_id,
+        COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed,
+        COALESCE(SUM(CASE WHEN rr.status = 'reserved' THEN rr.amount ELSE 0 END), 0) AS total_reserved
+      FROM refund_reservations rr
+      GROUP BY rr.refund_id
+    ) rr_agg ON rr_agg.refund_id = r.id";
+  $hasReservationRowsExpr = 'rr_agg.refund_id IS NOT NULL';
+  $reservationConsumedExpr = 'COALESCE(rr_agg.total_consumed, 0)';
+  $reservationReservedExpr = 'COALESCE(rr_agg.total_reserved, 0)';
+  $reservationRemainingExpr = "GREATEST(COALESCE(r.amount, 0) - {$reservationConsumedExpr} - {$reservationReservedExpr}, 0)";
+  $directAppliedExpr = "GREATEST(COALESCE(r.amount, 0) - COALESCE(r.remaining_amount, COALESCE(r.amount, 0)), 0)";
+  $consumedExpr = "CASE WHEN {$hasReservationRowsExpr} THEN {$reservationConsumedExpr} ELSE {$directAppliedExpr} END";
+  $reservedExpr = "CASE WHEN {$hasReservationRowsExpr} THEN {$reservationReservedExpr} ELSE 0 END";
+  $remainingExpr = "CASE WHEN {$hasReservationRowsExpr} THEN {$reservationRemainingExpr} ELSE COALESCE(r.remaining_amount, COALESCE(r.amount, 0)) END";
+  $statusExpr = "CASE
+      WHEN r.status = 'cancelled' THEN 'cancelled'
+      WHEN {$hasReservationRowsExpr}
+        AND {$reservationRemainingExpr} <= 0
+        AND {$reservationReservedExpr} <= 0
+        AND {$reservationConsumedExpr} >= COALESCE(r.amount, 0)
+        THEN 'applied'
+      WHEN {$hasReservationRowsExpr}
+        AND {$reservationRemainingExpr} >= COALESCE(r.amount, 0)
+        THEN 'pending'
+      WHEN {$hasReservationRowsExpr} THEN 'partially_applied'
+      ELSE COALESCE(NULLIF(r.status, ''), 'pending')
+    END";
+
+  return [
+    'reservationAggJoin' => $reservationAggJoin,
+    'hasReservationRowsExpr' => $hasReservationRowsExpr,
+    'consumedExpr' => $consumedExpr,
+    'reservedExpr' => $reservedExpr,
+    'remainingExpr' => $remainingExpr,
+    'statusExpr' => $statusExpr,
+    'reservationRemainingExpr' => $reservationRemainingExpr,
+  ];
+}
+
 function handleQueue(mysqli $conn, array $adminScope, array $request): void
 {
   $schoolId = isset($request['school_id']) ? toPositiveIntOrNull($request['school_id']) : null;
@@ -122,23 +165,11 @@ function handleQueue(mysqli $conn, array $adminScope, array $request): void
     $offset = 0;
   }
 
-  $reservationAggJoin = "LEFT JOIN (
-      SELECT
-        rr.refund_id,
-        COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed,
-        COALESCE(SUM(CASE WHEN rr.status = 'reserved' THEN rr.amount ELSE 0 END), 0) AS total_reserved
-      FROM refund_reservations rr
-      GROUP BY rr.refund_id
-    ) rr_agg ON rr_agg.refund_id = r.id";
-  $consumedExpr = 'COALESCE(rr_agg.total_consumed, 0)';
-  $reservedExpr = 'COALESCE(rr_agg.total_reserved, 0)';
-  $remainingExpr = "GREATEST(COALESCE(r.amount, 0) - {$consumedExpr} - {$reservedExpr}, 0)";
-  $statusExpr = "CASE
-      WHEN r.status = 'cancelled' THEN 'cancelled'
-      WHEN {$remainingExpr} <= 0 AND {$reservedExpr} <= 0 AND {$consumedExpr} >= COALESCE(r.amount, 0) THEN 'applied'
-      WHEN {$remainingExpr} >= COALESCE(r.amount, 0) THEN 'pending'
-      ELSE 'partially_applied'
-    END";
+  $sqlParts = getRefundComputedSqlFragments();
+  $reservationAggJoin = $sqlParts['reservationAggJoin'];
+  $appliedExpr = $sqlParts['consumedExpr'];
+  $remainingExpr = $sqlParts['remainingExpr'];
+  $statusExpr = $sqlParts['statusExpr'];
 
   $where = [];
   $types = '';
@@ -247,15 +278,11 @@ function handleDetail(mysqli $conn, array $adminScope, array $request): void
     badRequest('refund_id is required.');
   }
 
-  $consumedExpr = 'COALESCE(rr_agg.total_consumed, 0)';
-  $reservedExpr = 'COALESCE(rr_agg.total_reserved, 0)';
-  $remainingExpr = "GREATEST(COALESCE(r.amount, 0) - {$consumedExpr} - {$reservedExpr}, 0)";
-  $statusExpr = "CASE
-      WHEN r.status = 'cancelled' THEN 'cancelled'
-      WHEN {$remainingExpr} <= 0 AND {$reservedExpr} <= 0 AND {$consumedExpr} >= COALESCE(r.amount, 0) THEN 'applied'
-      WHEN {$remainingExpr} >= COALESCE(r.amount, 0) THEN 'pending'
-      ELSE 'partially_applied'
-    END";
+  $sqlParts = getRefundComputedSqlFragments();
+  $reservationAggJoin = $sqlParts['reservationAggJoin'];
+  $consumedExpr = $sqlParts['consumedExpr'];
+  $remainingExpr = $sqlParts['remainingExpr'];
+  $statusExpr = $sqlParts['statusExpr'];
 
   $refundRows = dbFetchAll(
     $conn,
@@ -286,14 +313,7 @@ function handleDetail(mysqli $conn, array $adminScope, array $request): void
        r.created_at,
        r.updated_at
      FROM refunds r
-     LEFT JOIN (
-       SELECT
-         rr.refund_id,
-         COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed,
-         COALESCE(SUM(CASE WHEN rr.status = 'reserved' THEN rr.amount ELSE 0 END), 0) AS total_reserved
-       FROM refund_reservations rr
-       GROUP BY rr.refund_id
-     ) rr_agg ON rr_agg.refund_id = r.id
+     {$reservationAggJoin}
      LEFT JOIN schools s ON s.id = r.school_id
      LEFT JOIN users u ON u.id = r.student_id
     LEFT JOIN transactions t ON t.ref_id = r.ref_id
@@ -354,6 +374,11 @@ function handleDetail(mysqli $conn, array $adminScope, array $request): void
     'total_consumed' => 0,
     'total_released' => 0,
   ];
+  if ($reservationRows === []) {
+    $totals['total_reserved'] = 0.0;
+    $totals['total_consumed'] = max(0.0, round((float) ($refund['amount'] ?? 0) - (float) ($refund['remaining_amount'] ?? 0), 2));
+    $totals['total_released'] = 0.0;
+  }
   $totals['outstanding'] = max((float) ($refund['remaining_amount'] ?? 0), 0.0);
 
   respond(200, [
@@ -372,17 +397,10 @@ function handleOutstandingMonitoring(mysqli $conn, array $adminScope, array $req
     $schoolId = $adminScope['school_id'];
   }
 
-  $reservationAggJoin = "LEFT JOIN (
-      SELECT
-        rr.refund_id,
-        COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed,
-        COALESCE(SUM(CASE WHEN rr.status = 'reserved' THEN rr.amount ELSE 0 END), 0) AS total_reserved
-      FROM refund_reservations rr
-      GROUP BY rr.refund_id
-    ) rr_agg ON rr_agg.refund_id = r.id";
-  $consumedExpr = 'COALESCE(rr_agg.total_consumed, 0)';
-  $reservedExpr = 'COALESCE(rr_agg.total_reserved, 0)';
-  $remainingExpr = "GREATEST(COALESCE(r.amount, 0) - {$consumedExpr} - {$reservedExpr}, 0)";
+  $sqlParts = getRefundComputedSqlFragments();
+  $reservationAggJoin = $sqlParts['reservationAggJoin'];
+  $consumedExpr = $sqlParts['consumedExpr'];
+  $remainingExpr = $sqlParts['remainingExpr'];
 
   $where = ["r.status <> 'cancelled'", "{$remainingExpr} > 0"];
   $refundedWhere = ["r.status <> 'cancelled'"];
@@ -424,7 +442,7 @@ function handleOutstandingMonitoring(mysqli $conn, array $adminScope, array $req
   $refundedRows = dbFetchAll(
     $conn,
     "SELECT
-       COALESCE(SUM({$consumedExpr}), 0) AS total_refunded
+       COALESCE(SUM({$appliedExpr}), 0) AS total_refunded
      FROM refunds r
      {$reservationAggJoin}
      {$refundedWhereSql}",
@@ -734,6 +752,7 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
   $affectedRefundIds = [];
   $postflightWarnings = [];
   $createdRefund = null;
+  $directLedgerAdjustment = null;
 
   try {
     $transactionRows = dbFetchAll(
@@ -743,6 +762,7 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
          t.ref_id,
          t.user_id,
          t.status,
+        t.created_at,
          u.school AS user_school
        FROM transactions t
        LEFT JOIN users u ON u.id = t.user_id
@@ -937,6 +957,53 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                       $refundId = (int) mysqli_insert_id($conn);
                       $affectedRefundIds[$refundId] = true;
 
+                      $directLedgerAdjustment = applyDirectSchoolPayableRefund($conn, $sourceRefId, $amount, [
+                        'refund_id' => $refundId,
+                        'reason' => $reason,
+                        'student_id' => $studentId,
+                        'selected_manual_ids' => array_values($selectedMaterialIds),
+                      ]);
+
+                      if (($directLedgerAdjustment['status'] ?? '') === 'adjusted') {
+                        $directAppliedAmount = round((float) ($directLedgerAdjustment['refunded'] ?? 0), 2);
+                        if (abs($directAppliedAmount - $amount) > 0.00001) {
+                          throw new RuntimeException('Direct ledger refund could not apply the full refund amount.');
+                        }
+
+                        $updateStmt = dbExecute(
+                          $conn,
+                          "UPDATE refunds
+                           SET remaining_amount = 0, status = 'applied', updated_at = NOW()
+                           WHERE id = ?",
+                          'i',
+                          [$refundId]
+                        );
+                        mysqli_stmt_close($updateStmt);
+
+                        $refundStateChanges[] = [
+                          'refund_id' => $refundId,
+                          'before' => [
+                            'remaining_amount' => $amount,
+                            'status' => 'pending',
+                            'consumed_total' => 0.0,
+                            'reserved_total' => 0.0,
+                          ],
+                          'after' => [
+                            'remaining_amount' => 0.0,
+                            'status' => 'applied',
+                            'consumed_total' => $amount,
+                            'reserved_total' => 0.0,
+                          ],
+                        ];
+                      } else {
+                      if (!isLegacyReservationEligibleTransaction($sourceTransaction['created_at'] ?? null)) {
+                        throw new RuntimeException(
+                          'This transaction is not eligible for legacy reservation fallback. Transactions created on or after '
+                          . getLegacyReservationCutoff()
+                          . ' must have a school ledger row before refund processing.'
+                        );
+                      }
+
                       $targetTotals = getRefundLedgerTotals($conn, $refundId);
                       $targetNeeded = max(
                         0.0,
@@ -1078,7 +1145,11 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                         }
                       }
 
-                      $refundStateChanges = recomputeRefundsFromLedger($conn, array_map('intval', array_keys($affectedRefundIds)));
+                      }
+
+                      if (($directLedgerAdjustment['status'] ?? '') !== 'adjusted') {
+                        $refundStateChanges = recomputeRefundsFromLedger($conn, array_map('intval', array_keys($affectedRefundIds)));
+                      }
                       $transactionCapLogs = capTransactionsRefundForSourceRefs($conn, array_keys($affectedSourceRefs));
 
                       if ($hasMaterialsColumn) {
@@ -1143,6 +1214,7 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                           'selected_materials_count' => count($selectedMaterialIds),
                           'selected_manual_ids' => array_values($selectedMaterialIds),
                           'preflight' => $preflightDetails,
+                          'direct_ledger_adjustment' => $directLedgerAdjustment,
                           'reallocation' => [
                             'rows' => $reallocationLogs,
                             'moved_total' => array_sum(array_map(static function (array $row): float {
@@ -1283,6 +1355,11 @@ function handleCancelRefund(mysqli $conn, array $adminScope, array $request, int
     );
     mysqli_stmt_close($stmt);
 
+    $sourceRefId = trim((string) ($refund['ref_id'] ?? ''));
+    if ($sourceRefId !== '') {
+      capTransactionsRefundForSourceRefs($conn, [$sourceRefId]);
+    }
+
     $updatedRows = dbFetchAll(
       $conn,
       'SELECT id, school_id, student_id, ref_id, amount, remaining_amount, status, reason, created_at, updated_at FROM refunds WHERE id = ? LIMIT 1',
@@ -1364,27 +1441,26 @@ function enforceSchoolScope(array $adminScope, int $schoolId): void
 
 function refreshRefundStatuses(mysqli $conn): void
 {
+  $sqlParts = getRefundComputedSqlFragments();
+  $reservationAggJoin = $sqlParts['reservationAggJoin'];
+  $hasReservationRowsExpr = $sqlParts['hasReservationRowsExpr'];
+  $reservationRemainingExpr = $sqlParts['reservationRemainingExpr'];
+
   mysqli_query(
     $conn,
     "UPDATE refunds r
-     LEFT JOIN (
-       SELECT
-         rr.refund_id,
-         COALESCE(SUM(CASE WHEN rr.status = 'consumed' THEN rr.amount ELSE 0 END), 0) AS total_consumed,
-         COALESCE(SUM(CASE WHEN rr.status = 'reserved' THEN rr.amount ELSE 0 END), 0) AS total_reserved
-       FROM refund_reservations rr
-       GROUP BY rr.refund_id
-     ) rr_agg ON rr_agg.refund_id = r.id
+     {$reservationAggJoin}
      SET status = CASE
-       WHEN GREATEST(COALESCE(r.amount, 0) - COALESCE(rr_agg.total_consumed, 0) - COALESCE(rr_agg.total_reserved, 0), 0) <= 0
+       WHEN {$reservationRemainingExpr} <= 0
          AND COALESCE(rr_agg.total_reserved, 0) <= 0
          AND COALESCE(rr_agg.total_consumed, 0) >= COALESCE(r.amount, 0)
          THEN 'applied'
-       WHEN GREATEST(COALESCE(r.amount, 0) - COALESCE(rr_agg.total_consumed, 0) - COALESCE(rr_agg.total_reserved, 0), 0) >= COALESCE(r.amount, 0) THEN 'pending'
+       WHEN {$reservationRemainingExpr} >= COALESCE(r.amount, 0) THEN 'pending'
        ELSE 'partially_applied'
      END,
-     remaining_amount = GREATEST(COALESCE(r.amount, 0) - COALESCE(rr_agg.total_consumed, 0) - COALESCE(rr_agg.total_reserved, 0), 0)
-     WHERE r.status IN ('pending', 'partially_applied', 'applied')"
+     remaining_amount = {$reservationRemainingExpr}
+     WHERE r.status IN ('pending', 'partially_applied', 'applied')
+       AND {$hasReservationRowsExpr}"
   );
 }
 
@@ -1666,6 +1742,171 @@ function getRefundLedgerTotals(mysqli $conn, int $refundId): array
   ];
 }
 
+function schoolPayableLedgerTableExists(mysqli $conn): bool
+{
+  static $checked = false;
+  static $exists = false;
+
+  if ($checked) {
+    return $exists;
+  }
+
+  $rows = dbFetchAll($conn, "SHOW TABLES LIKE 'school_payable_ledger'");
+  $exists = $rows !== [];
+  $checked = true;
+
+  return $exists;
+}
+
+function schoolInternalWalletTableExists(mysqli $conn): bool
+{
+  static $checked = false;
+  static $exists = false;
+
+  if ($checked) {
+    return $exists;
+  }
+
+  $rows = dbFetchAll($conn, "SHOW TABLES LIKE 'school_internal_wallets'");
+  $exists = $rows !== [];
+  $checked = true;
+
+  return $exists;
+}
+
+function applyDirectSchoolPayableRefund(mysqli $conn, string $sourceRefId, float $refundAmount, array $metadata = []): array
+{
+  $sourceRefId = trim($sourceRefId);
+  $refundAmount = round($refundAmount, 2);
+
+  if ($sourceRefId === '' || $refundAmount <= 0.00001 || !schoolPayableLedgerTableExists($conn)) {
+    return [
+      'status' => 'ignored',
+      'refunded' => 0.0,
+    ];
+  }
+
+  $ledgerRows = dbFetchAll(
+    $conn,
+    'SELECT * FROM school_payable_ledger WHERE source_ref_id = ? LIMIT 1 FOR UPDATE',
+    's',
+    [$sourceRefId]
+  );
+
+  if ($ledgerRows === []) {
+    return [
+      'status' => 'missing',
+      'refunded' => 0.0,
+    ];
+  }
+
+  $ledgerRow = $ledgerRows[0];
+  $ledgerId = (int) ($ledgerRow['id'] ?? 0);
+  $schoolId = (int) ($ledgerRow['school_id'] ?? 0);
+  $itemSubtotal = round((float) ($ledgerRow['item_subtotal'] ?? 0), 2);
+  $existingRefundAmount = round((float) ($ledgerRow['refund_amount'] ?? 0), 2);
+  $existingPayableAmount = round((float) ($ledgerRow['payable_amount'] ?? 0), 2);
+  $settledAmount = round((float) ($ledgerRow['settled_amount'] ?? 0), 2);
+  $existingCarryForward = round((float) ($ledgerRow['carry_forward_amount'] ?? 0), 2);
+
+  $newRefundAmount = min($itemSubtotal, round($existingRefundAmount + $refundAmount, 2));
+  $effectiveDelta = max(0.0, round($newRefundAmount - $existingRefundAmount, 2));
+  if ($effectiveDelta <= 0.00001) {
+    return [
+      'status' => 'exists',
+      'refunded' => 0.0,
+      'ledger_id' => $ledgerId,
+    ];
+  }
+
+  $newPayableAmount = max(0.0, round($itemSubtotal - $newRefundAmount, 2));
+  $payableReduction = max(0.0, round($existingPayableAmount - $newPayableAmount, 2));
+  $carryForwardDelta = max(0.0, round($settledAmount - $newPayableAmount, 2));
+  $pendingReduction = max(0.0, round($payableReduction - $carryForwardDelta, 2));
+
+  if ($schoolId > 0 && ($pendingReduction > 0.00001 || $carryForwardDelta > 0.00001) && schoolInternalWalletTableExists($conn)) {
+    $walletRows = dbFetchAll(
+      $conn,
+      'SELECT * FROM school_internal_wallets WHERE school_id = ? LIMIT 1 FOR UPDATE',
+      'i',
+      [$schoolId]
+    );
+    if ($walletRows !== []) {
+      $walletRow = $walletRows[0];
+      $currentBalance = round((float) ($walletRow['current_balance'] ?? 0), 2);
+      $pendingBalance = round((float) ($walletRow['pending_payout_balance'] ?? 0), 2);
+      $carryForwardBalance = round((float) ($walletRow['carry_forward_balance'] ?? 0), 2);
+
+      $updateWalletStmt = dbExecute(
+        $conn,
+        'UPDATE school_internal_wallets
+         SET current_balance = ?,
+             pending_payout_balance = ?,
+             carry_forward_balance = ?,
+             updated_at = NOW()
+         WHERE school_id = ?',
+        'dddi',
+        [
+          max(0.0, round($currentBalance - $pendingReduction, 2)),
+          max(0.0, round($pendingBalance - $pendingReduction, 2)),
+          round($carryForwardBalance + $carryForwardDelta, 2),
+          $schoolId,
+        ]
+      );
+      mysqli_stmt_close($updateWalletStmt);
+    }
+  }
+
+  $mergedMetadata = [];
+  $existingMetadata = json_decode((string) ($ledgerRow['metadata'] ?? ''), true);
+  if (is_array($existingMetadata)) {
+    $mergedMetadata = $existingMetadata;
+  }
+  $mergedMetadata['refund_adjustment'] = array_merge([
+    'source' => 'direct_ledger_refund',
+    'refund_amount_delta' => $effectiveDelta,
+  ], $metadata);
+
+  $newCarryForwardAmount = round($existingCarryForward + $carryForwardDelta, 2);
+  if ($newPayableAmount <= 0.00001 && $newCarryForwardAmount > 0.00001) {
+    $newStatus = 'carry_forward';
+  } elseif ($settledAmount > 0.00001 && $settledAmount < $newPayableAmount) {
+    $newStatus = 'partially_settled';
+  } elseif ($settledAmount + 0.00001 >= $newPayableAmount && $newPayableAmount > 0.00001) {
+    $newStatus = 'settled';
+  } else {
+    $newStatus = 'pending';
+  }
+
+  $metadataJson = json_encode($mergedMetadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+  if ($metadataJson === false) {
+    throw new RuntimeException('Unable to encode school payable refund metadata.');
+  }
+
+  $updateLedgerStmt = dbExecute(
+    $conn,
+    'UPDATE school_payable_ledger
+     SET refund_amount = ?,
+         payable_amount = ?,
+         carry_forward_amount = ?,
+         status = ?,
+         metadata = ?,
+         updated_at = NOW()
+     WHERE id = ?',
+    'dddssi',
+    [$newRefundAmount, $newPayableAmount, $newCarryForwardAmount, $newStatus, $metadataJson, $ledgerId]
+  );
+  mysqli_stmt_close($updateLedgerStmt);
+
+  return [
+    'status' => 'adjusted',
+    'refunded' => $effectiveDelta,
+    'new_payable_amount' => $newPayableAmount,
+    'carry_forward_delta' => $carryForwardDelta,
+    'ledger_id' => $ledgerId,
+  ];
+}
+
 function deriveRefundStatus(float $refundAmount, float $remainingAmount, float $consumedTotal, float $reservedTotal): string
 {
   if ($remainingAmount <= 0.00001 && $reservedTotal <= 0.00001 && $consumedTotal + 0.00001 >= $refundAmount) {
@@ -1767,6 +2008,27 @@ function getNextRefundSplitSequence(mysqli $conn, int $refundId): int
   return $maxSequence + 1;
 }
 
+function getLegacyReservationCutoff(): string
+{
+  return '2026-04-18 20:00:00';
+}
+
+function isLegacyReservationEligibleTransaction($createdAt): bool
+{
+  $createdAt = trim((string) $createdAt);
+  if ($createdAt === '') {
+    return false;
+  }
+
+  $createdAtTs = strtotime($createdAt);
+  $cutoffTs = strtotime(getLegacyReservationCutoff());
+  if ($createdAtTs === false || $cutoffTs === false) {
+    return false;
+  }
+
+  return $createdAtTs < $cutoffTs;
+}
+
 function getNextSplitSequenceCursor(mysqli $conn, int $refundId, array &$sequenceCursorByRefund): int
 {
   if ($refundId <= 0) {
@@ -1864,27 +2126,10 @@ function capTransactionsRefundForSourceRefs(mysqli $conn, array $sourceRefs): ar
   foreach ($normalizedRefs as $sourceRefId) {
     $expectedRows = dbFetchAll(
       $conn,
-      "SELECT
-         COALESCE(
-           SUM(
-             LEAST(
-               COALESCE(r.amount, 0),
-               COALESCE(rr_ref.total_consumed_for_refund, 0)
-             )
-           ),
-           0
-         ) AS expected_refund
-       FROM refunds r
-       INNER JOIN (
-         SELECT
-           refund_id,
-           COALESCE(SUM(amount), 0) AS total_consumed_for_refund
-         FROM refund_reservations
-         WHERE status = 'consumed'
-           AND ref_id = ?
-         GROUP BY refund_id
-       ) rr_ref ON rr_ref.refund_id = r.id
-       WHERE r.status <> 'cancelled'",
+      "SELECT COALESCE(SUM(amount), 0) AS expected_refund
+       FROM refunds
+       WHERE ref_id = ?
+         AND COALESCE(status, '') <> 'cancelled'",
       's',
       [$sourceRefId]
     );
@@ -1898,7 +2143,7 @@ function capTransactionsRefundForSourceRefs(mysqli $conn, array $sourceRefs): ar
 
     $transactionRows = dbFetchAll(
       $conn,
-      "SELECT id, amount, COALESCE(refund, 0) AS refund
+      "SELECT id, COALESCE(refund, 0) AS refund
        FROM transactions
        WHERE ref_id = ?
        FOR UPDATE",
@@ -1912,11 +2157,8 @@ function capTransactionsRefundForSourceRefs(mysqli $conn, array $sourceRefs): ar
         continue;
       }
 
-      $transactionAmount = round((float) ($transactionRow['amount'] ?? 0), 2);
       $currentRefund = round((float) ($transactionRow['refund'] ?? 0), 2);
-      $newRefund = max(0.0, min($expectedRefund, $transactionAmount));
-
-      if (abs($newRefund - $currentRefund) <= 0.00001) {
+      if (abs($expectedRefund - $currentRefund) <= 0.00001) {
         continue;
       }
 
@@ -1926,7 +2168,7 @@ function capTransactionsRefundForSourceRefs(mysqli $conn, array $sourceRefs): ar
          SET refund = ?
          WHERE id = ?",
         'di',
-        [$newRefund, $transactionId]
+        [$expectedRefund, $transactionId]
       );
       mysqli_stmt_close($updateStmt);
 
@@ -1934,7 +2176,7 @@ function capTransactionsRefundForSourceRefs(mysqli $conn, array $sourceRefs): ar
         'source_ref_id' => $sourceRefId,
         'transaction_id' => $transactionId,
         'before_refund' => $currentRefund,
-        'after_refund' => $newRefund,
+        'after_refund' => $expectedRefund,
         'expected_refund' => $expectedRefund,
       ];
     }
@@ -1956,103 +2198,15 @@ function validateManualIdsExist(mysqli $conn, array $manualIds): bool
   $types = str_repeat('i', count($manualIds));
   $rows = dbFetchAll(
     $conn,
-    "SELECT COUNT(DISTINCT id) AS total_found
+    "SELECT COUNT(*) AS total_found
      FROM manuals
-     WHERE id IN ({$placeholders})",
+     WHERE id IN ($placeholders)",
     $types,
     $manualIds
   );
 
   $totalFound = isset($rows[0]['total_found']) ? (int) $rows[0]['total_found'] : 0;
   return $totalFound === count($manualIds);
-}
-
-function fetchRefundById(mysqli $conn, int $refundId, bool $hasMaterialsColumn): array
-{
-  if ($hasMaterialsColumn) {
-    return dbFetchAll(
-      $conn,
-      "SELECT id, school_id, student_id, ref_id, amount, remaining_amount, status, reason, materials, created_at, updated_at
-       FROM refunds
-       WHERE id = ?
-       LIMIT 1",
-      'i',
-      [$refundId]
-    );
-  }
-
-  return dbFetchAll(
-    $conn,
-    "SELECT id, school_id, student_id, ref_id, amount, remaining_amount, status, reason, created_at, updated_at
-     FROM refunds
-     WHERE id = ?
-     LIMIT 1",
-    'i',
-    [$refundId]
-  );
-}
-
-function acquireNamedLock(mysqli $conn, string $lockName, int $timeoutSeconds): int
-{
-  $rows = dbFetchAll($conn, 'SELECT GET_LOCK(?, ?) AS lock_state', 'si', [$lockName, $timeoutSeconds]);
-  if ($rows === []) {
-    return 0;
-  }
-
-  return isset($rows[0]['lock_state']) ? (int) $rows[0]['lock_state'] : 0;
-}
-
-function releaseNamedLock(mysqli $conn, string $lockName): void
-{
-  dbFetchAll($conn, 'SELECT RELEASE_LOCK(?) AS release_state', 's', [$lockName]);
-}
-
-function getRequestPayload(): array
-{
-  $contentType = strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? ''));
-  if (strpos($contentType, 'application/json') !== false) {
-    $raw = file_get_contents('php://input');
-    if ($raw === false || trim($raw) === '') {
-      return $_GET;
-    }
-
-    $decoded = json_decode($raw, true);
-    if (!is_array($decoded)) {
-      badRequest('Invalid JSON payload.');
-    }
-
-    return array_merge($_GET, $decoded);
-  }
-
-  if (!empty($_POST)) {
-    return array_merge($_GET, $_POST);
-  }
-
-  return $_GET;
-}
-
-function dbFetchAll(mysqli $conn, string $sql, string $types = '', array $params = []): array
-{
-  $stmt = mysqli_prepare($conn, $sql);
-  if (!$stmt) {
-    throw new RuntimeException('Failed to prepare statement: ' . mysqli_error($conn));
-  }
-
-  if ($types !== '') {
-    bindStatementParams($stmt, $types, $params);
-  }
-
-  if (!mysqli_stmt_execute($stmt)) {
-    $error = mysqli_stmt_error($stmt);
-    mysqli_stmt_close($stmt);
-    throw new RuntimeException('Failed to execute query: ' . $error);
-  }
-
-  $result = mysqli_stmt_get_result($stmt);
-  $rows = $result ? mysqli_fetch_all($result, MYSQLI_ASSOC) : [];
-  mysqli_stmt_close($stmt);
-
-  return $rows;
 }
 
 function dbExecute(mysqli $conn, string $sql, string $types, array $params): mysqli_stmt
