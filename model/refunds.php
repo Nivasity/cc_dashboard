@@ -169,7 +169,7 @@ function handleQueue(mysqli $conn, array $adminScope, array $request): void
 
   $sqlParts = getRefundComputedSqlFragments();
   $reservationAggJoin = $sqlParts['reservationAggJoin'];
-  $appliedExpr = $sqlParts['consumedExpr'];
+  $consumedExpr = $sqlParts['consumedExpr'];
   $remainingExpr = $sqlParts['remainingExpr'];
   $statusExpr = $sqlParts['statusExpr'];
 
@@ -444,7 +444,7 @@ function handleOutstandingMonitoring(mysqli $conn, array $adminScope, array $req
   $refundedRows = dbFetchAll(
     $conn,
     "SELECT
-       COALESCE(SUM({$appliedExpr}), 0) AS total_refunded
+       COALESCE(SUM({$consumedExpr}), 0) AS total_refunded
      FROM refunds r
      {$reservationAggJoin}
      {$refundedWhereSql}",
