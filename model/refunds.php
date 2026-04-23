@@ -2547,6 +2547,61 @@ function validateManualIdsExist(mysqli $conn, array $manualIds): bool
   return $totalFound === count($manualIds);
 }
 
+function dbFetchAll(mysqli $conn, string $sql, string $types = '', array $params = []): array
+{
+  $stmt = dbExecute($conn, $sql, $types, $params);
+
+  try {
+    if (function_exists('mysqli_stmt_get_result')) {
+      $result = mysqli_stmt_get_result($stmt);
+      if ($result instanceof mysqli_result) {
+        $rows = [];
+        while ($row = mysqli_fetch_assoc($result)) {
+          $rows[] = $row;
+        }
+        mysqli_free_result($result);
+
+        return $rows;
+      }
+    }
+
+    $metadata = mysqli_stmt_result_metadata($stmt);
+    if (!$metadata) {
+      return [];
+    }
+
+    $fields = mysqli_fetch_fields($metadata);
+    mysqli_free_result($metadata);
+    if ($fields === false || $fields === []) {
+      return [];
+    }
+
+    $row = [];
+    $bindValues = [];
+    foreach ($fields as $field) {
+      $row[$field->name] = null;
+      $bindValues[] = &$row[$field->name];
+    }
+
+    if (!call_user_func_array([$stmt, 'bind_result'], $bindValues)) {
+      throw new RuntimeException('Failed to bind result columns.');
+    }
+
+    $rows = [];
+    while (mysqli_stmt_fetch($stmt)) {
+      $resultRow = [];
+      foreach ($row as $key => $value) {
+        $resultRow[$key] = $value;
+      }
+      $rows[] = $resultRow;
+    }
+
+    return $rows;
+  } finally {
+    mysqli_stmt_close($stmt);
+  }
+}
+
 function dbExecute(mysqli $conn, string $sql, string $types, array $params): mysqli_stmt
 {
   $stmt = mysqli_prepare($conn, $sql);
