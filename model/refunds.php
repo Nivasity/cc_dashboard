@@ -1189,27 +1189,7 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                       }
                       $transactionCapLogs = capTransactionsRefundForSourceRefs($conn, array_keys($affectedSourceRefs));
 
-                      if ($hasMaterialsColumn) {
-                        $createdRows = dbFetchAll(
-                          $conn,
-                          "SELECT id, school_id, student_id, ref_id, amount, remaining_amount, status, reason, materials, created_at, updated_at
-                           FROM refunds
-                           WHERE id = ?
-                           LIMIT 1",
-                          'i',
-                          [$refundId]
-                        );
-                      } else {
-                        $createdRows = dbFetchAll(
-                          $conn,
-                          "SELECT id, school_id, student_id, ref_id, amount, remaining_amount, status, reason, created_at, updated_at
-                           FROM refunds
-                           WHERE id = ?
-                           LIMIT 1",
-                          'i',
-                          [$refundId]
-                        );
-                      }
+                      $createdRows = fetchRefundById($conn, $refundId, $hasMaterialsColumn);
 
                       $createdRefund = $createdRows[0] ?? [
                         'id' => $refundId,
@@ -2745,6 +2725,25 @@ function refundsHasMaterialsColumn(mysqli $conn): bool
   return $hasColumn;
 }
 
+function fetchRefundById(mysqli $conn, int $refundId, bool $hasMaterialsColumn): array
+{
+  $selectFields = 'id, school_id, student_id, ref_id, amount, remaining_amount, status, reason';
+  if ($hasMaterialsColumn) {
+    $selectFields .= ', materials';
+  }
+  $selectFields .= ', created_at, updated_at';
+
+  return dbFetchAll(
+    $conn,
+    "SELECT {$selectFields}
+     FROM refunds
+     WHERE id = ?
+     LIMIT 1",
+    'i',
+    [$refundId]
+  );
+}
+
 function normalizeAmount($value): float
 {
   if ($value === null || $value === '') {
@@ -2806,6 +2805,44 @@ function normalizeNumericRow(array $row, array $keys): array
   }
 
   return $row;
+}
+
+function getRequestPayload(): array
+{
+  $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? 'GET'));
+  $payload = $method === 'GET' ? $_GET : array_replace($_GET, $_POST);
+  $contentType = strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? $_SERVER['HTTP_CONTENT_TYPE'] ?? ''));
+
+  if (strpos($contentType, 'application/json') !== false) {
+    $rawBody = file_get_contents('php://input');
+    if ($rawBody === false || trim($rawBody) === '') {
+      return $payload;
+    }
+
+    $decoded = json_decode($rawBody, true);
+    if (!is_array($decoded)) {
+      badRequest('Invalid JSON payload.');
+    }
+
+    return array_replace($payload, $decoded);
+  }
+
+  if ($method === 'PUT' || $method === 'PATCH' || $method === 'DELETE') {
+    $rawBody = file_get_contents('php://input');
+    if ($rawBody === false || trim($rawBody) === '') {
+      return $payload;
+    }
+
+    if (strpos($contentType, 'application/x-www-form-urlencoded') !== false) {
+      $decoded = [];
+      parse_str($rawBody, $decoded);
+      if (is_array($decoded)) {
+        return array_replace($payload, $decoded);
+      }
+    }
+  }
+
+  return $payload;
 }
 
 function methodNotAllowed(string $allowed): void
