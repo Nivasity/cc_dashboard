@@ -2105,7 +2105,7 @@ function adjustSchoolPayableLedgerConsumption(
   $existingCarryForward = round((float) ($ledgerRow['carry_forward_amount'] ?? 0), 2);
   $boundSourceRefId = trim((string) ($ledgerRow['refund_consumption_source_ref_id'] ?? ''));
 
-  $baselineConsumedAmount = max(0.0, round(max($existingRefundAmount, $existingConsumedAmount), 2));
+  $baselineConsumedAmount = max(0.0, $existingConsumedAmount);
   $effectiveDelta = 0.0;
 
   if ($amountDelta > 0.00001) {
@@ -2156,9 +2156,10 @@ function adjustSchoolPayableLedgerConsumption(
     }
   }
 
-  $newConsumedAmount = max(0.0, round($baselineConsumedAmount + $effectiveDelta, 2));
-  $newRefundAmount = $newConsumedAmount;
-  $newPayableAmount = max(0.0, round($itemSubtotal - $newRefundAmount, 2));
+  $maxConsumableAmount = max(0.0, round($itemSubtotal - $existingRefundAmount, 2));
+  $newConsumedAmount = min($maxConsumableAmount, max(0.0, round($baselineConsumedAmount + $effectiveDelta, 2)));
+  $newRefundAmount = $existingRefundAmount;
+  $newPayableAmount = max(0.0, round($itemSubtotal - $newRefundAmount - $newConsumedAmount, 2));
   $newCarryForwardAmount = max(0.0, round($settledAmount - $newPayableAmount, 2));
 
   $oldPendingComponent = max(0.0, round($existingPayableAmount - $settledAmount, 2));
@@ -3010,11 +3011,13 @@ function applyDirectSchoolPayableRefund(mysqli $conn, string $sourceRefId, float
   $schoolId = (int) ($ledgerRow['school_id'] ?? 0);
   $itemSubtotal = round((float) ($ledgerRow['item_subtotal'] ?? 0), 2);
   $existingRefundAmount = round((float) ($ledgerRow['refund_amount'] ?? 0), 2);
+  $existingConsumedAmount = round((float) ($ledgerRow['refund_consumed_amount'] ?? 0), 2);
   $existingPayableAmount = round((float) ($ledgerRow['payable_amount'] ?? 0), 2);
   $settledAmount = round((float) ($ledgerRow['settled_amount'] ?? 0), 2);
   $existingCarryForward = round((float) ($ledgerRow['carry_forward_amount'] ?? 0), 2);
 
-  $newRefundAmount = min($itemSubtotal, round($existingRefundAmount + $refundAmount, 2));
+  $maxNativeRefundAmount = max(0.0, round($itemSubtotal - $existingConsumedAmount, 2));
+  $newRefundAmount = min($maxNativeRefundAmount, round($existingRefundAmount + $refundAmount, 2));
   $effectiveDelta = max(0.0, round($newRefundAmount - $existingRefundAmount, 2));
   if ($effectiveDelta <= 0.00001) {
     return [
@@ -3024,7 +3027,7 @@ function applyDirectSchoolPayableRefund(mysqli $conn, string $sourceRefId, float
     ];
   }
 
-  $newPayableAmount = max(0.0, round($itemSubtotal - $newRefundAmount, 2));
+  $newPayableAmount = max(0.0, round($itemSubtotal - $newRefundAmount - $existingConsumedAmount, 2));
   $payableReduction = max(0.0, round($existingPayableAmount - $newPayableAmount, 2));
   $carryForwardDelta = max(0.0, round($settledAmount - $newPayableAmount, 2));
   $pendingReduction = max(0.0, round($payableReduction - $carryForwardDelta, 2));
