@@ -2372,7 +2372,7 @@ function listEligibleSchoolPayableLedgerRows(
       AND NOT EXISTS (
         SELECT 1
         FROM settlement_batch_items sbi
-        INNER JOIN settlement_batches sb ON sb.id = sbi.batch_id
+        INNER JOIN settlement_batches sb ON sb.id = sbi.settlement_batch_id
         WHERE sbi.source_ref_id = spl.source_ref_id
           AND COALESCE(sb.status, 'pending') IN ('pending', 'processing')
           AND COALESCE(sbi.status, 'pending') IN ('pending', 'processing')
