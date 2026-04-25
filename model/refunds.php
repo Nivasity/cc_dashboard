@@ -2032,7 +2032,17 @@ function schoolPayableLedgerHasColumn(mysqli $conn, string $columnName): bool
     return $cache[$columnName];
   }
 
-  $rows = dbFetchAll($conn, "SHOW COLUMNS FROM school_payable_ledger LIKE ?", 's', [$columnName]);
+  $rows = dbFetchAll(
+    $conn,
+    "SELECT 1
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = 'school_payable_ledger'
+       AND column_name = ?
+     LIMIT 1",
+    's',
+    [$columnName]
+  );
   $cache[$columnName] = $rows !== [];
 
   return $cache[$columnName];
@@ -3510,7 +3520,17 @@ function refundReservationsHasColumn(mysqli $conn, string $columnName): bool
     return $cache[$columnName];
   }
 
-  $rows = dbFetchAll($conn, "SHOW COLUMNS FROM refund_reservations LIKE ?", 's', [$columnName]);
+  $rows = dbFetchAll(
+    $conn,
+    "SELECT 1
+     FROM information_schema.columns
+     WHERE table_schema = DATABASE()
+       AND table_name = 'refund_reservations'
+       AND column_name = ?
+     LIMIT 1",
+    's',
+    [$columnName]
+  );
   $cache[$columnName] = $rows !== [];
 
   return $cache[$columnName];
