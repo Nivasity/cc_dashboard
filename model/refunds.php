@@ -2367,6 +2367,11 @@ function recomputeRefundsFromLedger(mysqli $conn, array $refundIds): array
       mysqli_stmt_close($updateStmt);
     }
 
+    $materialAccessResult = null;
+    if ($newStatus === 'applied') {
+      $materialAccessResult = revokeRefundedMaterialsIfApplied($conn, $refundId);
+    }
+
     $changes[] = [
       'refund_id' => $refundId,
       'before' => $beforeState,
@@ -2375,11 +2380,51 @@ function recomputeRefundsFromLedger(mysqli $conn, array $refundIds): array
         'status' => $newStatus,
         'consumed_total' => $consumedTotal,
         'reserved_total' => $reservedTotal,
+        'material_access' => $materialAccessResult,
       ],
     ];
   }
 
   return $changes;
+}
+
+function revokeRefundedMaterialsIfApplied(mysqli $conn, int $refundId): ?array
+{
+  $refundId = (int) $refundId;
+  if ($refundId <= 0 || !refundsHasMaterialsColumn($conn)) {
+    return null;
+  }
+
+  $refundRows = dbFetchAll(
+    $conn,
+    'SELECT id, student_id, ref_id, materials, status FROM refunds WHERE id = ? LIMIT 1',
+    'i',
+    [$refundId]
+  );
+  if ($refundRows === []) {
+    return null;
+  }
+
+  $refundRow = $refundRows[0];
+  if (strtolower(trim((string) ($refundRow['status'] ?? 'pending'))) !== 'applied') {
+    return null;
+  }
+
+  $manualIds = parseRefundMaterialIdsFromJson($refundRow['materials'] ?? null);
+  if ($manualIds === []) {
+    return [
+      'status' => 'ignored',
+      'matched_count' => 0,
+      'deleted_count' => 0,
+    ];
+  }
+
+  return removeRefundedMaterialsFromManualsBought(
+    $conn,
+    (string) ($refundRow['ref_id'] ?? ''),
+    (int) ($refundRow['student_id'] ?? 0),
+    $manualIds
+  );
 }
 
 function getNextRefundSplitSequence(mysqli $conn, int $refundId): int
