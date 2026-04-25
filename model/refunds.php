@@ -1315,6 +1315,58 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
   respond($httpStatus, $responsePayload);
 }
 
+function acquireNamedLock(mysqli $conn, string $lockName, int $timeoutSeconds = 0): int
+{
+  $lockName = trim($lockName);
+  if ($lockName === '') {
+    return 0;
+  }
+
+  $timeoutSeconds = max(0, $timeoutSeconds);
+  if (strlen($lockName) > 64) {
+    $lockName = substr($lockName, 0, 64);
+  }
+
+  $stmt = $conn->prepare('SELECT GET_LOCK(?, ?)');
+  if (!$stmt) {
+    return 0;
+  }
+
+  $stmt->bind_param('si', $lockName, $timeoutSeconds);
+  if (!$stmt->execute()) {
+    $stmt->close();
+    return 0;
+  }
+
+  $lockStatus = null;
+  $stmt->bind_result($lockStatus);
+  $stmt->fetch();
+  $stmt->close();
+
+  return $lockStatus === null ? 0 : (int) $lockStatus;
+}
+
+function releaseNamedLock(mysqli $conn, string $lockName): void
+{
+  $lockName = trim($lockName);
+  if ($lockName === '') {
+    return;
+  }
+
+  if (strlen($lockName) > 64) {
+    $lockName = substr($lockName, 0, 64);
+  }
+
+  $stmt = $conn->prepare('SELECT RELEASE_LOCK(?)');
+  if (!$stmt) {
+    return;
+  }
+
+  $stmt->bind_param('s', $lockName);
+  $stmt->execute();
+  $stmt->close();
+}
+
 function handleCancelRefund(mysqli $conn, array $adminScope, array $request, int $adminId): void
 {
   $refundId = toPositiveIntOrNull($request['refund_id'] ?? $request['id'] ?? null);
