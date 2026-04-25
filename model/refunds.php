@@ -2063,6 +2063,61 @@ function schoolPayableRefundConsumptionSchemaReady(mysqli $conn): bool
     && refundReservationsHasColumn($conn, 'school_payable_ledger_id');
 }
 
+function getSchoolPayableLedgerReservationBinding(
+  mysqli $conn,
+  int $ledgerId,
+  string $ledgerSourceRefId = ''
+): array {
+  $ledgerSourceRefId = trim($ledgerSourceRefId);
+
+  if ($ledgerId <= 0 || !refundReservationsHasColumn($conn, 'school_payable_ledger_id')) {
+    return [
+      'status' => 'none',
+      'bound_source_ref_id' => '',
+      'source_ref_count' => 0,
+      'consumed_total' => 0.0,
+    ];
+  }
+
+  $sql = "SELECT
+            COUNT(DISTINCT CONVERT(r.ref_id USING utf8mb4)) AS source_ref_count,
+            MAX(CONVERT(r.ref_id USING utf8mb4)) AS bound_source_ref_id,
+            COALESCE(SUM(rr.amount), 0) AS consumed_total
+          FROM refund_reservations rr
+          INNER JOIN refunds r ON r.id = rr.refund_id
+          WHERE rr.status = 'consumed'
+            AND (
+              COALESCE(rr.school_payable_ledger_id, 0) = ?";
+  $types = 'i';
+  $params = [$ledgerId];
+
+  if ($ledgerSourceRefId !== '') {
+    $sql .= "
+              OR (
+                COALESCE(rr.school_payable_ledger_id, 0) = 0
+                AND rr.ref_id = ?
+              )";
+    $types .= 's';
+    $params[] = $ledgerSourceRefId;
+  }
+
+  $sql .= '
+            )';
+
+  $rows = dbFetchAll($conn, $sql, $types, $params);
+  $row = $rows[0] ?? [];
+  $sourceRefCount = isset($row['source_ref_count']) ? (int) $row['source_ref_count'] : 0;
+  $boundSourceRefId = trim((string) ($row['bound_source_ref_id'] ?? ''));
+  $consumedTotal = round((float) ($row['consumed_total'] ?? 0), 2);
+
+  return [
+    'status' => $sourceRefCount > 1 ? 'mixed' : ($sourceRefCount === 1 ? 'bound' : 'none'),
+    'bound_source_ref_id' => $sourceRefCount === 1 ? $boundSourceRefId : '',
+    'source_ref_count' => $sourceRefCount,
+    'consumed_total' => $consumedTotal,
+  ];
+}
+
 function adjustSchoolPayableLedgerConsumption(
   mysqli $conn,
   int $ledgerId,
@@ -2104,6 +2159,34 @@ function adjustSchoolPayableLedgerConsumption(
   $settledAmount = round((float) ($ledgerRow['settled_amount'] ?? 0), 2);
   $existingCarryForward = round((float) ($ledgerRow['carry_forward_amount'] ?? 0), 2);
   $boundSourceRefId = trim((string) ($ledgerRow['refund_consumption_source_ref_id'] ?? ''));
+  $reservationBinding = getSchoolPayableLedgerReservationBinding(
+    $conn,
+    $ledgerId,
+    (string) ($ledgerRow['source_ref_id'] ?? '')
+  );
+  $reservationBoundSourceRefId = trim((string) ($reservationBinding['bound_source_ref_id'] ?? ''));
+  $reservationSourceRefCount = (int) ($reservationBinding['source_ref_count'] ?? 0);
+
+  if ($reservationSourceRefCount > 1) {
+    return [
+      'status' => 'mixed_source_conflict',
+      'applied_delta' => 0.0,
+      'ledger_id' => $ledgerId,
+      'source_ref_count' => $reservationSourceRefCount,
+    ];
+  }
+
+  if ($boundSourceRefId !== '' && $reservationBoundSourceRefId !== '' && $boundSourceRefId !== $reservationBoundSourceRefId) {
+    return [
+      'status' => 'binding_conflict',
+      'applied_delta' => 0.0,
+      'ledger_id' => $ledgerId,
+      'bound_source_ref_id' => $boundSourceRefId,
+      'reservation_bound_source_ref_id' => $reservationBoundSourceRefId,
+    ];
+  }
+
+  $effectiveBoundSourceRefId = $boundSourceRefId !== '' ? $boundSourceRefId : $reservationBoundSourceRefId;
 
   $baselineConsumedAmount = max(0.0, $existingConsumedAmount);
   $effectiveDelta = 0.0;
@@ -2117,12 +2200,12 @@ function adjustSchoolPayableLedgerConsumption(
       ];
     }
 
-    if ($boundSourceRefId !== '' && $boundSourceRefId !== $refundSourceRefId) {
+    if ($effectiveBoundSourceRefId !== '' && $effectiveBoundSourceRefId !== $refundSourceRefId) {
       return [
         'status' => 'source_conflict',
         'applied_delta' => 0.0,
         'ledger_id' => $ledgerId,
-        'bound_source_ref_id' => $boundSourceRefId,
+        'bound_source_ref_id' => $effectiveBoundSourceRefId,
       ];
     }
 
@@ -2136,12 +2219,12 @@ function adjustSchoolPayableLedgerConsumption(
       ];
     }
   } else {
-    if ($boundSourceRefId !== '' && $refundSourceRefId !== '' && $boundSourceRefId !== $refundSourceRefId) {
+    if ($effectiveBoundSourceRefId !== '' && $refundSourceRefId !== '' && $effectiveBoundSourceRefId !== $refundSourceRefId) {
       return [
         'status' => 'source_conflict',
         'applied_delta' => 0.0,
         'ledger_id' => $ledgerId,
-        'bound_source_ref_id' => $boundSourceRefId,
+        'bound_source_ref_id' => $effectiveBoundSourceRefId,
       ];
     }
 
@@ -2230,7 +2313,9 @@ function adjustSchoolPayableLedgerConsumption(
     throw new RuntimeException('Unable to encode school payable refund consumption metadata.');
   }
 
-  $newBoundSourceRefId = $newConsumedAmount > 0.00001 ? $refundSourceRefId : '';
+  $newBoundSourceRefId = $newConsumedAmount > 0.00001
+    ? ($effectiveBoundSourceRefId !== '' ? $effectiveBoundSourceRefId : $refundSourceRefId)
+    : '';
   $updateLedgerStmt = dbExecute(
     $conn,
     'UPDATE school_payable_ledger
@@ -2284,7 +2369,7 @@ function listEligibleSchoolPayableLedgerRows(
       )";
   }
 
-  return dbFetchAll(
+  $candidateRows = dbFetchAll(
     $conn,
     "SELECT spl.*
      FROM school_payable_ledger spl
@@ -2302,6 +2387,42 @@ function listEligibleSchoolPayableLedgerRows(
     'isss',
     [$schoolId, $refundSourceRefId, $preferredSourceRefId, $refundSourceRefId]
   );
+
+  $eligibleRows = [];
+  foreach ($candidateRows as $candidateRow) {
+    $ledgerId = (int) ($candidateRow['id'] ?? 0);
+    if ($ledgerId <= 0) {
+      continue;
+    }
+
+    $reservationBinding = getSchoolPayableLedgerReservationBinding(
+      $conn,
+      $ledgerId,
+      (string) ($candidateRow['source_ref_id'] ?? '')
+    );
+    if ((int) ($reservationBinding['source_ref_count'] ?? 0) > 1) {
+      continue;
+    }
+
+    $headerBoundSourceRefId = trim((string) ($candidateRow['refund_consumption_source_ref_id'] ?? ''));
+    $reservationBoundSourceRefId = trim((string) ($reservationBinding['bound_source_ref_id'] ?? ''));
+    if ($headerBoundSourceRefId !== ''
+      && $reservationBoundSourceRefId !== ''
+      && $headerBoundSourceRefId !== $reservationBoundSourceRefId) {
+      continue;
+    }
+
+    $effectiveBoundSourceRefId = $headerBoundSourceRefId !== ''
+      ? $headerBoundSourceRefId
+      : $reservationBoundSourceRefId;
+    if ($effectiveBoundSourceRefId !== '' && $effectiveBoundSourceRefId !== $refundSourceRefId) {
+      continue;
+    }
+
+    $eligibleRows[] = $candidateRow;
+  }
+
+  return $eligibleRows;
 }
 
 function consumeRefundIntoEligibleLedgers(
