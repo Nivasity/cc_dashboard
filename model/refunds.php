@@ -754,7 +754,7 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
   $affectedRefundIds = [];
   $postflightWarnings = [];
   $createdRefund = null;
-  $directLedgerAdjustment = null;
+  $ledgerConsumptionResult = null;
   $walletRefundResult = null;
   $manualsBoughtRemoval = null;
   $studentDelivery = [];
@@ -767,7 +767,11 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
          t.ref_id,
          t.user_id,
          t.status,
+         COALESCE(t.amount, 0) AS amount,
+         COALESCE(t.charge, 0) AS charge,
+        COALESCE(NULLIF(t.medium, ''), 'UNKNOWN') AS medium,
         COALESCE(NULLIF(t.payment_channel, ''), 'gateway') AS payment_channel,
+        COALESCE(NULLIF(t.transaction_context, ''), 'purchase') AS transaction_context,
         t.created_at,
          u.school AS user_school
        FROM transactions t
@@ -963,40 +967,19 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                       $refundId = (int) mysqli_insert_id($conn);
                       $affectedRefundIds[$refundId] = true;
 
-                      $directLedgerAdjustment = applyDirectSchoolPayableRefund($conn, $sourceRefId, $amount, [
-                        'refund_id' => $refundId,
-                        'reason' => $reason,
+                      $ledgerConsumptionResult = consumeRefundIntoEligibleLedgers($conn, [
+                        'id' => $refundId,
+                        'school_id' => $schoolId,
                         'student_id' => $studentId,
-                        'selected_manual_ids' => array_values($selectedMaterialIds),
+                        'ref_id' => $sourceRefId,
+                        'amount' => $amount,
+                        'remaining_amount' => $amount,
+                        'status' => 'pending',
+                      ], $sourceTransaction, [
+                        'preferred_source_ref_id' => $sourceRefId,
                       ]);
 
-                      if (($directLedgerAdjustment['status'] ?? '') === 'adjusted') {
-                        $paymentChannel = strtolower(trim((string) ($sourceTransaction['payment_channel'] ?? 'gateway')));
-                        $directAppliedAmount = round((float) ($directLedgerAdjustment['refunded'] ?? 0), 2);
-                        if (abs($directAppliedAmount - $amount) > 0.00001) {
-                          throw new RuntimeException('Direct ledger refund could not apply the full refund amount.');
-                        }
-
-                        if ($paymentChannel === 'wallet') {
-                          $walletRefundResult = creditStudentWalletRefund(
-                            $conn,
-                            $studentId,
-                            $schoolId,
-                            $sourceRefId,
-                            $refundId,
-                            $amount,
-                            [
-                              'reason' => $reason,
-                              'source' => 'cc_dashboard_refund',
-                              'selected_manual_ids' => array_values($selectedMaterialIds),
-                            ]
-                          );
-
-                          if (!in_array((string) ($walletRefundResult['status'] ?? ''), ['credited', 'exists'], true)) {
-                            throw new RuntimeException('Failed to credit student wallet refund before applying refund.');
-                          }
-                        }
-
+                      if (($ledgerConsumptionResult['status'] ?? '') === 'consumed') {
                         $updateStmt = dbExecute(
                           $conn,
                           "UPDATE refunds
@@ -1033,158 +1016,170 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                           ],
                         ];
                       } else {
-                      if (!isLegacyReservationEligibleTransaction($sourceTransaction['created_at'] ?? null)) {
-                        throw new RuntimeException(
-                          'This transaction is not eligible for legacy reservation fallback. Transactions created on or after '
-                          . getLegacyReservationCutoff()
-                          . ' must have a school ledger row before refund processing.'
-                        );
-                      }
-
-                      $targetTotals = getRefundLedgerTotals($conn, $refundId);
-                      $targetNeeded = max(
-                        0.0,
-                        round(
-                          $amount
-                          - (float) ($targetTotals['consumed_total'] ?? 0)
-                          - (float) ($targetTotals['reserved_total'] ?? 0),
-                          2
-                        )
-                      );
-
-                      if ($targetNeeded > 0) {
-                        $nextTargetSplitSequence = getNextRefundSplitSequence($conn, $refundId);
-                        $nextSourceSplitSequenceByRefund = [];
-                        $overlyRows = dbFetchAll(
-                          $conn,
-                          "SELECT
-                             id,
-                             refund_id,
-                             ref_id,
-                             split_sequence,
-                             school_id,
-                             payer_user_id,
-                             gateway,
-                             amount,
-                             channel,
-                             reserved_at,
-                             consumed_at,
-                             released_at
-                           FROM refund_reservations
-                           WHERE status = 'released'
-                             AND release_reason = 'overly'
-                             AND school_id = ?
-                             AND refund_id <> ?
-                             AND amount > 0
-                           ORDER BY COALESCE(released_at, consumed_at, reserved_at) ASC, id ASC
-                           FOR UPDATE",
-                          'ii',
-                          [$schoolId, $refundId]
+                        $targetTotals = getRefundLedgerTotals($conn, $refundId);
+                        $targetNeeded = max(
+                          0.0,
+                          round(
+                            $amount
+                            - (float) ($targetTotals['consumed_total'] ?? 0)
+                            - (float) ($targetTotals['reserved_total'] ?? 0),
+                            2
+                          )
                         );
 
-                        foreach ($overlyRows as $sourceRow) {
-                          if ($targetNeeded <= 0) {
-                            break;
-                          }
+                        if ($targetNeeded > 0) {
+                          $nextTargetSplitSequence = getNextRefundSplitSequence($conn, $refundId);
+                          $nextSourceSplitSequenceByRefund = [];
+                          $overlyRows = dbFetchAll(
+                            $conn,
+                            "SELECT
+                               id,
+                               refund_id,
+                               ref_id,
+                               split_sequence,
+                               school_id,
+                               payer_user_id,
+                               gateway,
+                               amount,
+                               channel,
+                               reserved_at,
+                               consumed_at,
+                               released_at
+                             FROM refund_reservations
+                             WHERE status = 'released'
+                               AND release_reason = 'overly'
+                               AND school_id = ?
+                               AND refund_id <> ?
+                               AND amount > 0
+                             ORDER BY COALESCE(released_at, consumed_at, reserved_at) ASC, id ASC
+                             FOR UPDATE",
+                            'ii',
+                            [$schoolId, $refundId]
+                          );
 
-                          $sourceRowId = (int) ($sourceRow['id'] ?? 0);
-                          $sourceRefundId = (int) ($sourceRow['refund_id'] ?? 0);
-                          $sourceRowAmount = round((float) ($sourceRow['amount'] ?? 0), 2);
-                          if ($sourceRowId <= 0 || $sourceRefundId <= 0 || $sourceRowAmount <= 0) {
-                            continue;
-                          }
-
-                          $movedAmount = round(min($targetNeeded, $sourceRowAmount), 2);
-                          if ($movedAmount <= 0) {
-                            continue;
-                          }
-
-                          $currentTimestamp = date('Y-m-d H:i:s');
-                          insertRefundReservationRow($conn, [
-                            'refund_id' => $refundId,
-                            'ref_id' => (string) ($sourceRow['ref_id'] ?? ''),
-                            'split_sequence' => $nextTargetSplitSequence,
-                            'school_id' => $schoolId,
-                            'payer_user_id' => (int) ($sourceRow['payer_user_id'] ?? 0),
-                            'gateway' => (string) ($sourceRow['gateway'] ?? ''),
-                            'amount' => $movedAmount,
-                            'channel' => (string) ($sourceRow['channel'] ?? ''),
-                            'status' => 'consumed',
-                            'reserved_at' => $currentTimestamp,
-                            'consumed_at' => $currentTimestamp,
-                            'released_at' => null,
-                            'release_reason' => null,
-                          ]);
-                          $nextTargetSplitSequence++;
-
-                          $allocationPath = 'full';
-                          if ($movedAmount >= $sourceRowAmount - 0.00001) {
-                            $sourceUpdateStmt = dbExecute(
-                              $conn,
-                              "UPDATE refund_reservations
-                               SET release_reason = 'overly_reallocated'
-                               WHERE id = ?",
-                              'i',
-                              [$sourceRowId]
-                            );
-                            mysqli_stmt_close($sourceUpdateStmt);
-                          } else {
-                            $allocationPath = 'partial';
-                            $leftoverAmount = round($sourceRowAmount - $movedAmount, 2);
-                            if ($leftoverAmount < 0) {
-                              $leftoverAmount = 0;
+                          foreach ($overlyRows as $sourceRow) {
+                            if ($targetNeeded <= 0) {
+                              break;
                             }
 
-                            $sourceUpdateStmt = dbExecute(
-                              $conn,
-                              "UPDATE refund_reservations
-                               SET amount = ?, release_reason = 'overly'
-                               WHERE id = ?",
-                              'di',
-                              [$leftoverAmount, $sourceRowId]
-                            );
-                            mysqli_stmt_close($sourceUpdateStmt);
+                            $sourceRowId = (int) ($sourceRow['id'] ?? 0);
+                            $sourceRefundId = (int) ($sourceRow['refund_id'] ?? 0);
+                            $sourceRowAmount = round((float) ($sourceRow['amount'] ?? 0), 2);
+                            if ($sourceRowId <= 0 || $sourceRefundId <= 0 || $sourceRowAmount <= 0) {
+                              continue;
+                            }
 
+                            $linkedLedgerId = getRefundReservationLinkedLedgerId($conn, $sourceRowId);
+                            $movedAmount = round(min($targetNeeded, $sourceRowAmount), 2);
+                            if ($movedAmount <= 0) {
+                              continue;
+                            }
+
+                            if ($linkedLedgerId > 0) {
+                              $rebindResult = adjustSchoolPayableLedgerConsumption(
+                                $conn,
+                                $linkedLedgerId,
+                                $sourceRefId,
+                                $movedAmount,
+                                [
+                                  'refund_id' => $refundId,
+                                  'reason' => 'overly_reallocated_consume',
+                                  'source_released_row_id' => $sourceRowId,
+                                ]
+                              );
+                              $movedAmount = round((float) ($rebindResult['applied_delta'] ?? 0), 2);
+                              if (($rebindResult['status'] ?? '') !== 'adjusted' || $movedAmount <= 0.00001) {
+                                continue;
+                              }
+                            }
+
+                            $currentTimestamp = date('Y-m-d H:i:s');
                             insertRefundReservationRow($conn, [
-                              'refund_id' => $sourceRefundId,
+                              'refund_id' => $refundId,
                               'ref_id' => (string) ($sourceRow['ref_id'] ?? ''),
-                              'split_sequence' => getNextSplitSequenceCursor($conn, $sourceRefundId, $nextSourceSplitSequenceByRefund),
-                              'school_id' => (int) ($sourceRow['school_id'] ?? $schoolId),
+                              'split_sequence' => $nextTargetSplitSequence,
+                              'school_id' => $schoolId,
                               'payer_user_id' => (int) ($sourceRow['payer_user_id'] ?? 0),
                               'gateway' => (string) ($sourceRow['gateway'] ?? ''),
                               'amount' => $movedAmount,
                               'channel' => (string) ($sourceRow['channel'] ?? ''),
-                              'status' => 'released',
-                              'reserved_at' => $sourceRow['reserved_at'] ?? null,
-                              'consumed_at' => $sourceRow['consumed_at'] ?? null,
-                              'released_at' => $sourceRow['released_at'] ?? $currentTimestamp,
-                              'release_reason' => 'overly_reallocated',
+                              'status' => 'consumed',
+                              'reserved_at' => $currentTimestamp,
+                              'consumed_at' => $currentTimestamp,
+                              'released_at' => null,
+                              'release_reason' => null,
+                              'school_payable_ledger_id' => $linkedLedgerId > 0 ? $linkedLedgerId : null,
                             ]);
-                          }
+                            $nextTargetSplitSequence++;
 
-                          $affectedRefundIds[$sourceRefundId] = true;
-                          $sourceReservationRef = trim((string) ($sourceRow['ref_id'] ?? ''));
-                          if ($sourceReservationRef !== '') {
-                            $affectedSourceRefs[$sourceReservationRef] = true;
-                          }
+                            $allocationPath = 'full';
+                            if ($movedAmount >= $sourceRowAmount - 0.00001) {
+                              $sourceUpdateStmt = dbExecute(
+                                $conn,
+                                "UPDATE refund_reservations
+                                 SET release_reason = 'overly_reallocated'
+                                 WHERE id = ?",
+                                'i',
+                                [$sourceRowId]
+                              );
+                              mysqli_stmt_close($sourceUpdateStmt);
+                            } else {
+                              $allocationPath = 'partial';
+                              $leftoverAmount = round($sourceRowAmount - $movedAmount, 2);
+                              if ($leftoverAmount < 0) {
+                                $leftoverAmount = 0;
+                              }
 
-                          $targetNeeded = max(0.0, round($targetNeeded - $movedAmount, 2));
-                          $reallocationLogs[] = [
-                            'target_refund_id' => $refundId,
-                            'source_released_row_id' => $sourceRowId,
-                            'source_refund_id' => $sourceRefundId,
-                            'source_ref_id' => (string) ($sourceRow['ref_id'] ?? ''),
-                            'moved_amount' => $movedAmount,
-                            'path' => $allocationPath,
-                            'actor_admin_id' => $adminId,
-                            'moved_at' => $currentTimestamp,
-                          ];
+                              $sourceUpdateStmt = dbExecute(
+                                $conn,
+                                "UPDATE refund_reservations
+                                 SET amount = ?, release_reason = 'overly'
+                                 WHERE id = ?",
+                                'di',
+                                [$leftoverAmount, $sourceRowId]
+                              );
+                              mysqli_stmt_close($sourceUpdateStmt);
+
+                              insertRefundReservationRow($conn, [
+                                'refund_id' => $sourceRefundId,
+                                'ref_id' => (string) ($sourceRow['ref_id'] ?? ''),
+                                'split_sequence' => getNextSplitSequenceCursor($conn, $sourceRefundId, $nextSourceSplitSequenceByRefund),
+                                'school_id' => (int) ($sourceRow['school_id'] ?? $schoolId),
+                                'payer_user_id' => (int) ($sourceRow['payer_user_id'] ?? 0),
+                                'gateway' => (string) ($sourceRow['gateway'] ?? ''),
+                                'amount' => $movedAmount,
+                                'channel' => (string) ($sourceRow['channel'] ?? ''),
+                                'status' => 'released',
+                                'reserved_at' => $sourceRow['reserved_at'] ?? null,
+                                'consumed_at' => $sourceRow['consumed_at'] ?? null,
+                                'released_at' => $sourceRow['released_at'] ?? $currentTimestamp,
+                                'release_reason' => 'overly_reallocated',
+                                'school_payable_ledger_id' => $linkedLedgerId > 0 ? $linkedLedgerId : null,
+                              ]);
+                            }
+
+                            $affectedRefundIds[$sourceRefundId] = true;
+                            $sourceReservationRef = trim((string) ($sourceRow['ref_id'] ?? ''));
+                            if ($sourceReservationRef !== '') {
+                              $affectedSourceRefs[$sourceReservationRef] = true;
+                            }
+
+                            $targetNeeded = max(0.0, round($targetNeeded - $movedAmount, 2));
+                            $reallocationLogs[] = [
+                              'target_refund_id' => $refundId,
+                              'source_released_row_id' => $sourceRowId,
+                              'source_refund_id' => $sourceRefundId,
+                              'source_ref_id' => (string) ($sourceRow['ref_id'] ?? ''),
+                              'moved_amount' => $movedAmount,
+                              'path' => $allocationPath,
+                              'actor_admin_id' => $adminId,
+                              'moved_at' => $currentTimestamp,
+                            ];
+                          }
                         }
                       }
 
-                      }
-
-                      if (($directLedgerAdjustment['status'] ?? '') !== 'adjusted') {
+                      if (($ledgerConsumptionResult['status'] ?? '') !== 'consumed') {
                         $refundStateChanges = recomputeRefundsFromLedger($conn, array_map('intval', array_keys($affectedRefundIds)));
                       }
                       $transactionCapLogs = capTransactionsRefundForSourceRefs($conn, array_keys($affectedSourceRefs));
@@ -1202,6 +1197,40 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                         'reason' => $reason,
                         'materials' => $materialsJson,
                       ];
+
+                      if (strtolower((string) ($createdRefund['status'] ?? '')) === 'applied' && $manualsBoughtRemoval === null) {
+                        $manualsBoughtRemoval = removeRefundedMaterialsFromManualsBought(
+                          $conn,
+                          $sourceRefId,
+                          $studentId,
+                          array_values($selectedMaterialIds)
+                        );
+                        if (($manualsBoughtRemoval['deleted_count'] ?? 0) < count($selectedMaterialIds)) {
+                          throw new RuntimeException('Failed to revoke refunded material access from manuals_bought.');
+                        }
+                      }
+
+                      if (strtolower(trim((string) ($sourceTransaction['payment_channel'] ?? 'gateway'))) === 'wallet'
+                        && strtolower((string) ($createdRefund['status'] ?? '')) === 'applied'
+                        && $walletRefundResult === null) {
+                        $walletRefundResult = creditStudentWalletRefund(
+                          $conn,
+                          $studentId,
+                          $schoolId,
+                          $sourceRefId,
+                          $refundId,
+                          $amount,
+                          [
+                            'reason' => $reason,
+                            'source' => 'cc_dashboard_refund',
+                            'selected_manual_ids' => array_values($selectedMaterialIds),
+                          ]
+                        );
+
+                        if (!in_array((string) ($walletRefundResult['status'] ?? ''), ['credited', 'exists'], true)) {
+                          throw new RuntimeException('Failed to credit student wallet refund before applying refund.');
+                        }
+                      }
 
                       mysqli_commit($conn);
                       $transactionStarted = false;
@@ -1231,7 +1260,7 @@ function handleCreateRefund(mysqli $conn, array $adminScope, array $request, int
                           'selected_materials_count' => count($selectedMaterialIds),
                           'selected_manual_ids' => array_values($selectedMaterialIds),
                           'preflight' => $preflightDetails,
-                          'direct_ledger_adjustment' => $directLedgerAdjustment,
+                          'ledger_consumption' => $ledgerConsumptionResult,
                           'wallet_refund' => $walletRefundResult,
                           'manuals_bought_removal' => $manualsBoughtRemoval,
                           'reallocation' => [
@@ -1433,6 +1462,28 @@ function handleCancelRefund(mysqli $conn, array $adminScope, array $request, int
       ]);
     }
 
+    $consumedReservationRows = dbFetchAll(
+      $conn,
+      "SELECT COUNT(*) AS total_consumed
+       FROM refund_reservations
+       WHERE refund_id = ? AND status = 'consumed'",
+      'i',
+      [$refundId]
+    );
+
+    $consumedReservationCount = isset($consumedReservationRows[0]['total_consumed'])
+      ? (int) $consumedReservationRows[0]['total_consumed']
+      : 0;
+
+    if ($consumedReservationCount > 0) {
+      mysqli_rollback($conn);
+      respond(409, [
+        'status' => 'failed',
+        'message' => 'Refund cannot be cancelled after ledger consumption has started.',
+        'consumed_rows' => $consumedReservationCount,
+      ]);
+    }
+
     $stmt = dbExecute(
       $conn,
       "UPDATE refunds SET status = 'cancelled', updated_at = NOW() WHERE id = ?",
@@ -1527,6 +1578,27 @@ function enforceSchoolScope(array $adminScope, int $schoolId): void
 
 function refreshRefundStatuses(mysqli $conn): void
 {
+  $pendingRefundRows = dbFetchAll(
+    $conn,
+    "SELECT DISTINCT r.ref_id
+     FROM refunds r
+     WHERE r.status IN ('pending', 'partially_applied')
+       AND COALESCE(r.remaining_amount, 0) > 0"
+  );
+
+  foreach ($pendingRefundRows as $pendingRefundRow) {
+    $pendingSourceRefId = trim((string) ($pendingRefundRow['ref_id'] ?? ''));
+    if ($pendingSourceRefId === '') {
+      continue;
+    }
+
+    try {
+      reconcileSourceRefWithFallback($conn, $pendingSourceRefId);
+    } catch (Throwable $throwable) {
+      // Keep refresh best-effort. The queue should still render even if one refund source fails reconciliation.
+    }
+  }
+
   $sqlParts = getRefundComputedSqlFragments();
   $reservationAggJoin = $sqlParts['reservationAggJoin'];
   $hasReservationRowsExpr = $sqlParts['hasReservationRowsExpr'];
@@ -1669,10 +1741,35 @@ function inlineReconcileSourceRef(mysqli $conn, string $sourceRefId): array
   $affectedRefundIds = [];
   $affectedSourceRefs = [$sourceRefId => true];
   $overConsumedAdjustments = [];
+  $manualRefundStateChanges = [];
+  $directLedgerReconciliations = [];
+  $reportedRefundIds = [];
+
+  $sourceTransactionRows = dbFetchAll(
+    $conn,
+    "SELECT
+       t.id,
+       t.ref_id,
+       t.user_id,
+       t.status,
+       COALESCE(t.amount, 0) AS amount,
+       COALESCE(t.charge, 0) AS charge,
+       COALESCE(NULLIF(t.payment_channel, ''), 'gateway') AS payment_channel,
+       COALESCE(NULLIF(t.transaction_context, ''), 'purchase') AS transaction_context,
+       COALESCE(NULLIF(t.medium, ''), 'UNKNOWN') AS medium,
+       t.created_at
+     FROM transactions t
+     WHERE t.ref_id = ?
+     LIMIT 1
+     FOR UPDATE",
+    's',
+    [$sourceRefId]
+  );
+  $sourceTransaction = $sourceTransactionRows[0] ?? null;
 
   $refundRows = dbFetchAll(
     $conn,
-    "SELECT id, amount, status
+    "SELECT id, school_id, student_id, ref_id, amount, remaining_amount, status, materials
      FROM refunds
      WHERE ref_id = ?
        AND status <> 'cancelled'
@@ -1687,6 +1784,7 @@ function inlineReconcileSourceRef(mysqli $conn, string $sourceRefId): array
     if ($refundId <= 0) {
       continue;
     }
+    $reportedRefundIds[$refundId] = true;
 
     $refundAmount = round((float) ($refundRow['amount'] ?? 0), 2);
     $ledgerTotals = getRefundLedgerTotals($conn, $refundId);
@@ -1730,6 +1828,7 @@ function inlineReconcileSourceRef(mysqli $conn, string $sourceRefId): array
           continue;
         }
 
+        $linkedLedgerId = getRefundReservationLinkedLedgerId($conn, $consumedRowId);
         $releasedAmount = round(min($excess, $consumedRowAmount), 2);
         $currentTimestamp = date('Y-m-d H:i:s');
         if ($releasedAmount >= $consumedRowAmount - 0.00001) {
@@ -1774,8 +1873,27 @@ function inlineReconcileSourceRef(mysqli $conn, string $sourceRefId): array
             'consumed_at' => $consumedRow['consumed_at'] ?? null,
             'released_at' => $currentTimestamp,
             'release_reason' => 'overly',
+            'school_payable_ledger_id' => $linkedLedgerId > 0 ? $linkedLedgerId : null,
           ]);
           $nextSplitSequence++;
+        }
+
+        if ($linkedLedgerId > 0) {
+          $releaseAdjustment = adjustSchoolPayableLedgerConsumption(
+            $conn,
+            $linkedLedgerId,
+            $sourceRefId,
+            -$releasedAmount,
+            [
+              'refund_id' => $refundId,
+              'reason' => 'over_consumed_release',
+              'reservation_row_id' => $consumedRowId,
+            ]
+          );
+
+          if (($releaseAdjustment['status'] ?? '') !== 'adjusted') {
+            throw new RuntimeException('Failed to unwind over-consumed ledger refund amount.');
+          }
         }
 
         $overConsumedAdjustments[] = [
@@ -1792,18 +1910,40 @@ function inlineReconcileSourceRef(mysqli $conn, string $sourceRefId): array
       }
     }
 
+    if (is_array($sourceTransaction)) {
+      $directLedgerReconciliation = reconcileLegacyDirectLedgerRefund($conn, $refundRow, $sourceTransaction, $sourceRefId);
+      if (($directLedgerReconciliation['status'] ?? '') === 'applied') {
+        $directLedgerReconciliations[] = $directLedgerReconciliation;
+        if (isset($directLedgerReconciliation['state_change']) && is_array($directLedgerReconciliation['state_change'])) {
+          $manualRefundStateChanges[] = $directLedgerReconciliation['state_change'];
+        }
+        continue;
+      }
+
+      if (($directLedgerReconciliation['status'] ?? '') !== 'ignored') {
+        $directLedgerReconciliations[] = $directLedgerReconciliation;
+      }
+    }
+
     $affectedRefundIds[$refundId] = true;
   }
 
-  $refundStateChanges = recomputeRefundsFromLedger($conn, array_map('intval', array_keys($affectedRefundIds)));
+  $refundStateChanges = $manualRefundStateChanges;
+  if ($affectedRefundIds !== []) {
+    $refundStateChanges = array_merge(
+      $refundStateChanges,
+      recomputeRefundsFromLedger($conn, array_map('intval', array_keys($affectedRefundIds)))
+    );
+  }
   $transactionRefundCaps = capTransactionsRefundForSourceRefs($conn, array_keys($affectedSourceRefs));
 
   return [
     'mode' => 'inline',
     'source_ref_id' => $sourceRefId,
-    'affected_refund_ids' => array_values(array_map('intval', array_keys($affectedRefundIds))),
+    'affected_refund_ids' => array_values(array_map('intval', array_keys($reportedRefundIds))),
     'affected_source_refs' => array_values(array_keys($affectedSourceRefs)),
     'over_consumed_adjustments' => $overConsumedAdjustments,
+    'direct_ledger_reconciliations' => $directLedgerReconciliations,
     'refund_state_changes' => $refundStateChanges,
     'transaction_refund_caps' => $transactionRefundCaps,
   ];
@@ -1858,6 +1998,681 @@ function schoolInternalWalletTableExists(mysqli $conn): bool
   $checked = true;
 
   return $exists;
+}
+
+function ensureSchoolInternalWalletForRefunds(mysqli $conn, int $schoolId): void
+{
+  if ($schoolId <= 0 || !schoolInternalWalletTableExists($conn)) {
+    return;
+  }
+
+  $insertStmt = dbExecute(
+    $conn,
+    "INSERT INTO school_internal_wallets
+      (school_id, current_balance, pending_payout_balance, carry_forward_balance, currency, status)
+     VALUES
+      (?, 0, 0, 0, 'NGN', 'active')
+     ON DUPLICATE KEY UPDATE updated_at = updated_at",
+    'i',
+    [$schoolId]
+  );
+  mysqli_stmt_close($insertStmt);
+}
+
+function schoolPayableLedgerHasColumn(mysqli $conn, string $columnName): bool
+{
+  static $cache = [];
+
+  $columnName = trim($columnName);
+  if ($columnName === '') {
+    return false;
+  }
+
+  if (array_key_exists($columnName, $cache)) {
+    return $cache[$columnName];
+  }
+
+  $rows = dbFetchAll($conn, "SHOW COLUMNS FROM school_payable_ledger LIKE ?", 's', [$columnName]);
+  $cache[$columnName] = $rows !== [];
+
+  return $cache[$columnName];
+}
+
+function settlementTablesAvailableForRefunds(mysqli $conn): bool
+{
+  static $checked = false;
+  static $available = false;
+
+  if ($checked) {
+    return $available;
+  }
+
+  $batchTables = dbFetchAll($conn, "SHOW TABLES LIKE 'settlement_batches'");
+  $itemTables = dbFetchAll($conn, "SHOW TABLES LIKE 'settlement_batch_items'");
+  $available = $batchTables !== [] && $itemTables !== [];
+  $checked = true;
+
+  return $available;
+}
+
+function schoolPayableRefundConsumptionSchemaReady(mysqli $conn): bool
+{
+  return schoolPayableLedgerTableExists($conn)
+    && schoolPayableLedgerHasColumn($conn, 'refund_consumption_source_ref_id')
+    && schoolPayableLedgerHasColumn($conn, 'refund_consumed_amount')
+    && refundReservationsHasColumn($conn, 'school_payable_ledger_id');
+}
+
+function adjustSchoolPayableLedgerConsumption(
+  mysqli $conn,
+  int $ledgerId,
+  string $refundSourceRefId,
+  float $amountDelta,
+  array $metadata = []
+): array {
+  $refundSourceRefId = trim($refundSourceRefId);
+  $amountDelta = round($amountDelta, 2);
+
+  if ($ledgerId <= 0 || abs($amountDelta) <= 0.00001 || !schoolPayableRefundConsumptionSchemaReady($conn)) {
+    return [
+      'status' => 'ignored',
+      'applied_delta' => 0.0,
+    ];
+  }
+
+  $ledgerRows = dbFetchAll(
+    $conn,
+    'SELECT * FROM school_payable_ledger WHERE id = ? LIMIT 1 FOR UPDATE',
+    'i',
+    [$ledgerId]
+  );
+
+  if ($ledgerRows === []) {
+    return [
+      'status' => 'missing',
+      'applied_delta' => 0.0,
+      'ledger_id' => $ledgerId,
+    ];
+  }
+
+  $ledgerRow = $ledgerRows[0];
+  $schoolId = (int) ($ledgerRow['school_id'] ?? 0);
+  $itemSubtotal = round((float) ($ledgerRow['item_subtotal'] ?? 0), 2);
+  $existingRefundAmount = round((float) ($ledgerRow['refund_amount'] ?? 0), 2);
+  $existingConsumedAmount = round((float) ($ledgerRow['refund_consumed_amount'] ?? 0), 2);
+  $existingPayableAmount = round((float) ($ledgerRow['payable_amount'] ?? 0), 2);
+  $settledAmount = round((float) ($ledgerRow['settled_amount'] ?? 0), 2);
+  $existingCarryForward = round((float) ($ledgerRow['carry_forward_amount'] ?? 0), 2);
+  $boundSourceRefId = trim((string) ($ledgerRow['refund_consumption_source_ref_id'] ?? ''));
+
+  $baselineConsumedAmount = max(0.0, round(max($existingRefundAmount, $existingConsumedAmount), 2));
+  $effectiveDelta = 0.0;
+
+  if ($amountDelta > 0.00001) {
+    if ($refundSourceRefId === '') {
+      return [
+        'status' => 'ignored',
+        'applied_delta' => 0.0,
+        'ledger_id' => $ledgerId,
+      ];
+    }
+
+    if ($boundSourceRefId !== '' && $boundSourceRefId !== $refundSourceRefId) {
+      return [
+        'status' => 'source_conflict',
+        'applied_delta' => 0.0,
+        'ledger_id' => $ledgerId,
+        'bound_source_ref_id' => $boundSourceRefId,
+      ];
+    }
+
+    $pendingCapacity = max(0.0, round($existingPayableAmount - $settledAmount, 2));
+    $effectiveDelta = min($amountDelta, $pendingCapacity);
+    if ($effectiveDelta <= 0.00001) {
+      return [
+        'status' => 'no_capacity',
+        'applied_delta' => 0.0,
+        'ledger_id' => $ledgerId,
+      ];
+    }
+  } else {
+    if ($boundSourceRefId !== '' && $refundSourceRefId !== '' && $boundSourceRefId !== $refundSourceRefId) {
+      return [
+        'status' => 'source_conflict',
+        'applied_delta' => 0.0,
+        'ledger_id' => $ledgerId,
+        'bound_source_ref_id' => $boundSourceRefId,
+      ];
+    }
+
+    $releaseAmount = min(abs($amountDelta), $baselineConsumedAmount);
+    $effectiveDelta = $releaseAmount > 0.00001 ? -$releaseAmount : 0.0;
+    if (abs($effectiveDelta) <= 0.00001) {
+      return [
+        'status' => 'exists',
+        'applied_delta' => 0.0,
+        'ledger_id' => $ledgerId,
+      ];
+    }
+  }
+
+  $newConsumedAmount = max(0.0, round($baselineConsumedAmount + $effectiveDelta, 2));
+  $newRefundAmount = $newConsumedAmount;
+  $newPayableAmount = max(0.0, round($itemSubtotal - $newRefundAmount, 2));
+  $newCarryForwardAmount = max(0.0, round($settledAmount - $newPayableAmount, 2));
+
+  $oldPendingComponent = max(0.0, round($existingPayableAmount - $settledAmount, 2));
+  $newPendingComponent = max(0.0, round($newPayableAmount - $settledAmount, 2));
+  $pendingDelta = round($newPendingComponent - $oldPendingComponent, 2);
+  $carryForwardDelta = round($newCarryForwardAmount - $existingCarryForward, 2);
+
+  if ($schoolId > 0 && (abs($pendingDelta) > 0.00001 || abs($carryForwardDelta) > 0.00001) && schoolInternalWalletTableExists($conn)) {
+    ensureSchoolInternalWalletForRefunds($conn, $schoolId);
+
+    $walletRows = dbFetchAll(
+      $conn,
+      'SELECT * FROM school_internal_wallets WHERE school_id = ? LIMIT 1 FOR UPDATE',
+      'i',
+      [$schoolId]
+    );
+
+    if ($walletRows !== []) {
+      $walletRow = $walletRows[0];
+      $currentBalance = round((float) ($walletRow['current_balance'] ?? 0), 2);
+      $pendingBalance = round((float) ($walletRow['pending_payout_balance'] ?? 0), 2);
+      $carryForwardBalance = round((float) ($walletRow['carry_forward_balance'] ?? 0), 2);
+
+      $updateWalletStmt = dbExecute(
+        $conn,
+        'UPDATE school_internal_wallets
+         SET current_balance = ?,
+             pending_payout_balance = ?,
+             carry_forward_balance = ?,
+             updated_at = NOW()
+         WHERE school_id = ?',
+        'dddi',
+        [
+          max(0.0, round($currentBalance + $pendingDelta, 2)),
+          max(0.0, round($pendingBalance + $pendingDelta, 2)),
+          max(0.0, round($carryForwardBalance + $carryForwardDelta, 2)),
+          $schoolId,
+        ]
+      );
+      mysqli_stmt_close($updateWalletStmt);
+    }
+  }
+
+  $mergedMetadata = [];
+  $existingMetadata = json_decode((string) ($ledgerRow['metadata'] ?? ''), true);
+  if (is_array($existingMetadata)) {
+    $mergedMetadata = $existingMetadata;
+  }
+
+  $mergedMetadata['refund_consumption'] = array_merge([
+    'source' => 'refund_reservation_consumption',
+    'refund_source_ref_id' => $refundSourceRefId,
+    'amount_delta' => round($effectiveDelta, 2),
+  ], $metadata);
+
+  if ($newPayableAmount <= $settledAmount + 0.00001 && $newPayableAmount > 0.00001) {
+    $newStatus = 'settled';
+  } elseif ($settledAmount > 0.00001 && $settledAmount < $newPayableAmount) {
+    $newStatus = 'partially_settled';
+  } elseif ($newPayableAmount <= 0.00001 && $newCarryForwardAmount > 0.00001) {
+    $newStatus = 'carry_forward';
+  } else {
+    $newStatus = 'pending';
+  }
+
+  $metadataJson = json_encode($mergedMetadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+  if ($metadataJson === false) {
+    throw new RuntimeException('Unable to encode school payable refund consumption metadata.');
+  }
+
+  $newBoundSourceRefId = $newConsumedAmount > 0.00001 ? $refundSourceRefId : '';
+  $updateLedgerStmt = dbExecute(
+    $conn,
+    'UPDATE school_payable_ledger
+     SET refund_amount = ?,
+         payable_amount = ?,
+         carry_forward_amount = ?,
+         status = ?,
+         metadata = ?,
+         refund_consumption_source_ref_id = NULLIF(?, ""),
+         refund_consumed_amount = ?,
+         updated_at = NOW()
+     WHERE id = ?',
+    'dddsssdi',
+    [$newRefundAmount, $newPayableAmount, $newCarryForwardAmount, $newStatus, $metadataJson, $newBoundSourceRefId, $newConsumedAmount, $ledgerId]
+  );
+  mysqli_stmt_close($updateLedgerStmt);
+
+  return [
+    'status' => 'adjusted',
+    'applied_delta' => round($effectiveDelta, 2),
+    'ledger_id' => $ledgerId,
+    'new_payable_amount' => $newPayableAmount,
+    'refund_consumed_amount' => $newConsumedAmount,
+    'refund_consumption_source_ref_id' => $newBoundSourceRefId,
+  ];
+}
+
+function listEligibleSchoolPayableLedgerRows(
+  mysqli $conn,
+  int $schoolId,
+  string $refundSourceRefId,
+  string $preferredSourceRefId = ''
+): array {
+  $refundSourceRefId = trim($refundSourceRefId);
+  $preferredSourceRefId = trim($preferredSourceRefId) !== '' ? trim($preferredSourceRefId) : $refundSourceRefId;
+
+  if ($schoolId <= 0 || $refundSourceRefId === '' || !schoolPayableRefundConsumptionSchemaReady($conn)) {
+    return [];
+  }
+
+  $settlementFilter = '';
+  if (settlementTablesAvailableForRefunds($conn)) {
+    $settlementFilter = "
+      AND NOT EXISTS (
+        SELECT 1
+        FROM settlement_batch_items sbi
+        INNER JOIN settlement_batches sb ON sb.id = sbi.batch_id
+        WHERE sbi.source_ref_id = spl.source_ref_id
+          AND COALESCE(sb.status, 'pending') IN ('pending', 'processing')
+          AND COALESCE(sbi.status, 'pending') IN ('pending', 'processing')
+      )";
+  }
+
+  return dbFetchAll(
+    $conn,
+    "SELECT spl.*
+     FROM school_payable_ledger spl
+     WHERE spl.school_id = ?
+       AND COALESCE(spl.payable_amount, 0) > COALESCE(spl.settled_amount, 0)
+       AND COALESCE(NULLIF(spl.refund_consumption_source_ref_id, ''), '') IN ('', ?)
+       {$settlementFilter}
+     ORDER BY CASE
+       WHEN spl.source_ref_id = ? THEN 0
+       WHEN COALESCE(NULLIF(spl.refund_consumption_source_ref_id, ''), '') = ? THEN 1
+       ELSE 2
+     END,
+     spl.id ASC
+     FOR UPDATE",
+    'isss',
+    [$schoolId, $refundSourceRefId, $preferredSourceRefId, $refundSourceRefId]
+  );
+}
+
+function consumeRefundIntoEligibleLedgers(
+  mysqli $conn,
+  array $refundRow,
+  array $sourceTransaction,
+  array $options = []
+): array {
+  $refundId = (int) ($refundRow['id'] ?? 0);
+  $schoolId = (int) ($refundRow['school_id'] ?? 0);
+  $refundSourceRefId = trim((string) ($refundRow['ref_id'] ?? ''));
+  $refundAmount = round((float) ($refundRow['amount'] ?? 0), 2);
+  $transactionContext = strtolower(trim((string) ($sourceTransaction['transaction_context'] ?? 'purchase')));
+
+  if ($refundId <= 0 || $schoolId <= 0 || $refundSourceRefId === '' || $refundAmount <= 0.00001) {
+    return [
+      'status' => 'ignored',
+      'applied_total' => 0.0,
+      'applications' => [],
+    ];
+  }
+
+  if ($transactionContext !== 'purchase') {
+    return [
+      'status' => 'ignored',
+      'applied_total' => 0.0,
+      'applications' => [],
+    ];
+  }
+
+  if (!schoolPayableRefundConsumptionSchemaReady($conn)) {
+    return [
+      'status' => 'missing_schema',
+      'applied_total' => 0.0,
+      'applications' => [],
+    ];
+  }
+
+  $ledgerTotals = getRefundLedgerTotals($conn, $refundId);
+  $targetNeeded = max(
+    0.0,
+    round(
+      $refundAmount
+      - (float) ($ledgerTotals['consumed_total'] ?? 0)
+      - (float) ($ledgerTotals['reserved_total'] ?? 0),
+      2
+    )
+  );
+
+  if ($targetNeeded <= 0.00001) {
+    return [
+      'status' => 'exists',
+      'applied_total' => 0.0,
+      'applications' => [],
+    ];
+  }
+
+  $preferredSourceRefId = trim((string) ($options['preferred_source_ref_id'] ?? $refundSourceRefId));
+  $candidateRows = listEligibleSchoolPayableLedgerRows($conn, $schoolId, $refundSourceRefId, $preferredSourceRefId);
+  if ($candidateRows === []) {
+    return [
+      'status' => 'no_candidates',
+      'applied_total' => 0.0,
+      'applications' => [],
+    ];
+  }
+
+  $nextSplitSequence = getNextRefundSplitSequence($conn, $refundId);
+  $appliedTotal = 0.0;
+  $applications = [];
+
+  foreach ($candidateRows as $candidateRow) {
+    if ($targetNeeded <= 0.00001) {
+      break;
+    }
+
+    $ledgerId = (int) ($candidateRow['id'] ?? 0);
+    $consumerSourceRefId = trim((string) ($candidateRow['source_ref_id'] ?? ''));
+    $consumerPendingAmount = max(
+      0.0,
+      round(
+        (float) ($candidateRow['payable_amount'] ?? 0)
+        - (float) ($candidateRow['settled_amount'] ?? 0),
+        2
+      )
+    );
+
+    if ($ledgerId <= 0 || $consumerSourceRefId === '' || $consumerPendingAmount <= 0.00001) {
+      continue;
+    }
+
+    $requestAmount = round(min($targetNeeded, $consumerPendingAmount), 2);
+    if ($requestAmount <= 0.00001) {
+      continue;
+    }
+
+    $adjustment = adjustSchoolPayableLedgerConsumption(
+      $conn,
+      $ledgerId,
+      $refundSourceRefId,
+      $requestAmount,
+      [
+        'refund_id' => $refundId,
+        'reason' => 'refund_create_consume',
+      ]
+    );
+
+    $appliedAmount = round((float) ($adjustment['applied_delta'] ?? 0), 2);
+    if (($adjustment['status'] ?? '') !== 'adjusted' || $appliedAmount <= 0.00001) {
+      continue;
+    }
+
+    $currentTimestamp = date('Y-m-d H:i:s');
+    insertRefundReservationRow($conn, [
+      'refund_id' => $refundId,
+      'ref_id' => $consumerSourceRefId,
+      'split_sequence' => $nextSplitSequence,
+      'school_id' => $schoolId,
+      'payer_user_id' => (int) ($candidateRow['payer_user_id'] ?? 0),
+      'gateway' => (string) ($candidateRow['source_channel'] ?? ($sourceTransaction['payment_channel'] ?? 'gateway')),
+      'amount' => $appliedAmount,
+      'channel' => 'ledger_consumption',
+      'status' => 'consumed',
+      'reserved_at' => $currentTimestamp,
+      'consumed_at' => $currentTimestamp,
+      'released_at' => null,
+      'release_reason' => null,
+      'school_payable_ledger_id' => $ledgerId,
+    ]);
+    $nextSplitSequence++;
+
+    $targetNeeded = max(0.0, round($targetNeeded - $appliedAmount, 2));
+    $appliedTotal = round($appliedTotal + $appliedAmount, 2);
+    $applications[] = [
+      'ledger_id' => $ledgerId,
+      'consumer_source_ref_id' => $consumerSourceRefId,
+      'applied_amount' => $appliedAmount,
+    ];
+  }
+
+  if ($applications === []) {
+    return [
+      'status' => 'no_candidates',
+      'applied_total' => 0.0,
+      'applications' => [],
+    ];
+  }
+
+  return [
+    'status' => $targetNeeded <= 0.00001 ? 'consumed' : 'partial',
+    'applied_total' => $appliedTotal,
+    'remaining_needed' => $targetNeeded,
+    'applications' => $applications,
+  ];
+}
+
+function bootstrapLegacySchoolPayableLedgerFromSourceTransaction(
+  mysqli $conn,
+  array $sourceTransaction,
+  int $schoolId,
+  int $studentId,
+  array $metadata = []
+): array {
+  if (!schoolPayableLedgerTableExists($conn)) {
+    return [
+      'status' => 'missing_table',
+      'payable_amount' => 0.0,
+    ];
+  }
+
+  $sourceRefId = trim((string) ($sourceTransaction['ref_id'] ?? ''));
+  if ($sourceRefId === '' || $schoolId <= 0 || $studentId <= 0) {
+    return [
+      'status' => 'ignored',
+      'payable_amount' => 0.0,
+    ];
+  }
+
+  if (!isLegacyReservationEligibleTransaction($sourceTransaction['created_at'] ?? null)) {
+    return [
+      'status' => 'ineligible',
+      'payable_amount' => 0.0,
+    ];
+  }
+
+  $transactionContext = strtolower(trim((string) ($sourceTransaction['transaction_context'] ?? 'purchase')));
+  if ($transactionContext !== 'purchase') {
+    return [
+      'status' => 'ignored',
+      'payable_amount' => 0.0,
+    ];
+  }
+
+  $ledgerRows = dbFetchAll(
+    $conn,
+    'SELECT id, payable_amount FROM school_payable_ledger WHERE source_ref_id = ? LIMIT 1 FOR UPDATE',
+    's',
+    [$sourceRefId]
+  );
+  if ($ledgerRows !== []) {
+    return [
+      'status' => 'exists',
+      'ledger_id' => (int) ($ledgerRows[0]['id'] ?? 0),
+      'payable_amount' => round((float) ($ledgerRows[0]['payable_amount'] ?? 0), 2),
+    ];
+  }
+
+  $collectedTotal = max(0.0, round((float) ($sourceTransaction['amount'] ?? 0), 2));
+  $chargeAmount = max(0.0, round((float) ($sourceTransaction['charge'] ?? 0), 2));
+  $itemSubtotal = max(0.0, round($collectedTotal - $chargeAmount, 2));
+  if ($itemSubtotal <= 0.00001) {
+    return [
+      'status' => 'ignored',
+      'payable_amount' => 0.0,
+    ];
+  }
+
+  ensureSchoolInternalWalletForRefunds($conn, $schoolId);
+
+  $mergedMetadata = [
+    'source' => 'legacy_refund_bootstrap',
+    'source_transaction_id' => (int) ($sourceTransaction['id'] ?? 0),
+    'source_payment_channel' => (string) ($sourceTransaction['payment_channel'] ?? 'gateway'),
+    'source_transaction_context' => (string) ($sourceTransaction['transaction_context'] ?? 'purchase'),
+  ];
+  if (is_array($metadata)) {
+    $mergedMetadata = array_merge($mergedMetadata, $metadata);
+  }
+
+  $sourceMedium = strtoupper(trim((string) ($sourceTransaction['medium'] ?? 'UNKNOWN')));
+  if ($sourceMedium === '') {
+    $sourceMedium = 'UNKNOWN';
+  }
+  $sourceChannel = strtolower(trim((string) ($sourceTransaction['payment_channel'] ?? 'gateway')));
+  if ($sourceChannel === '') {
+    $sourceChannel = 'gateway';
+  }
+
+  $metadataJson = json_encode($mergedMetadata, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+  if ($metadataJson === false) {
+    throw new RuntimeException('Unable to encode legacy ledger bootstrap metadata.');
+  }
+
+  $insertStmt = dbExecute(
+    $conn,
+    'INSERT INTO school_payable_ledger
+      (school_id, source_ref_id, payer_user_id, source_medium, source_channel, item_subtotal, collected_total, charge_amount, refund_amount, payable_amount, metadata)
+     VALUES
+      (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)',
+    'isissdddds',
+    [$schoolId, $sourceRefId, $studentId, $sourceMedium, $sourceChannel, $itemSubtotal, $collectedTotal, $chargeAmount, $itemSubtotal, $metadataJson]
+  );
+  $ledgerId = (int) mysqli_insert_id($conn);
+  mysqli_stmt_close($insertStmt);
+
+  if ($itemSubtotal > 0.00001 && schoolInternalWalletTableExists($conn)) {
+    $updateWalletStmt = dbExecute(
+      $conn,
+      'UPDATE school_internal_wallets
+       SET current_balance = current_balance + ?,
+           pending_payout_balance = pending_payout_balance + ?,
+           updated_at = NOW()
+       WHERE school_id = ?',
+      'ddi',
+      [$itemSubtotal, $itemSubtotal, $schoolId]
+    );
+    mysqli_stmt_close($updateWalletStmt);
+  }
+
+  return [
+    'status' => 'created',
+    'ledger_id' => $ledgerId,
+    'payable_amount' => $itemSubtotal,
+  ];
+}
+
+function reconcileLegacyDirectLedgerRefund(
+  mysqli $conn,
+  array $refundRow,
+  array $sourceTransaction,
+  string $sourceRefId
+): array {
+  $refundId = (int) ($refundRow['id'] ?? 0);
+  $schoolId = (int) ($refundRow['school_id'] ?? 0);
+  $studentId = (int) ($refundRow['student_id'] ?? 0);
+  $refundAmount = round((float) ($refundRow['amount'] ?? 0), 2);
+  $remainingAmount = round((float) ($refundRow['remaining_amount'] ?? 0), 2);
+  $paymentChannel = strtolower(trim((string) ($sourceTransaction['payment_channel'] ?? 'gateway')));
+
+  if ($refundId <= 0 || $schoolId <= 0 || $studentId <= 0 || $sourceRefId === '') {
+    return [
+      'status' => 'ignored',
+    ];
+  }
+
+  if ($refundAmount <= 0.00001 || $remainingAmount <= 0.00001) {
+    return [
+      'status' => 'ignored',
+    ];
+  }
+
+  $transactionContext = strtolower(trim((string) ($sourceTransaction['transaction_context'] ?? 'purchase')));
+  if ($transactionContext !== 'purchase') {
+    return [
+      'status' => 'ignored',
+    ];
+  }
+
+  $consumption = consumeRefundIntoEligibleLedgers($conn, $refundRow, $sourceTransaction, [
+    'preferred_source_ref_id' => $sourceRefId,
+  ]);
+  if (($consumption['status'] ?? '') !== 'consumed') {
+    return [
+      'status' => (string) ($consumption['status'] ?? 'ignored'),
+      'refund_id' => $refundId,
+      'consumption' => $consumption,
+    ];
+  }
+
+  if ($paymentChannel === 'wallet') {
+    $walletRefundResult = creditStudentWalletRefund(
+      $conn,
+      $studentId,
+      $schoolId,
+      $sourceRefId,
+      $refundId,
+      $refundAmount,
+      [
+        'source' => 'cc_dashboard_refund_reconcile',
+      ]
+    );
+
+    if (!in_array((string) ($walletRefundResult['status'] ?? ''), ['credited', 'exists'], true)) {
+      throw new RuntimeException('Failed to credit student wallet refund during refund reconciliation.');
+    }
+  }
+
+  $updateStmt = dbExecute(
+    $conn,
+    "UPDATE refunds
+     SET remaining_amount = 0,
+         status = 'applied',
+         updated_at = NOW()
+     WHERE id = ?",
+    'i',
+    [$refundId]
+  );
+  mysqli_stmt_close($updateStmt);
+
+  $materialAccess = revokeRefundedMaterialsIfApplied($conn, $refundId);
+
+  return [
+    'status' => 'applied',
+    'refund_id' => $refundId,
+    'consumption' => $consumption,
+    'state_change' => [
+      'refund_id' => $refundId,
+      'before' => [
+        'remaining_amount' => $remainingAmount,
+        'status' => (string) ($refundRow['status'] ?? 'pending'),
+        'consumed_total' => 0.0,
+        'reserved_total' => 0.0,
+      ],
+      'after' => [
+        'remaining_amount' => 0.0,
+        'status' => 'applied',
+        'consumed_total' => 0.0,
+        'reserved_total' => 0.0,
+        'material_access' => $materialAccess,
+      ],
+    ],
+  ];
 }
 
 function userWalletTableExists(mysqli $conn): bool
@@ -2495,38 +3310,104 @@ function insertRefundReservationRow(mysqli $conn, array $rowData): int
     'consumed_at' => null,
     'released_at' => null,
     'release_reason' => null,
+    'school_payable_ledger_id' => null,
   ], $rowData);
 
   if ((int) $payload['refund_id'] <= 0) {
     throw new RuntimeException('refund_id is required when inserting a refund reservation row.');
   }
 
-  $insertStmt = dbExecute(
-    $conn,
-    "INSERT INTO refund_reservations
-      (refund_id, ref_id, split_sequence, school_id, payer_user_id, gateway, amount, channel, status, reserved_at, consumed_at, released_at, release_reason)
-     VALUES
-      (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    'isiiisdssssss',
-    [
-      (int) $payload['refund_id'],
-      (string) $payload['ref_id'],
-      (int) $payload['split_sequence'],
-      (int) $payload['school_id'],
-      (int) $payload['payer_user_id'],
-      (string) $payload['gateway'],
-      round((float) $payload['amount'], 2),
-      (string) $payload['channel'],
-      (string) $payload['status'],
-      $payload['reserved_at'],
-      $payload['consumed_at'],
-      $payload['released_at'],
-      $payload['release_reason'],
-    ]
-  );
+  $linkedLedgerId = toPositiveIntOrNull($payload['school_payable_ledger_id']);
+  if ($linkedLedgerId !== null && refundReservationsHasColumn($conn, 'school_payable_ledger_id')) {
+    $insertStmt = dbExecute(
+      $conn,
+      "INSERT INTO refund_reservations
+        (refund_id, ref_id, split_sequence, school_id, payer_user_id, gateway, amount, channel, status, reserved_at, consumed_at, released_at, release_reason, school_payable_ledger_id)
+       VALUES
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      'isiiisdssssssi',
+      [
+        (int) $payload['refund_id'],
+        (string) $payload['ref_id'],
+        (int) $payload['split_sequence'],
+        (int) $payload['school_id'],
+        (int) $payload['payer_user_id'],
+        (string) $payload['gateway'],
+        round((float) $payload['amount'], 2),
+        (string) $payload['channel'],
+        (string) $payload['status'],
+        $payload['reserved_at'],
+        $payload['consumed_at'],
+        $payload['released_at'],
+        $payload['release_reason'],
+        $linkedLedgerId,
+      ]
+    );
+  } else {
+    $insertStmt = dbExecute(
+      $conn,
+      "INSERT INTO refund_reservations
+        (refund_id, ref_id, split_sequence, school_id, payer_user_id, gateway, amount, channel, status, reserved_at, consumed_at, released_at, release_reason)
+       VALUES
+        (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      'isiiisdssssss',
+      [
+        (int) $payload['refund_id'],
+        (string) $payload['ref_id'],
+        (int) $payload['split_sequence'],
+        (int) $payload['school_id'],
+        (int) $payload['payer_user_id'],
+        (string) $payload['gateway'],
+        round((float) $payload['amount'], 2),
+        (string) $payload['channel'],
+        (string) $payload['status'],
+        $payload['reserved_at'],
+        $payload['consumed_at'],
+        $payload['released_at'],
+        $payload['release_reason'],
+      ]
+    );
+  }
   mysqli_stmt_close($insertStmt);
 
   return (int) mysqli_insert_id($conn);
+}
+
+function refundReservationsHasColumn(mysqli $conn, string $columnName): bool
+{
+  static $cache = [];
+
+  $columnName = trim($columnName);
+  if ($columnName === '') {
+    return false;
+  }
+
+  if (array_key_exists($columnName, $cache)) {
+    return $cache[$columnName];
+  }
+
+  $rows = dbFetchAll($conn, "SHOW COLUMNS FROM refund_reservations LIKE ?", 's', [$columnName]);
+  $cache[$columnName] = $rows !== [];
+
+  return $cache[$columnName];
+}
+
+function getRefundReservationLinkedLedgerId(mysqli $conn, int $reservationId): int
+{
+  if ($reservationId <= 0 || !refundReservationsHasColumn($conn, 'school_payable_ledger_id')) {
+    return 0;
+  }
+
+  $rows = dbFetchAll(
+    $conn,
+    'SELECT COALESCE(school_payable_ledger_id, 0) AS school_payable_ledger_id FROM refund_reservations WHERE id = ? LIMIT 1',
+    'i',
+    [$reservationId]
+  );
+
+  return isset($rows[0]['school_payable_ledger_id'])
+    ? (int) $rows[0]['school_payable_ledger_id']
+    : 0;
 }
 
 function transactionsHasRefundColumn(mysqli $conn): bool
