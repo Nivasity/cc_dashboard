@@ -154,3 +154,78 @@ if (!function_exists('batchRecordSchoolPayableForItem')) {
     ]);
   }
 }
+
+if (!function_exists('batchFinalizeTransactionForItem')) {
+  function batchFinalizeTransactionForItem(mysqli $conn, array $batch, array $item, string $gateway): array
+  {
+    $refId = trim((string)($item['ref_id'] ?? ''));
+    $batchId = (int)($batch['id'] ?? 0);
+    $studentId = max(0, (int)($item['student_id'] ?? 0));
+    $amount = max(0, (int)($item['price'] ?? 0));
+    $medium = strtoupper(trim($gateway));
+
+    if ($medium === '') {
+      $medium = 'PAYSTACK';
+    }
+
+    if ($refId === '' || $batchId <= 0 || $amount <= 0) {
+      return [
+        'status' => 'ignored',
+      ];
+    }
+
+    $lookupStmt = $conn->prepare('SELECT id FROM transactions WHERE ref_id = ? ORDER BY id DESC LIMIT 1 FOR UPDATE');
+    if (!$lookupStmt) {
+      throw new RuntimeException('Failed to prepare batch transaction lookup: ' . mysqli_error($conn));
+    }
+
+    $lookupStmt->bind_param('s', $refId);
+    if (!$lookupStmt->execute()) {
+      $lookupStmt->close();
+      throw new RuntimeException('Failed to inspect batch transaction state: ' . mysqli_error($conn));
+    }
+
+    $existingRs = $lookupStmt->get_result();
+    $existingRow = $existingRs ? $existingRs->fetch_assoc() : null;
+    $lookupStmt->close();
+
+    if ($existingRow) {
+      $transactionId = (int)($existingRow['id'] ?? 0);
+      $updateStmt = $conn->prepare('UPDATE transactions SET user_id = ?, batch_id = ?, amount = ?, status = "successful", medium = ? WHERE id = ?');
+      if (!$updateStmt) {
+        throw new RuntimeException('Failed to prepare batch transaction update: ' . mysqli_error($conn));
+      }
+
+      $updateStmt->bind_param('iiisi', $studentId, $batchId, $amount, $medium, $transactionId);
+      if (!$updateStmt->execute()) {
+        $updateStmt->close();
+        throw new RuntimeException('Failed to finalize existing batch transaction: ' . mysqli_error($conn));
+      }
+      $updateStmt->close();
+
+      return [
+        'status' => 'updated',
+        'transaction_id' => $transactionId,
+      ];
+    }
+
+    $insertStmt = $conn->prepare('INSERT INTO transactions (ref_id, user_id, batch_id, amount, status, medium) VALUES (?, ?, ?, ?, "successful", ?)');
+    if (!$insertStmt) {
+      throw new RuntimeException('Failed to prepare batch transaction insert: ' . mysqli_error($conn));
+    }
+
+    $insertStmt->bind_param('siiis', $refId, $studentId, $batchId, $amount, $medium);
+    if (!$insertStmt->execute()) {
+      $insertStmt->close();
+      throw new RuntimeException('Failed to create batch transaction: ' . mysqli_error($conn));
+    }
+
+    $transactionId = (int)$insertStmt->insert_id;
+    $insertStmt->close();
+
+    return [
+      'status' => 'created',
+      'transaction_id' => $transactionId,
+    ];
+  }
+}

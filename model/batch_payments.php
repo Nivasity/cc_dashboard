@@ -391,7 +391,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->close();
 
               $item_stmt = $conn->prepare('INSERT INTO manual_payment_batch_items (batch_id, manual_id, student_id, student_matric, price, ref_id, status) VALUES (?, ?, ?, ?, ?, ?, "pending")');
-              $txn_stmt = $conn->prepare('INSERT INTO transactions (ref_id, user_id, batch_id, amount, status, medium) VALUES (?, ?, ?, ?, "pending", "PAYSTACK")');
 
               foreach ($student_entries as $entry) {
                 $student_id = (int)($entry['student_id'] ?? 0);
@@ -400,12 +399,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 $item_stmt->bind_param('iiisis', $batch_id, $manual_id, $student_id, $student_matric, $price_per_student, $ref_id);
                 if (!$item_stmt->execute()) { throw new Exception('Failed to add batch item.'); }
-
-                $txn_stmt->bind_param('siii', $ref_id, $student_id, $batch_id, $price_per_student);
-                if (!$txn_stmt->execute()) { throw new Exception('Failed to create pending transactions.'); }
               }
               $item_stmt->close();
-              $txn_stmt->close();
 
               mysqli_commit($conn);
               log_audit_event($conn, $admin_id, 'create', 'manual_payment_batch', $batch_id, [

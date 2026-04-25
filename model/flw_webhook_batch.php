@@ -92,7 +92,6 @@ try {
 
   // Prepare statements
   $up_item = $conn->prepare('UPDATE manual_payment_batch_items SET status = "paid" WHERE id = ?');
-  $up_tx = $conn->prepare('UPDATE transactions SET status = "successful" WHERE ref_id = ?');
   $ins_mb = $conn->prepare('INSERT INTO manuals_bought (manual_id, price, seller, buyer, school_id, ref_id, status) VALUES (?, ?, ?, ?, ?, ?, "successful")');
   $unmatched_count = 0;
   $ledger_created_count = 0;
@@ -108,8 +107,7 @@ try {
     $up_item->bind_param('i', $iid);
     if (!$up_item->execute()) { throw new Exception('item-update'); }
 
-    $up_tx->bind_param('s', $ref_id);
-    if (!$up_tx->execute()) { throw new Exception('tx-update'); }
+    batchFinalizeTransactionForItem($conn, $batch, $it, 'FLUTTERWAVE');
 
     $ledgerResult = batchRecordSchoolPayableForItem($conn, $batch, $it, 'FLUTTERWAVE');
     if (($ledgerResult['status'] ?? '') === 'created') {
@@ -128,7 +126,6 @@ try {
   }
 
   $up_item->close();
-  $up_tx->close();
   $ins_mb->close();
 
   mysqli_commit($conn);

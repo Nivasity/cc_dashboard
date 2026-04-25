@@ -177,7 +177,6 @@ function finalizeBatchPayment(mysqli $conn, array $batch, string $tx_ref, string
     }
 
     $up_item = $conn->prepare('UPDATE manual_payment_batch_items SET status = "paid" WHERE id = ?');
-    $up_tx = $conn->prepare('UPDATE transactions SET status = "successful" WHERE ref_id = ?');
     $ins_mb = $conn->prepare('INSERT INTO manuals_bought (manual_id, price, seller, buyer, school_id, ref_id, status) VALUES (?, ?, ?, ?, ?, ?, "successful")');
     $unmatched_count = 0;
     $ledger_created_count = 0;
@@ -195,10 +194,7 @@ function finalizeBatchPayment(mysqli $conn, array $batch, string $tx_ref, string
         throw new Exception('item-update');
       }
 
-      $up_tx->bind_param('s', $ref_id);
-      if (!$up_tx->execute()) {
-        throw new Exception('tx-update');
-      }
+      batchFinalizeTransactionForItem($conn, $batch, $it, $gateway);
 
       $ledgerResult = batchRecordSchoolPayableForItem($conn, $batch, $it, $gateway);
       if (($ledgerResult['status'] ?? '') === 'created') {
@@ -219,7 +215,6 @@ function finalizeBatchPayment(mysqli $conn, array $batch, string $tx_ref, string
     }
 
     $up_item->close();
-    $up_tx->close();
     $ins_mb->close();
 
     mysqli_commit($conn);
