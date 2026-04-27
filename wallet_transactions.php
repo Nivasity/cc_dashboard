@@ -50,24 +50,6 @@ function ccWalletTransactionsFormatDateTime($value) {
   return date('d M Y, h:i A', $timestamp);
 }
 
-function ccWalletTransactionsBadgeClass($status) {
-  $status = strtolower(trim((string) $status));
-
-  if (in_array($status, ['active', 'posted', 'successful', 'verified', 'credit'], true)) {
-    return 'success';
-  }
-
-  if (in_array($status, ['pending', 'processing', 'neutral'], true)) {
-    return 'warning';
-  }
-
-  if (in_array($status, ['debit', 'failed', 'reversed', 'cancelled', 'inactive'], true)) {
-    return 'danger';
-  }
-
-  return 'secondary';
-}
-
 function ccWalletTransactionsDirectionForEntryType($entryType) {
   $entryType = strtolower(trim((string) $entryType));
 
@@ -161,10 +143,10 @@ if ($walletTablesReady) {
     }
   }
 
-  $transactionsSql = "SELECT l.id, l.entry_type, l.amount, l.balance_before, l.balance_after, l.status,
+  $transactionsSql = "SELECT l.id, l.entry_type, l.amount, l.balance_before, l.balance_after,
                              l.reference, l.provider_reference, l.description, l.created_at,
                              u.first_name, u.last_name, u.email, u.matric_no,
-                             s.name AS school_name, d.name AS dept_name, f.name AS faculty_name
+                             s.code AS school_code, d.name AS dept_name, f.name AS faculty_name
                       FROM wallet_ledger_entries l
                       INNER JOIN user_wallets w ON w.id = l.wallet_id
                       INNER JOIN users u ON u.id = w.user_id
@@ -192,7 +174,7 @@ if ($walletTablesReady) {
         'student_name' => trim((string) (($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''))),
         'email' => (string) ($row['email'] ?? ''),
         'matric_no' => (string) ($row['matric_no'] ?? ''),
-        'school_name' => (string) ($row['school_name'] ?? ''),
+        'school_code' => (string) ($row['school_code'] ?? ''),
         'faculty_name' => (string) ($row['faculty_name'] ?? ''),
         'dept_name' => (string) ($row['dept_name'] ?? ''),
         'entry_type' => $entryType,
@@ -202,10 +184,8 @@ if ($walletTablesReady) {
         'amount' => (float) ($row['amount'] ?? 0),
         'amount_sign' => $direction === 'credit' ? '+' : ($direction === 'debit' ? '-' : ''),
         'balance_after' => (float) ($row['balance_after'] ?? 0),
-        'status' => (string) ($row['status'] ?? ''),
-        'status_label' => ucfirst((string) ($row['status'] ?? 'unknown')),
         'reference_display' => $referenceDisplay,
-        'description' => (string) ($row['description'] ?? ''),
+        'created_at' => (string) ($row['created_at'] ?? ''),
         'created_at_display' => ccWalletTransactionsFormatDateTime((string) ($row['created_at'] ?? '')),
       ];
     }
@@ -215,6 +195,8 @@ if ($walletTablesReady) {
     $tableNotice = 'Showing the most recent 500 ledger entries for the selected filters.';
   }
 }
+
+$hasTransactionRows = $walletTablesReady && $transactions !== [];
 ?>
 <!DOCTYPE html>
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/" data-template="vertical-menu-template-free">
@@ -278,8 +260,8 @@ if ($walletTablesReady) {
 
               <div class="card mb-4">
                 <div class="card-body">
-                  <form method="get" class="row g-3 align-items-end">
-                    <div class="col-md-3">
+                  <form method="get" id="walletTransactionsFilters" class="row g-3 align-items-end">
+                    <div class="col-xl-3 col-lg-4 col-md-6">
                       <label for="direction" class="form-label">Direction</label>
                       <select name="direction" id="direction" class="form-select" <?php echo !$walletTablesReady ? 'disabled' : ''; ?>>
                         <option value="all" <?php echo $directionFilter === 'all' ? 'selected' : ''; ?>>All Entries</option>
@@ -287,7 +269,7 @@ if ($walletTablesReady) {
                         <option value="debit" <?php echo $directionFilter === 'debit' ? 'selected' : ''; ?>>Debits</option>
                       </select>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-xl-3 col-lg-4 col-md-6">
                       <label for="dateRange" class="form-label">Date Range</label>
                       <select name="date_range" id="dateRange" class="form-select" <?php echo !$walletTablesReady ? 'disabled' : ''; ?>>
                         <option value="7" <?php echo $dateRange === '7' ? 'selected' : ''; ?>>Last 7 Days</option>
@@ -297,7 +279,7 @@ if ($walletTablesReady) {
                         <option value="custom" <?php echo $dateRange === 'custom' ? 'selected' : ''; ?>>Custom Range</option>
                       </select>
                     </div>
-                    <div class="col-md-6 <?php echo $dateRange === 'custom' ? '' : 'd-none'; ?>" id="customDateRange">
+                    <div class="col-xl-6 col-lg-12 <?php echo $dateRange === 'custom' ? '' : 'd-none'; ?>" id="customDateRange">
                       <div class="row g-2">
                         <div class="col-md-6">
                           <label for="startDate" class="form-label">Start Date</label>
@@ -309,60 +291,50 @@ if ($walletTablesReady) {
                         </div>
                       </div>
                     </div>
-                    <div class="col-12 d-flex flex-wrap gap-2">
-                      <button type="submit" class="btn btn-primary" <?php echo !$walletTablesReady ? 'disabled' : ''; ?>>Apply Filters</button>
+                    <div class="col-12 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                      <small class="text-muted">Filters auto-apply on desktop as soon as you change them.</small>
+                      <div class="d-flex flex-wrap gap-2">
+                      <button type="submit" class="btn btn-primary d-lg-none" <?php echo !$walletTablesReady ? 'disabled' : ''; ?>>Apply Filters</button>
                       <a href="wallet_transactions.php" class="btn btn-outline-secondary">Reset</a>
+                      </div>
                     </div>
                   </form>
-                </div>
-              </div>
-
-              <div class="card">
-                <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
-                  <div>
-                    <h5 class="mb-1">Wallet Ledger Entries</h5>
-                    <small class="text-muted">Results are ordered by most recent transaction date first.</small>
-                  </div>
                   <?php if ($tableNotice !== '') { ?>
-                  <small class="text-muted"><?php echo htmlspecialchars($tableNotice); ?></small>
+                  <div class="pt-3 small text-muted"><?php echo htmlspecialchars($tableNotice); ?></div>
                   <?php } ?>
-                </div>
-                <div class="card-body">
+                  <div class="pt-4">
                   <div class="table-responsive text-nowrap">
-                    <table class="table table-striped align-middle">
+                    <table id="walletTransactionsTable" class="table table-striped align-middle w-100">
                       <thead class="table-secondary">
                         <tr>
                           <th>Date &amp; Time</th>
                           <th>Student</th>
                           <th>Direction</th>
-                          <th>Entry Type</th>
                           <th>Amount</th>
                           <th>Balance After</th>
                           <th>Reference</th>
-                          <th>Description</th>
-                          <th>Status</th>
                         </tr>
                       </thead>
                       <tbody>
                         <?php if (!$walletTablesReady) { ?>
                         <tr>
-                          <td colspan="9" class="text-center text-muted py-4">Wallet ledger tables are unavailable in this database.</td>
+                          <td colspan="6" class="text-center text-muted py-4">Wallet ledger tables are unavailable in this database.</td>
                         </tr>
                         <?php } elseif ($transactions === []) { ?>
                         <tr>
-                          <td colspan="9" class="text-center text-muted py-4">No wallet transactions matched the current filters.</td>
+                          <td colspan="6" class="text-center text-muted py-4">No wallet transactions matched the current filters.</td>
                         </tr>
                         <?php } else { ?>
                           <?php foreach ($transactions as $transaction) { ?>
                           <tr>
-                            <td><?php echo htmlspecialchars($transaction['created_at_display']); ?></td>
+                            <td data-order="<?php echo htmlspecialchars($transaction['created_at']); ?>"><?php echo htmlspecialchars($transaction['created_at_display']); ?></td>
                             <td>
                               <div class="fw-semibold"><?php echo htmlspecialchars($transaction['student_name'] !== '' ? $transaction['student_name'] : 'Unknown User'); ?></div>
                               <small class="text-muted d-block"><?php echo htmlspecialchars($transaction['matric_no'] !== '' ? $transaction['matric_no'] : $transaction['email']); ?></small>
                               <small class="text-muted d-block">
                                 <?php
                                   $locationParts = array_filter([
-                                    $transaction['school_name'],
+                                    $transaction['school_code'],
                                     $transaction['faculty_name'],
                                     $transaction['dept_name'],
                                   ]);
@@ -370,20 +342,18 @@ if ($walletTablesReady) {
                                 ?>
                               </small>
                             </td>
-                            <td><span class="badge bg-label-<?php echo htmlspecialchars(ccWalletTransactionsBadgeClass($transaction['direction'])); ?>"><?php echo htmlspecialchars($transaction['direction_label']); ?></span></td>
-                            <td><span class="badge bg-label-<?php echo htmlspecialchars(ccWalletTransactionsBadgeClass($transaction['entry_type'])); ?>"><?php echo htmlspecialchars($transaction['entry_type_label']); ?></span></td>
-                            <td class="fw-semibold <?php echo $transaction['direction'] === 'credit' ? 'text-success' : ($transaction['direction'] === 'debit' ? 'text-danger' : 'text-body'); ?>">
+                            <td><?php echo htmlspecialchars($transaction['direction_label']); ?></td>
+                            <td data-order="<?php echo htmlspecialchars((string) $transaction['amount']); ?>" class="fw-semibold <?php echo $transaction['direction'] === 'credit' ? 'text-success' : ($transaction['direction'] === 'debit' ? 'text-danger' : 'text-body'); ?>">
                               <?php echo htmlspecialchars($transaction['amount_sign']); ?><?php echo ccWalletTransactionsFormatAmount($transaction['amount']); ?>
                             </td>
-                            <td><?php echo ccWalletTransactionsFormatAmount($transaction['balance_after']); ?></td>
+                            <td data-order="<?php echo htmlspecialchars((string) $transaction['balance_after']); ?>"><?php echo ccWalletTransactionsFormatAmount($transaction['balance_after']); ?></td>
                             <td><?php echo htmlspecialchars($transaction['reference_display']); ?></td>
-                            <td class="text-wrap" style="min-width: 220px;"><?php echo htmlspecialchars($transaction['description'] !== '' ? $transaction['description'] : '-'); ?></td>
-                            <td><span class="badge bg-label-<?php echo htmlspecialchars(ccWalletTransactionsBadgeClass($transaction['status'])); ?>"><?php echo htmlspecialchars($transaction['status_label']); ?></span></td>
                           </tr>
                           <?php } ?>
                         <?php } ?>
                       </tbody>
                     </table>
+                  </div>
                   </div>
                 </div>
               </div>
@@ -399,18 +369,82 @@ if ($walletTablesReady) {
 
     <script src="assets/vendor/libs/jquery/jquery.min.js"></script>
     <script src="assets/vendor/js/bootstrap.min.js"></script>
+    <script src="https://cdn.datatables.net/2.1.8/js/dataTables.js"></script>
+    <script src="https://cdn.datatables.net/2.1.8/js/dataTables.bootstrap5.js"></script>
     <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
     <script src="assets/vendor/libs/popper/popper.min.js"></script>
     <script src="assets/vendor/js/menu.min.js"></script>
     <script src="assets/js/main.js"></script>
     <script>
       $(function() {
+        var walletTablesReady = <?php echo $walletTablesReady ? 'true' : 'false'; ?>;
+        var hasTransactionRows = <?php echo $hasTransactionRows ? 'true' : 'false'; ?>;
+        var $form = $('#walletTransactionsFilters');
+        var $dateRange = $('#dateRange');
+        var $customDateRange = $('#customDateRange');
+        var $startDate = $('#startDate');
+        var $endDate = $('#endDate');
+        var autoSubmitTimer = null;
+
         function toggleCustomDateRange() {
-          var showCustomRange = $('#dateRange').val() === 'custom';
-          $('#customDateRange').toggleClass('d-none', !showCustomRange);
+          var showCustomRange = $dateRange.val() === 'custom';
+          $customDateRange.toggleClass('d-none', !showCustomRange);
         }
 
-        $('#dateRange').on('change', toggleCustomDateRange);
+        function isDesktopViewport() {
+          return window.matchMedia('(min-width: 992px)').matches;
+        }
+
+        function queueAutoSubmit() {
+          if (!walletTablesReady || !isDesktopViewport()) {
+            return;
+          }
+
+          clearTimeout(autoSubmitTimer);
+          autoSubmitTimer = window.setTimeout(function() {
+            $form.trigger('submit');
+          }, 250);
+        }
+
+        function maybeSubmitCustomRange() {
+          if ($dateRange.val() !== 'custom') {
+            queueAutoSubmit();
+            return;
+          }
+
+          var startValue = $startDate.val();
+          var endValue = $endDate.val();
+          if (startValue !== '' && endValue !== '') {
+            queueAutoSubmit();
+          }
+        }
+
+        if (walletTablesReady && hasTransactionRows) {
+          new DataTable('#walletTransactionsTable', {
+            order: [[0, 'desc']],
+            pageLength: 25,
+            scrollX: true,
+            language: {
+              emptyTable: 'No wallet transactions matched the current filters.'
+            }
+          });
+        }
+
+        $('#direction').on('change', queueAutoSubmit);
+        $dateRange.on('change', function() {
+          toggleCustomDateRange();
+
+          if ($(this).val() !== 'custom') {
+            $startDate.val('');
+            $endDate.val('');
+          }
+
+          maybeSubmitCustomRange();
+        });
+
+        $startDate.on('change', maybeSubmitCustomRange);
+        $endDate.on('change', maybeSubmitCustomRange);
+
         toggleCustomDateRange();
       });
     </script>
