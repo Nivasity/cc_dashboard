@@ -20,6 +20,14 @@ function buildDateFilter($conn, $date_range, $start_date, $end_date, $table_alia
     $table_alias = 't';
   }
   $createdAtColumn = $table_alias . '.created_at';
+
+  if ($date_range === 'today') {
+    return " AND {$createdAtColumn} >= CURDATE() AND {$createdAtColumn} < DATE_ADD(CURDATE(), INTERVAL 1 DAY)";
+  }
+
+  if ($date_range === 'yesterday') {
+    return " AND {$createdAtColumn} >= DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND {$createdAtColumn} < CURDATE()";
+  }
   
   if ($date_range === 'custom' && $start_date && $end_date) {
     // Validate date format

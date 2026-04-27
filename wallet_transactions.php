@@ -2,7 +2,7 @@
 session_start();
 include('model/config.php');
 include('model/page_config.php');
-require_once(__DIR__ . '/model/transactions_helpers.php');
+require_once(__DIR__ . '/model/wallet_transactions_data.php');
 
 $admin_role = (int) ($_SESSION['nivas_adminRole'] ?? 0);
 $allowedRoles = [1, 2, 3, 4];
@@ -12,191 +12,19 @@ if (!$finance_mgt_menu || !in_array($admin_role, $allowedRoles, true)) {
   exit();
 }
 
-function ccWalletTransactionsTableExists($conn, $tableName) {
-  static $cache = [];
+$filters = ccWalletTransactionsGetFilters($_GET);
+$directionFilter = $filters['direction'];
+$dateRange = $filters['date_range'];
+$startDate = $filters['start_date'];
+$endDate = $filters['end_date'];
 
-  if (array_key_exists($tableName, $cache)) {
-    return $cache[$tableName];
-  }
-
-  $tableName = trim((string) $tableName);
-  if ($tableName === '') {
-    $cache[$tableName] = false;
-    return false;
-  }
-
-  $safeTableName = mysqli_real_escape_string($conn, $tableName);
-  $result = mysqli_query($conn, "SHOW TABLES LIKE '$safeTableName'");
-  $cache[$tableName] = $result && mysqli_num_rows($result) > 0;
-
-  return $cache[$tableName];
-}
-
-function ccWalletTransactionsFormatAmount($amount) {
-  return '&#8358;' . number_format((float) $amount, 2);
-}
-
-function ccWalletTransactionsFormatDateTime($value) {
-  $value = trim((string) $value);
-  if ($value === '') {
-    return '-';
-  }
-
-  $timestamp = strtotime($value);
-  if ($timestamp === false) {
-    return $value;
-  }
-
-  return date('d M Y, h:i A', $timestamp);
-}
-
-function ccWalletTransactionsDirectionForEntryType($entryType) {
-  $entryType = strtolower(trim((string) $entryType));
-
-  if (in_array($entryType, ['credit', 'refund'], true)) {
-    return 'credit';
-  }
-
-  if (in_array($entryType, ['debit', 'fee'], true)) {
-    return 'debit';
-  }
-
-  return 'neutral';
-}
-
-function ccWalletTransactionsNormalizeDate($value) {
-  $value = trim((string) $value);
-  if ($value === '') {
-    return '';
-  }
-
-  $date = DateTime::createFromFormat('Y-m-d', $value);
-  if (!$date || $date->format('Y-m-d') !== $value) {
-    return '';
-  }
-
-  return $value;
-}
-
-$requiredTables = ['users', 'schools', 'depts', 'faculties', 'user_wallets', 'wallet_ledger_entries'];
-$missingTables = [];
-
-foreach ($requiredTables as $requiredTable) {
-  if (!ccWalletTransactionsTableExists($conn, $requiredTable)) {
-    $missingTables[] = $requiredTable;
-  }
-}
-
-$walletTablesReady = empty($missingTables);
-
-$allowedDirections = ['all', 'credit', 'debit'];
-$directionFilter = strtolower(trim((string) ($_GET['direction'] ?? 'all')));
-if (!in_array($directionFilter, $allowedDirections, true)) {
-  $directionFilter = 'all';
-}
-
-$allowedDateRanges = ['7', '30', '90', 'all', 'custom'];
-$dateRange = trim((string) ($_GET['date_range'] ?? '7'));
-if (!in_array($dateRange, $allowedDateRanges, true)) {
-  $dateRange = '7';
-}
-
-$startDate = ccWalletTransactionsNormalizeDate($_GET['start_date'] ?? '');
-$endDate = ccWalletTransactionsNormalizeDate($_GET['end_date'] ?? '');
-
-if ($dateRange !== 'custom') {
-  $startDate = '';
-  $endDate = '';
-}
-
-$summary = [
-  'entries_count' => 0,
-  'credit_total' => 0,
-  'debit_total' => 0,
-];
-$transactions = [];
-$tableNotice = '';
-
-if ($walletTablesReady) {
-  $directionSql = '';
-  if ($directionFilter === 'credit') {
-    $directionSql = " AND l.entry_type IN ('credit', 'refund')";
-  } elseif ($directionFilter === 'debit') {
-    $directionSql = " AND l.entry_type IN ('debit', 'fee')";
-  }
-
-  $dateSql = buildDateFilter($conn, $dateRange, $startDate, $endDate, 'l');
-  $summarySql = "SELECT COUNT(*) AS entries_count,
-                        COALESCE(SUM(CASE WHEN l.entry_type IN ('credit', 'refund') THEN l.amount ELSE 0 END), 0) AS credit_total,
-                        COALESCE(SUM(CASE WHEN l.entry_type IN ('debit', 'fee') THEN l.amount ELSE 0 END), 0) AS debit_total
-                 FROM wallet_ledger_entries l
-                 INNER JOIN user_wallets w ON w.id = l.wallet_id
-                 INNER JOIN users u ON u.id = w.user_id
-                 WHERE 1 = 1" . $directionSql . $dateSql;
-  $summaryResult = mysqli_query($conn, $summarySql);
-  if ($summaryResult) {
-    $summaryRow = mysqli_fetch_assoc($summaryResult);
-    if ($summaryRow) {
-      $summary['entries_count'] = (int) ($summaryRow['entries_count'] ?? 0);
-      $summary['credit_total'] = (float) ($summaryRow['credit_total'] ?? 0);
-      $summary['debit_total'] = (float) ($summaryRow['debit_total'] ?? 0);
-    }
-  }
-
-  $transactionsSql = "SELECT l.id, l.entry_type, l.amount, l.balance_before, l.balance_after,
-                             l.reference, l.provider_reference, l.description, l.created_at,
-                             u.first_name, u.last_name, u.email, u.matric_no,
-                             s.code AS school_code, d.name AS dept_name, f.name AS faculty_name
-                      FROM wallet_ledger_entries l
-                      INNER JOIN user_wallets w ON w.id = l.wallet_id
-                      INNER JOIN users u ON u.id = w.user_id
-                      LEFT JOIN schools s ON s.id = u.school
-                      LEFT JOIN depts d ON d.id = u.dept
-                      LEFT JOIN faculties f ON f.id = d.faculty_id
-                      WHERE 1 = 1" . $directionSql . $dateSql . "
-                      ORDER BY l.created_at DESC, l.id DESC
-                      LIMIT 500";
-  $transactionsResult = mysqli_query($conn, $transactionsSql);
-  if ($transactionsResult) {
-    while ($row = mysqli_fetch_assoc($transactionsResult)) {
-      $entryType = strtolower((string) ($row['entry_type'] ?? 'adjustment'));
-      $direction = ccWalletTransactionsDirectionForEntryType($entryType);
-      $referenceDisplay = trim((string) ($row['provider_reference'] ?? ''));
-      if ($referenceDisplay === '') {
-        $referenceDisplay = trim((string) ($row['reference'] ?? ''));
-      }
-      if ($referenceDisplay === '') {
-        $referenceDisplay = '-';
-      }
-
-      $transactions[] = [
-        'id' => (int) ($row['id'] ?? 0),
-        'student_name' => trim((string) (($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? ''))),
-        'email' => (string) ($row['email'] ?? ''),
-        'matric_no' => (string) ($row['matric_no'] ?? ''),
-        'school_code' => (string) ($row['school_code'] ?? ''),
-        'faculty_name' => (string) ($row['faculty_name'] ?? ''),
-        'dept_name' => (string) ($row['dept_name'] ?? ''),
-        'entry_type' => $entryType,
-        'entry_type_label' => ucfirst($entryType),
-        'direction' => $direction,
-        'direction_label' => ucfirst($direction),
-        'amount' => (float) ($row['amount'] ?? 0),
-        'amount_sign' => $direction === 'credit' ? '+' : ($direction === 'debit' ? '-' : ''),
-        'balance_after' => (float) ($row['balance_after'] ?? 0),
-        'reference_display' => $referenceDisplay,
-        'created_at' => (string) ($row['created_at'] ?? ''),
-        'created_at_display' => ccWalletTransactionsFormatDateTime((string) ($row['created_at'] ?? '')),
-      ];
-    }
-  }
-
-  if ($summary['entries_count'] > count($transactions)) {
-    $tableNotice = 'Showing the most recent 500 ledger entries for the selected filters.';
-  }
-}
-
-$hasTransactionRows = $walletTablesReady && $transactions !== [];
+$walletData = ccWalletTransactionsFetchData($conn, $filters);
+$walletTablesReady = (bool) ($walletData['wallet_tables_ready'] ?? false);
+$missingTables = $walletData['missing_tables'] ?? [];
+$summary = $walletData['summary'] ?? ['entries_count' => 0, 'credit_total' => 0, 'debit_total' => 0];
+$transactions = $walletData['transactions'] ?? [];
+$tableNotice = (string) ($walletData['table_notice'] ?? '');
+$hasTransactionRows = (bool) ($walletData['has_transaction_rows'] ?? false);
 ?>
 <!DOCTYPE html>
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/" data-template="vertical-menu-template-free">
@@ -233,7 +61,7 @@ $hasTransactionRows = $walletTablesReady && $transactions !== [];
                   <div class="card h-100">
                     <div class="card-body">
                       <span class="fw-semibold d-block mb-1">Filtered Entries</span>
-                      <h3 class="card-title mb-1"><?php echo number_format((int) $summary['entries_count']); ?></h3>
+                      <h3 class="card-title mb-1" id="summaryEntriesCount"><?php echo number_format((int) $summary['entries_count']); ?></h3>
                       <small class="text-muted">Total wallet ledger rows matching the current filters.</small>
                     </div>
                   </div>
@@ -242,7 +70,7 @@ $hasTransactionRows = $walletTablesReady && $transactions !== [];
                   <div class="card h-100">
                     <div class="card-body">
                       <span class="fw-semibold d-block mb-1">Credits</span>
-                      <h3 class="card-title mb-1 text-success"><?php echo ccWalletTransactionsFormatAmount($summary['credit_total']); ?></h3>
+                      <h3 class="card-title mb-1 text-success" id="summaryCreditTotal"><?php echo ccWalletTransactionsFormatAmount($summary['credit_total']); ?></h3>
                       <small class="text-muted">Credit and refund entries in the selected range.</small>
                     </div>
                   </div>
@@ -251,7 +79,7 @@ $hasTransactionRows = $walletTablesReady && $transactions !== [];
                   <div class="card h-100">
                     <div class="card-body">
                       <span class="fw-semibold d-block mb-1">Debits</span>
-                      <h3 class="card-title mb-1 text-danger"><?php echo ccWalletTransactionsFormatAmount($summary['debit_total']); ?></h3>
+                      <h3 class="card-title mb-1 text-danger" id="summaryDebitTotal"><?php echo ccWalletTransactionsFormatAmount($summary['debit_total']); ?></h3>
                       <small class="text-muted">Debit and fee entries in the selected range.</small>
                     </div>
                   </div>
@@ -260,6 +88,7 @@ $hasTransactionRows = $walletTablesReady && $transactions !== [];
 
               <div class="card mb-4">
                 <div class="card-body">
+                  <div id="walletTransactionsAlert" class="alert d-none" role="alert"></div>
                   <form method="get" id="walletTransactionsFilters" class="row g-3 align-items-end">
                     <div class="col-xl-3 col-lg-4 col-md-6">
                       <label for="direction" class="form-label">Direction</label>
@@ -272,6 +101,8 @@ $hasTransactionRows = $walletTablesReady && $transactions !== [];
                     <div class="col-xl-3 col-lg-4 col-md-6">
                       <label for="dateRange" class="form-label">Date Range</label>
                       <select name="date_range" id="dateRange" class="form-select" <?php echo !$walletTablesReady ? 'disabled' : ''; ?>>
+                        <option value="today" <?php echo $dateRange === 'today' ? 'selected' : ''; ?>>Today</option>
+                        <option value="yesterday" <?php echo $dateRange === 'yesterday' ? 'selected' : ''; ?>>Yesterday</option>
                         <option value="7" <?php echo $dateRange === '7' ? 'selected' : ''; ?>>Last 7 Days</option>
                         <option value="30" <?php echo $dateRange === '30' ? 'selected' : ''; ?>>Last 30 Days</option>
                         <option value="90" <?php echo $dateRange === '90' ? 'selected' : ''; ?>>Last 90 Days</option>
@@ -294,13 +125,15 @@ $hasTransactionRows = $walletTablesReady && $transactions !== [];
                     <div class="col-12 d-flex flex-wrap justify-content-between align-items-center gap-2">
                       <small class="text-muted">Filters auto-apply on desktop as soon as you change them.</small>
                       <div class="d-flex flex-wrap gap-2">
-                      <button type="submit" class="btn btn-primary d-lg-none" <?php echo !$walletTablesReady ? 'disabled' : ''; ?>>Apply Filters</button>
-                      <a href="wallet_transactions.php" class="btn btn-outline-secondary">Reset</a>
+                      <button type="submit" id="walletTransactionsApplyBtn" class="btn btn-primary d-lg-none" <?php echo !$walletTablesReady ? 'disabled' : ''; ?>>Apply Filters</button>
+                      <button type="button" id="walletTransactionsResetBtn" class="btn btn-outline-secondary" <?php echo !$walletTablesReady ? 'disabled' : ''; ?>>Reset</button>
                       </div>
                     </div>
                   </form>
                   <?php if ($tableNotice !== '') { ?>
-                  <div class="pt-3 small text-muted"><?php echo htmlspecialchars($tableNotice); ?></div>
+                  <div class="pt-3 small text-muted" id="walletTransactionsTableNotice"><?php echo htmlspecialchars($tableNotice); ?></div>
+                  <?php } else { ?>
+                  <div class="pt-3 small text-muted d-none" id="walletTransactionsTableNotice"></div>
                   <?php } ?>
                   <div class="pt-4">
                   <div class="table-responsive text-nowrap">
@@ -315,7 +148,7 @@ $hasTransactionRows = $walletTablesReady && $transactions !== [];
                           <th>Reference</th>
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody id="walletTransactionsTableBody">
                         <?php if (!$walletTablesReady) { ?>
                         <tr>
                           <td colspan="6" class="text-center text-muted py-4">Wallet ledger tables are unavailable in this database.</td>
@@ -377,14 +210,59 @@ $hasTransactionRows = $walletTablesReady && $transactions !== [];
     <script src="assets/js/main.js"></script>
     <script>
       $(function() {
+        var endpointUrl = 'model/wallet_transactions_list.php';
         var walletTablesReady = <?php echo $walletTablesReady ? 'true' : 'false'; ?>;
         var hasTransactionRows = <?php echo $hasTransactionRows ? 'true' : 'false'; ?>;
+        var walletTransactionsTable = null;
+        var pendingRequest = null;
+        var requestSequence = 0;
         var $form = $('#walletTransactionsFilters');
+        var $alert = $('#walletTransactionsAlert');
+        var $summaryEntries = $('#summaryEntriesCount');
+        var $summaryCredit = $('#summaryCreditTotal');
+        var $summaryDebit = $('#summaryDebitTotal');
         var $dateRange = $('#dateRange');
         var $customDateRange = $('#customDateRange');
         var $startDate = $('#startDate');
         var $endDate = $('#endDate');
+        var $tableNotice = $('#walletTransactionsTableNotice');
+        var $tableBody = $('#walletTransactionsTableBody');
+        var $applyButton = $('#walletTransactionsApplyBtn');
+        var $resetButton = $('#walletTransactionsResetBtn');
         var autoSubmitTimer = null;
+
+        function escapeHtml(value) {
+          return String(value === null || value === undefined ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+        }
+
+        function formatCurrency(amount) {
+          var numericAmount = Number(amount || 0);
+          return '&#8358;' + numericAmount.toLocaleString('en-NG', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+          });
+        }
+
+        function formatInteger(value) {
+          return Number(value || 0).toLocaleString('en-NG');
+        }
+
+        function showAlert(type, message) {
+          if (!message) {
+            $alert.addClass('d-none').removeClass('alert-success alert-danger alert-warning alert-info').text('');
+            return;
+          }
+
+          $alert
+            .removeClass('d-none alert-success alert-danger alert-warning alert-info')
+            .addClass('alert-' + type)
+            .text(message);
+        }
 
         function toggleCustomDateRange() {
           var showCustomRange = $dateRange.val() === 'custom';
@@ -419,14 +297,195 @@ $hasTransactionRows = $walletTablesReady && $transactions !== [];
           }
         }
 
-        if (walletTablesReady && hasTransactionRows) {
-          new DataTable('#walletTransactionsTable', {
+        function destroyDataTable() {
+          if (walletTransactionsTable) {
+            walletTransactionsTable.destroy();
+            walletTransactionsTable = null;
+          }
+        }
+
+        function initializeDataTable(shouldInitialize) {
+          destroyDataTable();
+
+          if (!walletTablesReady || !shouldInitialize) {
+            return;
+          }
+
+          walletTransactionsTable = new DataTable('#walletTransactionsTable', {
             order: [[0, 'desc']],
             pageLength: 25,
             scrollX: true,
             language: {
               emptyTable: 'No wallet transactions matched the current filters.'
             }
+          });
+        }
+
+        function setBusy(isBusy) {
+          if (!walletTablesReady) {
+            return;
+          }
+
+          $applyButton.prop('disabled', isBusy);
+          $resetButton.prop('disabled', isBusy);
+          $form.find('select, input').prop('disabled', isBusy);
+        }
+
+        function buildLocation(transaction) {
+          var parts = [];
+
+          if (transaction.school_code) {
+            parts.push(transaction.school_code);
+          }
+          if (transaction.faculty_name) {
+            parts.push(transaction.faculty_name);
+          }
+          if (transaction.dept_name) {
+            parts.push(transaction.dept_name);
+          }
+
+          return parts.length ? parts.join(' / ') : 'No academic scope';
+        }
+
+        function buildRowsHtml(response) {
+          if (!response.wallet_tables_ready) {
+            return '<tr><td colspan="6" class="text-center text-muted py-4">Wallet ledger tables are unavailable in this database.</td></tr>';
+          }
+
+          var transactions = Array.isArray(response.transactions) ? response.transactions : [];
+          if (!transactions.length) {
+            return '<tr><td colspan="6" class="text-center text-muted py-4">No wallet transactions matched the current filters.</td></tr>';
+          }
+
+          return transactions.map(function(transaction) {
+            var amountClass = transaction.direction === 'credit' ? 'text-success' : (transaction.direction === 'debit' ? 'text-danger' : 'text-body');
+            var studentLabel = transaction.student_name ? transaction.student_name : 'Unknown User';
+            var subLabel = transaction.matric_no ? transaction.matric_no : transaction.email;
+
+            return '<tr>' +
+              '<td data-order="' + escapeHtml(transaction.created_at || '') + '">' + escapeHtml(transaction.created_at_display || '-') + '</td>' +
+              '<td>' +
+                '<div class="fw-semibold">' + escapeHtml(studentLabel) + '</div>' +
+                '<small class="text-muted d-block">' + escapeHtml(subLabel || '') + '</small>' +
+                '<small class="text-muted d-block">' + escapeHtml(buildLocation(transaction)) + '</small>' +
+              '</td>' +
+              '<td>' + escapeHtml(transaction.direction_label || '') + '</td>' +
+              '<td data-order="' + escapeHtml(String(transaction.amount || 0)) + '" class="fw-semibold ' + amountClass + '">' +
+                escapeHtml(transaction.amount_sign || '') + formatCurrency(transaction.amount || 0) +
+              '</td>' +
+              '<td data-order="' + escapeHtml(String(transaction.balance_after || 0)) + '">' + formatCurrency(transaction.balance_after || 0) + '</td>' +
+              '<td>' + escapeHtml(transaction.reference_display || '-') + '</td>' +
+            '</tr>';
+          }).join('');
+        }
+
+        function renderResponse(response) {
+          walletTablesReady = !!response.wallet_tables_ready;
+          hasTransactionRows = !!response.has_transaction_rows;
+
+          $summaryEntries.text(formatInteger(response.summary && response.summary.entries_count ? response.summary.entries_count : 0));
+          $summaryCredit.html(formatCurrency(response.summary && response.summary.credit_total ? response.summary.credit_total : 0));
+          $summaryDebit.html(formatCurrency(response.summary && response.summary.debit_total ? response.summary.debit_total : 0));
+
+          if (response.table_notice) {
+            $tableNotice.removeClass('d-none').text(response.table_notice);
+          } else {
+            $tableNotice.addClass('d-none').text('');
+          }
+
+          destroyDataTable();
+          $tableBody.html(buildRowsHtml(response));
+          initializeDataTable(hasTransactionRows);
+        }
+
+        function updateUrl(filters) {
+          var activeFilters = filters || {};
+          var params = new URLSearchParams();
+
+          if ((activeFilters.direction || 'all') !== 'all') {
+            params.set('direction', activeFilters.direction);
+          }
+
+          if ((activeFilters.date_range || 'today') !== 'today') {
+            params.set('date_range', activeFilters.date_range);
+          }
+
+          if ((activeFilters.date_range || 'today') === 'custom') {
+            if (activeFilters.start_date) {
+              params.set('start_date', activeFilters.start_date);
+            }
+            if (activeFilters.end_date) {
+              params.set('end_date', activeFilters.end_date);
+            }
+          }
+
+          var nextUrl = params.toString() === '' ? 'wallet_transactions.php' : 'wallet_transactions.php?' + params.toString();
+          window.history.replaceState({}, '', nextUrl);
+        }
+
+        function fetchTransactions() {
+          if (!walletTablesReady) {
+            return;
+          }
+
+          showAlert('', '');
+
+          if (pendingRequest) {
+            pendingRequest.abort();
+          }
+
+          requestSequence += 1;
+          var currentRequestId = requestSequence;
+          var requestData = $form.serialize();
+
+          setBusy(true);
+          pendingRequest = $.ajax({
+            url: endpointUrl,
+            method: 'GET',
+            dataType: 'json',
+            data: requestData
+          });
+
+          pendingRequest.done(function(response) {
+            if (currentRequestId !== requestSequence) {
+              return;
+            }
+
+            renderResponse(response);
+            updateUrl(response.filters || null);
+          }).fail(function(xhr, textStatus) {
+            if (textStatus === 'abort') {
+              return;
+            }
+
+            if (currentRequestId !== requestSequence) {
+              return;
+            }
+
+            var message = 'Unable to load wallet transactions.';
+            var response = xhr.responseJSON;
+
+            if (!response && xhr.responseText) {
+              try {
+                response = JSON.parse(xhr.responseText);
+              } catch (error) {
+                response = null;
+              }
+            }
+
+            if (response && response.message) {
+              message = response.message;
+            }
+
+            showAlert('danger', message);
+          }).always(function() {
+            if (currentRequestId !== requestSequence) {
+              return;
+            }
+
+            pendingRequest = null;
+            setBusy(false);
+            toggleCustomDateRange();
           });
         }
 
@@ -445,6 +504,25 @@ $hasTransactionRows = $walletTablesReady && $transactions !== [];
         $startDate.on('change', maybeSubmitCustomRange);
         $endDate.on('change', maybeSubmitCustomRange);
 
+        $form.on('submit', function(event) {
+          event.preventDefault();
+          fetchTransactions();
+        });
+
+        $resetButton.on('click', function() {
+          if (!walletTablesReady) {
+            return;
+          }
+
+          $form[0].reset();
+          $dateRange.val('today');
+          $startDate.val('');
+          $endDate.val('');
+          toggleCustomDateRange();
+          fetchTransactions();
+        });
+
+        initializeDataTable(hasTransactionRows);
         toggleCustomDateRange();
       });
     </script>
