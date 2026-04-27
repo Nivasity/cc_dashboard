@@ -236,7 +236,7 @@ $admin_faculty = $admin_['faculty'] ?? 0;
     <?php if ($finance_mgt_menu){ ?>
       <!-- Financial report -->
       <li class="menu-header small text-uppercase"><span class="menu-header-text">Finances</span></li>
-      <li class="menu-item">
+      <li class="menu-item <?php echo $current_page == 'transactions.php' ? 'active' : ''; ?>">
         <a href="transactions.php" class="menu-link">
           <i class="menu-icon tf-icons bx bx-transfer"></i>
           <div data-i18n="Financial report">Transactions</div>
@@ -256,19 +256,30 @@ $admin_faculty = $admin_['faculty'] ?? 0;
           <div data-i18n="Batch Payments">Batch Payments</div>
         </a>
       </li>
-      <?php if (in_array((int) $_SESSION['nivas_adminRole'], [1, 2, 3, 4], true)) { ?>
-      <li class="menu-item <?php echo $current_page == 'wallet_fee_thresholds.php' ? 'active' : ''; ?>">
-        <a href="wallet_fee_thresholds.php" class="menu-link">
-          <i class="menu-icon tf-icons bx bx-slider-alt"></i>
-          <div data-i18n="Wallet Fees">Wallet Fees</div>
-        </a>
-      </li>
-      <?php } ?>
-      <li class="menu-item <?php echo $current_page == 'student_wallets.php' ? 'active' : ''; ?>">
-        <a href="student_wallets.php" class="menu-link">
+      <li class="menu-item <?php echo in_array($current_page, ['wallet_transactions.php', 'wallet_fee_thresholds.php', 'student_wallets.php'], true) ? 'active open' : ''; ?>">
+        <a href="javascript:void(0);" class="menu-link menu-toggle">
           <i class="menu-icon tf-icons bx bx-wallet-alt"></i>
-          <div data-i18n="Student Wallets">Student Wallets</div>
+          <div data-i18n="Wallets">Wallets</div>
         </a>
+        <ul class="menu-sub">
+          <?php if (in_array((int) $_SESSION['nivas_adminRole'], [1, 2, 3, 4], true)) { ?>
+          <li class="menu-item <?php echo $current_page == 'wallet_transactions.php' ? 'active' : ''; ?>">
+            <a href="wallet_transactions.php" class="menu-link">
+              <div data-i18n="Wallet Transactions">Wallet Transactions</div>
+            </a>
+          </li>
+          <li class="menu-item <?php echo $current_page == 'wallet_fee_thresholds.php' ? 'active' : ''; ?>">
+            <a href="wallet_fee_thresholds.php" class="menu-link">
+              <div data-i18n="Wallet Fees">Wallet Fees</div>
+            </a>
+          </li>
+          <?php } ?>
+          <li class="menu-item <?php echo $current_page == 'student_wallets.php' ? 'active' : ''; ?>">
+            <a href="student_wallets.php" class="menu-link">
+              <div data-i18n="Student Wallets">Student Wallets</div>
+            </a>
+          </li>
+        </ul>
       </li>
       <?php if (!in_array((int) $_SESSION['nivas_adminRole'], [5], true)) { ?>
       <li class="menu-item <?php echo $current_page == 'gateway_check.php' ? 'active' : ''; ?>">
