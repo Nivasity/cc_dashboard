@@ -320,38 +320,28 @@ function sendMailBatch($subject, $body, $recipients) {
     if ($apiKey && hasBrevoCredits($apiKey)) {
         // Use BREVO REST API for batch sending
         error_log("Using BREVO REST API for batch email to " . count($recipients) . " recipients");
-        
-        // Split recipients into batches of 95 (to stay under BREVO's 99-recipient limit)
-        $batches = array_chunk($recipients, 95);
-        
-        foreach ($batches as $batch) {
-            // Prepare BCC array
-            $bccArray = array();
-            foreach ($batch as $email) {
-                $bccArray[] = array('email' => $email);
-            }
 
-            // Prepare API request payload
+        foreach ($recipients as $recipient) {
             $payload = array(
                 'sender' => array(
                     'name' => 'Nivasity',
                     'email' => 'contact@nivasity.com'
                 ),
                 'to' => array(
-                    array('email' => 'support@nivasity.com')
+                    array('email' => $recipient)
                 ),
-                'bcc' => $bccArray,
                 'subject' => $subject,
                 'htmlContent' => $htmlContent
             );
 
-            // Send via BREVO API
+            // Send each recipient directly so bulk mail is not routed through an internal inbox.
             $result = sendBrevoAPIRequest($apiKey, $payload);
 
             if ($result) {
-                $successCount += count($batch);
+                $successCount++;
             } else {
-                $failCount += count($batch);
+                error_log("BREVO batch send failed for recipient: $recipient");
+                $failCount++;
             }
         }
     } else {

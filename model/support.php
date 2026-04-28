@@ -658,7 +658,7 @@ if (isset($_POST['email_customer'])) {
           $messageRes = $creditCheck['message'];
         } else {
           // Proceed with sending emails via BREVO REST API
-          // Use batch sending for efficiency (max 1000 emails per API call)
+          // sendMailBatch() now delivers each recipient directly to avoid routing copies through an internal inbox.
           $result = sendMailBatch($subject, $e_message, $recipients);
           $successCount = $result['success_count'];
           $failCount = $result['fail_count'];
