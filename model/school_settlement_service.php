@@ -316,6 +316,7 @@ if (!function_exists('ccSchoolSettlementBuildEligibleLedgerSql')) {
                    spl.created_at
             FROM school_payable_ledger spl
             WHERE spl.school_id = $schoolId
+              AND spl.status IN ('pending', 'partially_settled')
               AND spl.payable_amount > spl.settled_amount
               AND NOT EXISTS (
                 SELECT 1
@@ -513,6 +514,7 @@ if (!function_exists('ccSchoolSettlementGetSnapshot')) {
                                  COALESCE(SUM(payable_amount - settled_amount), 0) AS outstanding_amount
                           FROM school_payable_ledger
                           WHERE school_id = $schoolId
+                            AND status IN ('pending', 'partially_settled')
                             AND payable_amount > settled_amount";
     $allOutstandingRs = mysqli_query($conn, $allOutstandingSql);
     $allOutstanding = $allOutstandingRs ? (mysqli_fetch_assoc($allOutstandingRs) ?: []) : [];
@@ -521,6 +523,7 @@ if (!function_exists('ccSchoolSettlementGetSnapshot')) {
                             COALESCE(SUM(spl.payable_amount - spl.settled_amount), 0) AS outstanding_amount
                      FROM school_payable_ledger spl
                      WHERE spl.school_id = $schoolId
+                       AND spl.status IN ('pending', 'partially_settled')
                        AND spl.payable_amount > spl.settled_amount
                        AND NOT EXISTS (
                          SELECT 1
