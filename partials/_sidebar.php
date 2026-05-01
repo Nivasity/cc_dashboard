@@ -256,6 +256,14 @@ $admin_faculty = $admin_['faculty'] ?? 0;
           <div data-i18n="Batch Payments">Batch Payments</div>
         </a>
       </li>
+      <?php if (in_array((int) $_SESSION['nivas_adminRole'], [1, 2, 4], true)) { ?>
+      <li class="menu-item <?php echo $current_page == 'school_settlements.php' ? 'active' : ''; ?>">
+        <a href="school_settlements.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-building-house"></i>
+          <div data-i18n="School Settlements">School Settlements</div>
+        </a>
+      </li>
+      <?php } ?>
       <li class="menu-item <?php echo in_array($current_page, ['wallet_transactions.php', 'wallet_fee_thresholds.php', 'student_wallets.php'], true) ? 'active open' : ''; ?>">
         <a href="javascript:void(0);" class="menu-link menu-toggle">
           <i class="menu-icon tf-icons bx bx-wallet-alt"></i>
