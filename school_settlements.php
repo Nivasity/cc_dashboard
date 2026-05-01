@@ -146,7 +146,7 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
                 </div>
                 <div class="card-body">
                   <div class="table-responsive text-nowrap">
-                    <table class="table table-sm">
+                    <table class="table table-sm" id="settlementPreviewDataTable">
                       <thead class="table-light">
                         <tr>
                           <th>Source Ref</th>
@@ -258,6 +258,8 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
 
     <script src="assets/vendor/libs/jquery/jquery.min.js"></script>
     <script src="assets/vendor/js/bootstrap.min.js"></script>
+  <script src="https://cdn.datatables.net/2.1.8/js/dataTables.js"></script>
+  <script src="https://cdn.datatables.net/2.1.8/js/dataTables.bootstrap5.js"></script>
     <script src="assets/vendor/libs/perfect-scrollbar/perfect-scrollbar.min.js"></script>
     <script src="assets/vendor/libs/popper/popper.min.js"></script>
     <script src="assets/vendor/js/menu.min.js"></script>
@@ -266,6 +268,7 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
     <script>
       var initialSettlementSchoolId = <?php echo $initial_school_id; ?>;
       var activeSettlementBatchId = 0;
+      var settlementPreviewDataTable = null;
 
       function settlementMoney(value) {
         return '₦ ' + Number(value || 0).toLocaleString();
@@ -310,6 +313,24 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
         $alert.removeClass('d-none alert-success alert-danger alert-warning alert-info')
           .addClass('alert-' + type)
           .html(message);
+      }
+
+      function resetSettlementPreviewDataTable() {
+        if (settlementPreviewDataTable) {
+          settlementPreviewDataTable.destroy();
+          settlementPreviewDataTable = null;
+        }
+      }
+
+      function initializeSettlementPreviewDataTable() {
+        resetSettlementPreviewDataTable();
+        settlementPreviewDataTable = new DataTable('#settlementPreviewDataTable', {
+          order: [[4, 'desc']],
+          pageLength: 10,
+          language: {
+            emptyTable: 'No stageable ledger rows to preview.'
+          }
+        });
       }
 
       function settlementBatchActionButtons(batch) {
@@ -366,6 +387,7 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
 
       function renderSettlementPreview(preview) {
         preview = preview || { items: [], total_amount: 0, total_records: 0 };
+        resetSettlementPreviewDataTable();
         var rows = [];
         $.each(preview.items || [], function (_, item) {
           rows.push(
@@ -387,6 +409,7 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
         $('#previewSummaryText').text(
           'Preview total: ' + settlementMoney(preview.total_amount || 0) + ' across ' + Number(preview.total_records || 0) + ' rows'
         );
+        initializeSettlementPreviewDataTable();
       }
 
       function renderActiveBatch(batch) {
