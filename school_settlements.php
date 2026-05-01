@@ -119,7 +119,7 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
                 <div class="card-body">
                   <div id="activeBatchSummary" class="mb-3"></div>
                   <div class="table-responsive text-nowrap">
-                    <table class="table table-sm">
+                    <table class="table table-sm" id="activeSettlementBatchDataTable">
                       <thead class="table-light">
                         <tr>
                           <th>Source Ref</th>
@@ -168,7 +168,7 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
                 </div>
                 <div class="card-body">
                   <div class="table-responsive text-nowrap">
-                    <table class="table table-sm">
+                      <table class="table table-sm" id="recentSettlementBatchesDataTable">
                       <thead class="table-light">
                         <tr>
                           <th>Batch Ref</th>
@@ -268,7 +268,9 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
     <script>
       var initialSettlementSchoolId = <?php echo $initial_school_id; ?>;
       var activeSettlementBatchId = 0;
+      var activeSettlementBatchDataTable = null;
       var settlementPreviewDataTable = null;
+      var recentSettlementBatchesDataTable = null;
 
       function settlementMoney(value) {
         return '₦ ' + Number(value || 0).toLocaleString();
@@ -315,6 +317,24 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
           .html(message);
       }
 
+      function resetActiveSettlementBatchDataTable() {
+        if (activeSettlementBatchDataTable) {
+          activeSettlementBatchDataTable.destroy();
+          activeSettlementBatchDataTable = null;
+        }
+      }
+
+      function initializeActiveSettlementBatchDataTable() {
+        resetActiveSettlementBatchDataTable();
+        activeSettlementBatchDataTable = new DataTable('#activeSettlementBatchDataTable', {
+          order: [[5, 'desc']],
+          pageLength: 10,
+          language: {
+            emptyTable: 'No items found for this settlement batch.'
+          }
+        });
+      }
+
       function resetSettlementPreviewDataTable() {
         if (settlementPreviewDataTable) {
           settlementPreviewDataTable.destroy();
@@ -330,6 +350,27 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
           language: {
             emptyTable: 'No stageable ledger rows to preview.'
           }
+        });
+      }
+
+      function resetRecentSettlementBatchesDataTable() {
+        if (recentSettlementBatchesDataTable) {
+          recentSettlementBatchesDataTable.destroy();
+          recentSettlementBatchesDataTable = null;
+        }
+      }
+
+      function initializeRecentSettlementBatchesDataTable() {
+        resetRecentSettlementBatchesDataTable();
+        recentSettlementBatchesDataTable = new DataTable('#recentSettlementBatchesDataTable', {
+          order: [[7, 'desc']],
+          pageLength: 10,
+          language: {
+            emptyTable: 'No settlement batches found for this school.'
+          },
+          columnDefs: [
+            { orderable: false, targets: 9 }
+          ]
         });
       }
 
@@ -401,10 +442,6 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
           );
         });
 
-        if (!rows.length) {
-          rows.push('<tr><td colspan="5" class="text-center text-muted py-4">No stageable ledger rows to preview.</td></tr>');
-        }
-
         $('#settlementPreviewTable').html(rows.join(''));
         $('#previewSummaryText').text(
           'Preview total: ' + settlementMoney(preview.total_amount || 0) + ' across ' + Number(preview.total_records || 0) + ' rows'
@@ -419,6 +456,7 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
 
         activeSettlementBatchId = batch && batch.id ? Number(batch.id) : 0;
         if (!batch || !batch.id) {
+          resetActiveSettlementBatchDataTable();
           $card.addClass('d-none');
           $('#activeBatchSummary').empty();
           $('#activeBatchItemsTable').empty();
@@ -456,17 +494,15 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
           );
         });
 
-        if (!rows.length) {
-          rows.push('<tr><td colspan="6" class="text-center text-muted py-4">No items found for this batch.</td></tr>');
-        }
-
         $('#activeBatchItemsTable').html(rows.join(''));
         $completeBtn.toggleClass('d-none', !canAct).attr('data-batch-id', activeSettlementBatchId);
         $failBtn.toggleClass('d-none', !canAct).attr('data-batch-id', activeSettlementBatchId);
         $card.removeClass('d-none');
+        initializeActiveSettlementBatchDataTable();
       }
 
       function renderRecentBatches(batches) {
+        resetRecentSettlementBatchesDataTable();
         var rows = [];
         $.each(batches || [], function (_, batch) {
           rows.push(
@@ -485,11 +521,8 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
           );
         });
 
-        if (!rows.length) {
-          rows.push('<tr><td colspan="10" class="text-center text-muted py-4">No settlement batches found for this school.</td></tr>');
-        }
-
         $('#recentSettlementBatchesTable').html(rows.join(''));
+        initializeRecentSettlementBatchesDataTable();
       }
 
       function updateStageButton(snapshot) {
