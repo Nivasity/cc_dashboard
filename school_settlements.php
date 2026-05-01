@@ -208,16 +208,16 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
             <div class="modal-body">
               <input type="hidden" id="completeSettlementBatchId" name="batch_id" value="0" />
               <div class="mb-3">
-                <label for="completeSettlementProviderReference" class="form-label">Paystack Transfer / Transaction Reference</label>
+                <label for="completeSettlementProviderReference" class="form-label">Paystack Transfer Reference</label>
                 <input type="text" id="completeSettlementProviderReference" name="provider_reference" class="form-control" required />
-                <div class="form-text">This is the manual confirmation reference that will be stored in <code>settlement_batches.provider_reference</code>.</div>
+                <div class="form-text">This value is verified against Paystack before the batch can be completed, then stored in <code>settlement_batches.provider_reference</code>.</div>
               </div>
               <div class="mb-3">
                 <label for="completeSettlementNotes" class="form-label">Completion Notes</label>
                 <textarea id="completeSettlementNotes" name="notes" class="form-control" rows="3" placeholder="Optional note about the completed transfer"></textarea>
               </div>
               <div class="alert alert-warning mb-0">
-                Completion re-checks current outstanding amounts for every staged ledger row. If refunds or other adjustments reduced any row below its staged allocation, completion will be blocked.
+                Completion verifies the Paystack transfer reference, re-checks current outstanding amounts for every staged ledger row, and blocks the batch if either check fails.
               </div>
             </div>
             <div class="modal-footer">

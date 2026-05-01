@@ -1,5 +1,7 @@
 <?php
 
+require_once(__DIR__ . '/../config/fw.php');
+
 if (!function_exists('ccSchoolSettlementAdminAllowed')) {
   function ccSchoolSettlementAdminAllowed($role)
   {
@@ -120,6 +122,124 @@ if (!function_exists('ccSchoolSettlementNormalizeDate')) {
     }
 
     return date('Y-m-d', $timestamp);
+  }
+}
+
+if (!function_exists('ccSchoolSettlementGatewayGetJson')) {
+  function ccSchoolSettlementGatewayGetJson(string $url, array $headers): array
+  {
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+
+    $response = curl_exec($ch);
+    $error = curl_error($ch);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($error !== '') {
+      return [
+        'ok' => false,
+        'http_code' => $httpCode,
+        'error' => $error,
+        'data' => null,
+      ];
+    }
+
+    $decoded = json_decode((string) $response, true);
+    return [
+      'ok' => true,
+      'http_code' => $httpCode,
+      'error' => '',
+      'data' => is_array($decoded) ? $decoded : [],
+      'raw' => (string) $response,
+    ];
+  }
+}
+
+if (!function_exists('ccSchoolSettlementLookupPaystackTransfer')) {
+  function ccSchoolSettlementLookupPaystackTransfer(string $reference): array
+  {
+    $reference = trim($reference);
+    if ($reference === '') {
+      return [
+        'status' => 'invalid_reference',
+        'message' => 'Enter a Paystack transfer reference.',
+      ];
+    }
+
+    $secret = defined('PAYSTACK_SECRET_KEY') ? trim((string) PAYSTACK_SECRET_KEY) : '';
+    if ($secret === '') {
+      return [
+        'status' => 'missing_secret',
+        'message' => 'Paystack secret key is not configured in command center.',
+      ];
+    }
+
+    $headers = [
+      'Authorization: Bearer ' . $secret,
+      'Cache-Control: no-cache',
+    ];
+    $encodedReference = rawurlencode($reference);
+    $attempts = [];
+    $urls = [
+      'verify' => 'https://api.paystack.co/transfer/verify/' . $encodedReference,
+      'fetch' => 'https://api.paystack.co/transfer/' . $encodedReference,
+    ];
+
+    foreach ($urls as $lookupType => $url) {
+      $response = ccSchoolSettlementGatewayGetJson($url, $headers);
+      if (!$response['ok']) {
+        $attempts[] = [
+          'lookup_type' => $lookupType,
+          'http_code' => (int) ($response['http_code'] ?? 0),
+          'error' => (string) ($response['error'] ?? 'Unknown error'),
+        ];
+        continue;
+      }
+
+      $payload = $response['data'] ?? [];
+      if (($payload['status'] ?? false) !== true || !isset($payload['data']) || !is_array($payload['data'])) {
+        $attempts[] = [
+          'lookup_type' => $lookupType,
+          'http_code' => (int) ($response['http_code'] ?? 0),
+          'message' => (string) ($payload['message'] ?? 'Transfer reference not found on Paystack.'),
+        ];
+        continue;
+      }
+
+      $transferData = $payload['data'];
+      $recipient = $transferData['recipient'] ?? [];
+      $recipientDetails = is_array($recipient['details'] ?? null) ? $recipient['details'] : [];
+
+      return [
+        'status' => 'success',
+        'lookup_type' => $lookupType,
+        'message' => (string) ($payload['message'] ?? 'Transfer lookup succeeded.'),
+        'transfer' => $transferData,
+        'summary' => [
+          'reference' => (string) ($transferData['reference'] ?? ''),
+          'transfer_code' => (string) ($transferData['transfer_code'] ?? ''),
+          'amount_kobo' => (int) ($transferData['amount'] ?? 0),
+          'currency' => (string) ($transferData['currency'] ?? ''),
+          'status' => strtolower(trim((string) ($transferData['status'] ?? ''))),
+          'recipient_name' => (string) ($recipient['name'] ?? ''),
+          'recipient_code' => (string) ($recipient['recipient_code'] ?? ''),
+          'recipient_account_number' => (string) ($recipientDetails['account_number'] ?? ''),
+          'recipient_bank_name' => (string) ($recipientDetails['bank_name'] ?? ''),
+          'transferred_at' => (string) ($transferData['transferred_at'] ?? ($transferData['updatedAt'] ?? '')),
+        ],
+      ];
+    }
+
+    $firstAttempt = $attempts[0] ?? [];
+    return [
+      'status' => 'lookup_failed',
+      'message' => (string) ($firstAttempt['message'] ?? $firstAttempt['error'] ?? 'Paystack could not verify that transfer reference.'),
+      'attempts' => $attempts,
+    ];
   }
 }
 
@@ -532,7 +652,8 @@ if (!function_exists('ccSchoolSettlementStageBatch')) {
         ];
       }
 
-      $provider = ccSchoolSettlementGetProvider($settlementAccount);
+      $provider = 'paystack';
+      $accountProvider = ccSchoolSettlementGetProvider($settlementAccount);
       $batchReference = ccSchoolSettlementBuildBatchReference($schoolId, $scheduledFor);
       $batchReferenceSafe = mysqli_real_escape_string($conn, $batchReference);
       $providerSafe = mysqli_real_escape_string($conn, $provider);
@@ -551,6 +672,8 @@ if (!function_exists('ccSchoolSettlementStageBatch')) {
       $providerResponseSafe = ccSchoolSettlementEncodeJson($conn, [
         'source' => 'cc_dashboard',
         'workflow' => 'manual_school_settlement',
+        'transfer_provider' => 'paystack',
+        'settlement_account_provider' => $accountProvider,
         'staged' => [
           'admin_id' => $adminId,
           'admin_role' => $adminRole,
@@ -628,7 +751,16 @@ if (!function_exists('ccSchoolSettlementCompleteBatch')) {
     if ($providerReference === '') {
       return [
         'status' => 'missing_provider_reference',
-        'message' => 'Enter the Paystack transfer or transaction reference before completion.',
+        'message' => 'Enter the Paystack transfer reference before completion.',
+      ];
+    }
+
+    $paystackLookup = ccSchoolSettlementLookupPaystackTransfer($providerReference);
+    if (($paystackLookup['status'] ?? '') !== 'success') {
+      return [
+        'status' => 'paystack_lookup_failed',
+        'message' => (string) ($paystackLookup['message'] ?? 'Paystack could not verify that transfer reference.'),
+        'lookup' => $paystackLookup,
       ];
     }
 
@@ -652,6 +784,15 @@ if (!function_exists('ccSchoolSettlementCompleteBatch')) {
           'status' => 'invalid_state',
           'message' => 'Only pending or processing batches can be completed.',
           'batch' => $batch,
+        ];
+      }
+
+      $transferProvider = strtolower(trim((string) ($batch['transfer_provider'] ?? 'paystack')));
+      if ($transferProvider !== 'paystack') {
+        mysqli_rollback($conn);
+        return [
+          'status' => 'unsupported_provider',
+          'message' => 'This manual completion flow requires Paystack as the settlement transfer provider.',
         ];
       }
 
@@ -718,6 +859,30 @@ if (!function_exists('ccSchoolSettlementCompleteBatch')) {
         return [
           'status' => 'empty_batch',
           'message' => 'This settlement batch has no items to complete.',
+        ];
+      }
+
+      $paystackSummary = is_array($paystackLookup['summary'] ?? null) ? $paystackLookup['summary'] : [];
+      $paystackTransferStatus = strtolower(trim((string) ($paystackSummary['status'] ?? '')));
+      if (!in_array($paystackTransferStatus, ['success', 'successful'], true)) {
+        mysqli_rollback($conn);
+        return [
+          'status' => 'paystack_transfer_not_successful',
+          'message' => 'Paystack found the transfer reference, but the transfer is not marked successful yet.',
+          'lookup' => $paystackLookup,
+        ];
+      }
+
+      $transferAmountKobo = (int) ($paystackSummary['amount_kobo'] ?? 0);
+      $expectedAmountKobo = $appliedTotal * 100;
+      if ($transferAmountKobo !== $expectedAmountKobo) {
+        mysqli_rollback($conn);
+        return [
+          'status' => 'paystack_amount_mismatch',
+          'message' => 'Paystack verified the transfer, but its amount does not match the staged settlement total.',
+          'lookup' => $paystackLookup,
+          'expected_amount_kobo' => $expectedAmountKobo,
+          'received_amount_kobo' => $transferAmountKobo,
         ];
       }
 
@@ -801,12 +966,17 @@ if (!function_exists('ccSchoolSettlementCompleteBatch')) {
       $providerResponse = ccSchoolSettlementDecodeJson($batch['provider_response'] ?? '');
       $providerResponse['source'] = 'cc_dashboard';
       $providerResponse['workflow'] = 'manual_school_settlement';
+      $providerResponse['transfer_provider'] = 'paystack';
       $providerResponse['completed'] = [
         'admin_id' => $adminId,
         'admin_role' => $adminRole,
         'provider_reference' => $providerReference,
         'completed_at' => date('c'),
         'notes' => $notes,
+        'paystack_lookup' => [
+          'lookup_type' => (string) ($paystackLookup['lookup_type'] ?? ''),
+          'summary' => $paystackSummary,
+        ],
       ];
 
       $completionNote = sprintf(
