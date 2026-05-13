@@ -34,6 +34,18 @@ $tablesReady = $missingTables === [];
       .wallet-pre-credit-flag {
         font-size: 0.75rem;
       }
+
+      .wallet-pre-credit-modal-form {
+        display: flex;
+        flex: 1 1 auto;
+        flex-direction: column;
+        min-height: 0;
+      }
+
+      .wallet-pre-credit-modal-form .modal-body {
+        min-height: 0;
+        overflow-y: auto;
+      }
     </style>
   </head>
   <body>
@@ -185,13 +197,12 @@ $tablesReady = $missingTables === [];
     <div class="modal fade" id="walletPreCreditModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
         <div class="modal-content">
-          <form id="walletPreCreditCreateForm" enctype="multipart/form-data">
+          <form id="walletPreCreditCreateForm" class="wallet-pre-credit-modal-form" enctype="multipart/form-data">
             <div class="modal-header">
               <h5 class="modal-title">New Wallet Pre-Credit</h5>
               <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-              <div id="walletPreCreditModalAlert" class="alert d-none" role="alert"></div>
               <div class="row g-3 align-items-end">
                 <div class="col-md-8">
                   <label for="walletPreCreditAccountNumber" class="form-label">Wallet Account Number</label>
