@@ -59,7 +59,7 @@ This endpoint is public and does not require the `Authorization` header.
       "description": "Role description...",
       "employment_type": "internship",
       "internship_duration": "3 months",
-      "eligibility_text": "Open to students in 200L and above.",
+      "eligibility_text": "Any role-specific notes or requirements.",
       "application_open_at": "2026-03-01 09:00:00",
       "application_close_at": "2026-03-30 23:59:00",
       "questions": [
@@ -79,7 +79,7 @@ This endpoint is public and does not require the `Authorization` header.
   "opening_id": 4,
   "campus_affiliation": "funaab",
   "school_name": "",
-  "level_text": "300L",
+  "level_text": "Graduate / entry-level",
   "full_name": "Student Name",
   "email": "student@example.com",
   "phone": "+2348000000000",

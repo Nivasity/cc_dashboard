@@ -637,8 +637,8 @@ $stats = ccCareerOpeningsBuildStats($openings);
                 </div>
 
                 <div class="col-md-6">
-                  <label class="form-label" for="openingDuration">Internship Duration</label>
-                  <input type="text" class="form-control" id="openingDuration" name="internship_duration" maxlength="80" value="3 months" placeholder="3 months" />
+                  <label class="form-label" for="openingDuration">Duration</label>
+                  <input type="text" class="form-control" id="openingDuration" name="internship_duration" maxlength="80" value="3 months" placeholder="3 months / permanent / contract-based" />
                 </div>
                 <div class="col-md-3">
                   <label class="form-label" for="openingStatus">Status</label>

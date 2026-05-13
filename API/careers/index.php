@@ -140,7 +140,7 @@ function handleCareerApplicationSubmit(mysqli $conn): void
     $campusAffiliation = ccCareersNormalizeCampus($input['campus_affiliation'] ?? 'other');
     $schoolName = ccCareersTrimmed($input['school_name'] ?? '', 160);
     if ($campusAffiliation === 'other' && $schoolName === '') {
-        careersRespond(400, ['success' => false, 'message' => 'School name is required when you select Other school.']);
+        careersRespond(400, ['success' => false, 'message' => 'School or organization name is required when you select Other.']);
     }
     if ($campusAffiliation !== 'other') {
         $schoolName = '';
@@ -148,10 +148,7 @@ function handleCareerApplicationSubmit(mysqli $conn): void
 
     $levelText = ccCareersTrimmed($input['level_text'] ?? '', 30);
     if ($levelText === '') {
-        careersRespond(400, ['success' => false, 'message' => 'Your current level is required.']);
-    }
-    if (preg_match('/^100/i', $levelText)) {
-        careersRespond(400, ['success' => false, 'message' => 'This internship is only open to 200 level students and above.']);
+        careersRespond(400, ['success' => false, 'message' => 'Your current stage or level is required.']);
     }
 
     $fullName = ccCareersTrimmed($input['full_name'] ?? '', 160);
