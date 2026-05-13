@@ -24,6 +24,109 @@ If a request body contains unsupported fields, the API returns `400` with both t
 }
 ```
 
+## Careers Endpoint
+
+Public endpoint for published internship openings and application submission.
+
+```text
+GET  /API/careers
+GET  /API/careers?id=1
+GET  /API/careers?slug=campus-growth-intern
+POST /API/careers
+```
+
+This endpoint is public and does not require the `Authorization` header.
+
+### Careers GET Behavior
+
+- Returns only openings where `career_openings.status = published` and `career_openings.is_public = 1`.
+- Supports lookup by `id` or `slug`.
+- Returns an empty `data` array if the careers tables are not available yet.
+- CORS is limited to `https://nivasity.com`, `https://www.nivasity.com`, and local Vite preview/dev origins.
+
+### Careers GET Response Shape
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 4,
+      "slug": "campus-growth-intern",
+      "title": "Campus Growth Intern",
+      "team": "Growth",
+      "summary": "Help us drive awareness and adoption on campus.",
+      "description": "Role description...",
+      "employment_type": "internship",
+      "internship_duration": "3 months",
+      "eligibility_text": "Open to students in 200L and above.",
+      "application_open_at": "2026-03-01 09:00:00",
+      "application_close_at": "2026-03-30 23:59:00",
+      "questions": [
+        "Why are you interested in this role?"
+      ]
+    }
+  ]
+}
+```
+
+### Careers Application Payload
+
+`POST /API/careers` body (`application/json`):
+
+```json
+{
+  "opening_id": 4,
+  "campus_affiliation": "funaab",
+  "school_name": "",
+  "level_text": "300L",
+  "full_name": "Student Name",
+  "email": "student@example.com",
+  "phone": "+2348000000000",
+  "portfolio_url": "https://example.com/portfolio",
+  "availability_text": "Available to start next week",
+  "motivation_text": "I want to help grow Nivasity on campus.",
+  "willing_to_join": true,
+  "responses": [
+    {
+      "question": "Why are you interested in this role?",
+      "answer": "I already support student communities and want to scale that work."
+    }
+  ],
+  "website": ""
+}
+```
+
+### Careers Application Rules
+
+- `opening_id`, `campus_affiliation`, `level_text`, `full_name`, `email`, `phone`, `availability_text`, `motivation_text`, and `willing_to_join` are required.
+- `campus_affiliation` must be one of `funaab`, `fummsa`, or `other`.
+- `school_name` is required when `campus_affiliation = other`.
+- `portfolio_url` is optional but must be a valid URL when present.
+- `responses` must answer every configured question for the selected opening.
+- Applications are blocked for openings outside their application window or openings that are no longer public/published.
+- A honeypot field (`website`) and repeated-email/IP cooldown checks are enforced server-side.
+- The API returns `503` if the careers tables are not available yet.
+
+### Careers Submission Side Effects
+
+- Inserts a row into `career_applications`.
+- Inserts an initial `submitted` history row into `career_application_status_history`.
+- Sends an applicant confirmation email.
+- Sends an internal notification email to `CAREERS_NOTIFICATION_EMAILS` when configured, otherwise `support@nivasity.com`.
+
+### Careers Example Requests
+
+```bash
+curl "http://localhost/cc_dashboard/API/careers"
+```
+
+```bash
+curl -X POST -H "Content-Type: application/json" ^
+  -d "{\"opening_id\":4,\"campus_affiliation\":\"funaab\",\"level_text\":\"300L\",\"full_name\":\"Student Name\",\"email\":\"student@example.com\",\"phone\":\"+2348000000000\",\"availability_text\":\"Available immediately\",\"motivation_text\":\"I want to contribute to campus growth.\",\"willing_to_join\":true,\"responses\":[{\"question\":\"Why are you interested in this role?\",\"answer\":\"I enjoy building student communities.\"}],\"website\":\"\"}"
+  "http://localhost/cc_dashboard/API/careers"
+```
+
 ## Reference Endpoint
 
 ```text

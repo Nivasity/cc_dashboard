@@ -19,7 +19,6 @@ $(function () {
   var $lookupButton = $('#walletPreCreditLookupBtn');
   var $submitButton = $('#walletPreCreditSubmitBtn');
   var $lookupInput = $('#walletPreCreditAccountNumber');
-  var $modalAlert = $('#walletPreCreditModalAlert');
   var $walletPreview = $('#walletPreCreditWalletPreview');
   var $detailFields = $('#walletPreCreditDetailFields');
   var $detailModalAlert = $('#walletPreCreditDetailAlert');
@@ -77,6 +76,19 @@ $(function () {
     $element.removeClass('d-none').removeClass(classes).addClass('alert-' + (tone || 'info')).html(message);
   }
 
+  function showToastMessage(tone, message) {
+    if (!message) {
+      return;
+    }
+
+    if (typeof showToast === 'function') {
+      showToast('bg-' + (tone || 'info'), message);
+      return;
+    }
+
+    showAlert($pageAlert, tone, escapeHtml(message));
+  }
+
   function setCreateFormState(lookupComplete) {
     $detailFields.toggleClass('d-none', !lookupComplete);
     $submitButton.prop('disabled', !lookupComplete);
@@ -86,7 +98,6 @@ $(function () {
     currentWallet = null;
     $walletPreview.addClass('d-none').empty();
     setCreateFormState(false);
-    showAlert($modalAlert, null, '');
     $createForm.find('#walletPreCreditReference').val('');
     $createForm.find('#walletPreCreditAmount').val('');
     $createForm.find('#walletPreCreditReceipt').val('');
@@ -302,11 +313,10 @@ $(function () {
   $lookupButton.on('click', function () {
     var accountNumber = ($lookupInput.val() || '').trim();
     if (!accountNumber) {
-      showAlert($modalAlert, 'warning', 'Enter the wallet account number to continue.');
+      showToastMessage('warning', 'Enter the wallet account number to continue.');
       return;
     }
 
-    showAlert($modalAlert, 'info', '<span class="spinner-border spinner-border-sm me-2"></span>Looking up wallet...');
     $lookupButton.prop('disabled', true);
 
     $.ajax({
@@ -322,20 +332,20 @@ $(function () {
         currentWallet = null;
         $walletPreview.addClass('d-none').empty();
         setCreateFormState(false);
-        showAlert($modalAlert, 'danger', response.message || 'No matching wallet was found.');
+        showToastMessage('danger', response.message || 'No matching wallet was found.');
         return;
       }
 
       currentWallet = response.wallet;
       renderWalletPreview(response.wallet);
       setCreateFormState(true);
-      showAlert($modalAlert, 'success', response.message || 'Wallet found. Complete the pre-credit details.');
+      showToastMessage('success', response.message || 'Wallet found. Continue with the pre-credit details.');
     }).fail(function (xhr) {
       var response = xhr.responseJSON || {};
       currentWallet = null;
       $walletPreview.addClass('d-none').empty();
       setCreateFormState(false);
-      showAlert($modalAlert, 'danger', response.message || 'No matching wallet was found.');
+      showToastMessage('danger', response.message || 'No matching wallet was found.');
     }).always(function () {
       $lookupButton.prop('disabled', false);
     });
@@ -344,13 +354,12 @@ $(function () {
   $createForm.on('submit', function (event) {
     event.preventDefault();
     if (!currentWallet || !currentWallet.wallet_id) {
-      showAlert($modalAlert, 'warning', 'Look up the wallet account number before creating a pre-credit.');
+      showToastMessage('warning', 'Look up the wallet account number before creating a pre-credit.');
       return;
     }
 
     var formData = new FormData(this);
     formData.append('create_pre_credit', '1');
-    showAlert($modalAlert, 'info', '<span class="spinner-border spinner-border-sm me-2"></span>Crediting wallet...');
     $submitButton.prop('disabled', true);
 
     $.ajax({
@@ -362,14 +371,15 @@ $(function () {
       contentType: false
     }).done(function (response) {
       if (!response.success) {
-        showAlert($modalAlert, 'danger', response.message || 'Failed to create the wallet pre-credit.');
+        showToastMessage('danger', response.message || 'Failed to create the wallet pre-credit.');
         return;
       }
 
-      showAlert($modalAlert, 'success', response.message || 'Wallet pre-credit created successfully.');
       fetchRows();
       if (typeof showToast === 'function') {
         showToast('bg-success', response.message || 'Wallet pre-credit created successfully.');
+      } else {
+        showAlert($pageAlert, 'success', escapeHtml(response.message || 'Wallet pre-credit created successfully.'));
       }
 
       setTimeout(function () {
@@ -381,7 +391,7 @@ $(function () {
       }, 700);
     }).fail(function (xhr) {
       var response = xhr.responseJSON || {};
-      showAlert($modalAlert, 'danger', response.message || 'Failed to create the wallet pre-credit.');
+      showToastMessage('danger', response.message || 'Failed to create the wallet pre-credit.');
     }).always(function () {
       $submitButton.prop('disabled', !currentWallet);
     });

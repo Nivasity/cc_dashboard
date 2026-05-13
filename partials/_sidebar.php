@@ -200,6 +200,20 @@ $admin_faculty = $admin_['faculty'] ?? 0;
         </a>
       </li>
       <?php if (in_array((int) $_SESSION['nivas_adminRole'], [1, 2, 3], true)) { ?>
+      <li class="menu-item <?php echo $current_page == 'careers_openings.php' ? 'active' : ''; ?>">
+        <a href="careers_openings.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-briefcase-alt-2"></i>
+          <div data-i18n="Careers Openings">Careers Openings</div>
+        </a>
+      </li>
+      <li class="menu-item <?php echo $current_page == 'careers_applications.php' ? 'active' : ''; ?>">
+        <a href="careers_applications.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-user-check"></i>
+          <div data-i18n="Career Applications">Career Applications</div>
+        </a>
+      </li>
+      <?php } ?>
+      <?php if (in_array((int) $_SESSION['nivas_adminRole'], [1, 2, 3], true)) { ?>
       <li class="menu-item <?php echo $current_page == 'granted_exports.php' ? 'active' : ''; ?>">
         <a href="granted_exports.php" class="menu-link">
           <i class="menu-icon tf-icons bx bx-list-check"></i>
