@@ -264,7 +264,7 @@ $admin_faculty = $admin_['faculty'] ?? 0;
         </a>
       </li>
       <?php } ?>
-      <li class="menu-item <?php echo in_array($current_page, ['wallet_transactions.php', 'wallet_fee_thresholds.php', 'student_wallets.php'], true) ? 'active open' : ''; ?>">
+      <li class="menu-item <?php echo in_array($current_page, ['wallet_transactions.php', 'wallet_pre_credits.php', 'wallet_fee_thresholds.php', 'student_wallets.php'], true) ? 'active open' : ''; ?>">
         <a href="javascript:void(0);" class="menu-link menu-toggle">
           <i class="menu-icon tf-icons bx bx-wallet-alt"></i>
           <div data-i18n="Wallets">Wallets</div>
@@ -274,6 +274,11 @@ $admin_faculty = $admin_['faculty'] ?? 0;
           <li class="menu-item <?php echo $current_page == 'wallet_transactions.php' ? 'active' : ''; ?>">
             <a href="wallet_transactions.php" class="menu-link">
               <div data-i18n="Wallet Transactions">Wallet Transactions</div>
+            </a>
+          </li>
+          <li class="menu-item <?php echo $current_page == 'wallet_pre_credits.php' ? 'active' : ''; ?>">
+            <a href="wallet_pre_credits.php" class="menu-link">
+              <div data-i18n="Wallet Pre-Credit">Wallet Pre-Credit</div>
             </a>
           </li>
           <li class="menu-item <?php echo $current_page == 'wallet_fee_thresholds.php' ? 'active' : ''; ?>">
