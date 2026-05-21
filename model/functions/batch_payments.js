@@ -367,7 +367,7 @@ $(document).ready(function () {
           $manualSubmit.prop('disabled', false);
         }
         if (Number(res.data.unmatched_count || 0) > 0) {
-          showAlert($manualAlert, 'warning', Number(res.data.unmatched_count || 0) + ' student row(s) were not matched in users. Matched students will receive access immediately, unmatched rows remain on file only.');
+          showAlert($manualAlert, 'warning', Number(res.data.unmatched_count || 0) + ' student row(s) were not matched in users. Matched students receive access immediately; unmatched rows are recorded as pending claims and can be claimed when the student account becomes available.');
         } else if (Number(res.data.duplicates_removed || 0) > 0) {
           showAlert($manualAlert, 'info', Number(res.data.duplicates_removed || 0) + ' duplicate matric number(s) were ignored from the CSV.');
         }

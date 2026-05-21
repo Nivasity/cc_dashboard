@@ -23,6 +23,8 @@ $batch = null;
 
 $has_item_first_name = bp_item_column_exists($conn, 'manual_payment_batch_items', 'student_first_name');
 $has_item_last_name = bp_item_column_exists($conn, 'manual_payment_batch_items', 'student_last_name');
+$has_item_claim_status = bp_item_column_exists($conn, 'manual_payment_batch_items', 'claim_status');
+$has_item_manuals_bought_id = bp_item_column_exists($conn, 'manual_payment_batch_items', 'manuals_bought_id');
 $has_paid_by_name = bp_item_column_exists($conn, 'manual_payment_batches', 'paid_by_name');
 $has_paid_by_phone = bp_item_column_exists($conn, 'manual_payment_batches', 'paid_by_phone');
 $has_payment_reason = bp_item_column_exists($conn, 'manual_payment_batches', 'payment_reason');
@@ -31,6 +33,8 @@ $has_receipt_name = bp_item_column_exists($conn, 'manual_payment_batches', 'rece
 
 $item_first_name_select = $has_item_first_name ? 'i.student_first_name' : "'' AS student_first_name";
 $item_last_name_select = $has_item_last_name ? 'i.student_last_name' : "'' AS student_last_name";
+$item_claim_status_select = $has_item_claim_status ? 'i.claim_status' : "'' AS claim_status";
+$item_manuals_bought_id_select = $has_item_manuals_bought_id ? 'i.manuals_bought_id' : '0 AS manuals_bought_id';
 $paid_by_name_select = $has_paid_by_name ? 'b.paid_by_name' : "'' AS paid_by_name";
 $paid_by_phone_select = $has_paid_by_phone ? 'b.paid_by_phone' : "'' AS paid_by_phone";
 $payment_reason_select = $has_payment_reason ? 'b.payment_reason' : "'' AS payment_reason";
@@ -79,7 +83,9 @@ if ($batch_id <= 0) {
   $sql = "SELECT i.id, i.student_id, i.student_matric, i.manual_id, i.price, i.ref_id, i.status,
                  u.first_name, u.last_name, u.matric_no, u.email,
                  $item_first_name_select,
-                 $item_last_name_select
+         $item_last_name_select,
+         $item_claim_status_select,
+         $item_manuals_bought_id_select
           FROM manual_payment_batch_items i
           LEFT JOIN users u ON i.student_id = u.id
           LEFT JOIN manual_payment_batches b ON i.batch_id = b.id
@@ -88,6 +94,8 @@ if ($batch_id <= 0) {
   if ($res) {
     while ($row = mysqli_fetch_assoc($res)) {
       $matched = (int)($row['student_id'] ?? 0) > 0;
+      $claim_status = (string)($row['claim_status'] ?? '');
+      $has_purchase = (int)($row['manuals_bought_id'] ?? 0) > 0;
       $stored_name = trim((string)($row['student_first_name'] ?? '') . ' ' . (string)($row['student_last_name'] ?? ''));
       if (!$matched) {
         $unmatched_count++;
@@ -102,11 +110,15 @@ if ($batch_id <= 0) {
         'ref_id' => $row['ref_id'],
         'status' => $row['status'],
         'matched' => $matched,
+        'claim_status' => $claim_status,
+        'has_purchase' => $has_purchase,
         'note' => $matched
           ? 'Matched to a student record in users.'
-          : ($stored_name !== ''
-            ? 'No users record matched this matric number. Stored with the uploaded student name and matric number only.'
-            : 'No users record matched this matric number. Stored with student_id 0 and matric only.')
+          : ($claim_status === 'awaiting_claim_confirmation'
+            ? 'No users record matched this matric number yet. A pending claim and placeholder purchase were recorded and can be attached once the student account becomes available.'
+            : ($stored_name !== ''
+              ? 'No users record matched this matric number. Stored with the uploaded student name and matric number only.'
+              : 'No users record matched this matric number. Stored with student_id 0 and matric only.'))
       ];
     }
     $status = 'success';

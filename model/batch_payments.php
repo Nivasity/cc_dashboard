@@ -64,6 +64,97 @@ function normalize_phone_number($value) {
   return strpos($value, '+') === 0 ? '+' . $digits : $digits;
 }
 
+function manual_batch_placeholder_status() {
+  return 'pending_bulk_claim';
+}
+
+function manual_batch_claim_status_confirmed() {
+  return 'confirmed';
+}
+
+function manual_batch_claim_status_awaiting_claim_confirmation() {
+  return 'awaiting_claim_confirmation';
+}
+
+function manual_batch_normalize_lookup_text($value) {
+  $value = trim((string)$value);
+  if ($value === '') {
+    return '';
+  }
+
+  return strtolower(preg_replace('/\s+/', ' ', $value));
+}
+
+function manual_batch_pending_lookup_matric($matric_no) {
+  $normalized = manual_batch_normalize_lookup_text($matric_no);
+  if ($normalized === '') {
+    return '';
+  }
+
+  return $normalized . '_pend_';
+}
+
+function manual_batch_names_overlap($normalized_first_name, $normalized_last_name, $matched_first_name, $matched_last_name) {
+  return in_array($normalized_first_name, [$matched_first_name, $matched_last_name], true)
+    || in_array($normalized_last_name, [$matched_first_name, $matched_last_name], true);
+}
+
+function manual_batch_placeholder_email($school_id, $dept_id, $normalized_matric_no, $normalized_first_name, $normalized_last_name) {
+  $hash = sha1((int)$school_id . '|' . (int)$dept_id . '|' . $normalized_matric_no . '|' . $normalized_first_name . '|' . $normalized_last_name);
+  return 'external.manual.pending.' . substr($hash, 0, 20) . '@pending.nivasity.local';
+}
+
+function manual_batch_find_or_create_placeholder_user(mysqli $conn, array $payload) {
+  $school_id = (int)($payload['school_id'] ?? 0);
+  $dept_id = (int)($payload['dept_id'] ?? 0);
+  $first_name = normalize_person_name($payload['first_name'] ?? '');
+  $last_name = normalize_person_name($payload['last_name'] ?? '');
+  $normalized_first_name = manual_batch_normalize_lookup_text($payload['normalized_first_name'] ?? $first_name);
+  $normalized_last_name = manual_batch_normalize_lookup_text($payload['normalized_last_name'] ?? $last_name);
+  $normalized_matric_no = normalize_matric($payload['normalized_matric_no'] ?? $payload['student_matric'] ?? '');
+  $pending_lookup_matric_no = normalize_matric($payload['pending_lookup_matric_no'] ?? '');
+
+  if ($school_id <= 0 || $dept_id <= 0 || $normalized_first_name === '' || $normalized_last_name === '' || $pending_lookup_matric_no === '') {
+    throw new Exception('Incomplete pending student payload for this manual payment.');
+  }
+
+  $status_safe = mysqli_real_escape_string($conn, manual_batch_placeholder_status());
+  $first_safe = mysqli_real_escape_string($conn, $normalized_first_name);
+  $last_safe = mysqli_real_escape_string($conn, $normalized_last_name);
+  $matric_safe = mysqli_real_escape_string($conn, $pending_lookup_matric_no);
+
+  $existing_sql = "SELECT id
+                   FROM users
+                   WHERE school = $school_id
+                     AND dept = $dept_id
+                     AND status = '$status_safe'
+                     AND LOWER(TRIM(first_name)) = '$first_safe'
+                     AND LOWER(TRIM(last_name)) = '$last_safe'
+                     AND LOWER(TRIM(matric_no)) = '" . mysqli_real_escape_string($conn, manual_batch_normalize_lookup_text($pending_lookup_matric_no)) . "'
+                   ORDER BY id DESC
+                   LIMIT 1";
+  $existing_res = mysqli_query($conn, $existing_sql);
+  if ($existing_res && mysqli_num_rows($existing_res) > 0) {
+    $existing_row = mysqli_fetch_assoc($existing_res) ?: [];
+    return (int)($existing_row['id'] ?? 0);
+  }
+
+  try {
+    $password_hash = md5(bin2hex(random_bytes(16)));
+  } catch (Throwable $e) {
+    $password_hash = md5(uniqid('manual_ext_pending_', true));
+  }
+
+  $email = manual_batch_placeholder_email($school_id, $dept_id, manual_batch_normalize_lookup_text($normalized_matric_no), $normalized_first_name, $normalized_last_name);
+  $insert_sql = "INSERT INTO users (first_name, last_name, email, phone, password, role, school, dept, matric_no, status)
+                 VALUES ('" . mysqli_real_escape_string($conn, $first_name) . "', '" . mysqli_real_escape_string($conn, $last_name) . "', '" . mysqli_real_escape_string($conn, $email) . "', '00000000000', '" . mysqli_real_escape_string($conn, $password_hash) . "', 'student', $school_id, $dept_id, '" . mysqli_real_escape_string($conn, $pending_lookup_matric_no) . "', '$status_safe')";
+  if (!mysqli_query($conn, $insert_sql)) {
+    throw new Exception('Failed to create a pending placeholder student for this manual payment.');
+  }
+
+  return (int)mysqli_insert_id($conn);
+}
+
 function normalize_csv_header_value($value) {
   return preg_replace('/[^A-Z0-9]/', '', strtoupper(trim((string)$value)));
 }
@@ -309,7 +400,8 @@ function map_batch_students_from_rows($conn, $school_id, $dept_id, $student_rows
   }
 
   $matched_lookup = [];
-  $sql = "SELECT id, matric_no FROM users WHERE school = $school_id AND dept = $dept_id AND UPPER(TRIM(matric_no)) IN (" . implode(',', $escaped) . ") ORDER BY id ASC";
+  $placeholder_status_safe = mysqli_real_escape_string($conn, manual_batch_placeholder_status());
+  $sql = "SELECT id, matric_no FROM users WHERE school = $school_id AND dept = $dept_id AND UPPER(TRIM(matric_no)) IN (" . implode(',', $escaped) . ") AND COALESCE(status, '') <> '$placeholder_status_safe' ORDER BY id ASC";
   $res = mysqli_query($conn, $sql);
   if ($res) {
     while ($row = mysqli_fetch_assoc($res)) {
@@ -508,7 +600,7 @@ function manual_batch_schema_ready(mysqli $conn) {
 
   $required_columns = [
     'manual_payment_batches' => ['paid_by_name', 'paid_by_phone', 'payment_reason', 'receipt_path', 'receipt_name', 'receipt_mime_type', 'receipt_size'],
-    'manual_payment_batch_items' => ['student_first_name', 'student_last_name'],
+    'manual_payment_batch_items' => ['student_first_name', 'student_last_name', 'placeholder_user_id', 'matched_user_id', 'manuals_bought_id', 'normalized_first_name', 'normalized_last_name', 'pending_lookup_matric_no', 'claim_status', 'claimed_at', 'confirmed_at'],
   ];
 
   foreach ($required_columns as $table => $columns) {
@@ -765,7 +857,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $batch_stmt->close();
                 $batch_stmt = null;
 
-                $item_stmt = $conn->prepare('INSERT INTO manual_payment_batch_items (batch_id, manual_id, student_id, student_matric, student_first_name, student_last_name, price, ref_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, "paid")');
+                $item_stmt = $conn->prepare('INSERT INTO manual_payment_batch_items (batch_id, manual_id, student_id, student_matric, student_first_name, student_last_name, placeholder_user_id, matched_user_id, manuals_bought_id, normalized_first_name, normalized_last_name, pending_lookup_matric_no, claim_status, price, ref_id, status) VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, 0), NULLIF(?, 0), NULLIF(?, 0), ?, ?, ?, ?, ?, ?, "paid")');
                 if (!$item_stmt) {
                   throw new Exception('Failed to prepare manual batch items.');
                 }
@@ -780,23 +872,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                   $student_matric = (string)($entry['student_matric'] ?? '');
                   $student_first_name = (string)($entry['student_first_name'] ?? '');
                   $student_last_name = (string)($entry['student_last_name'] ?? '');
+                  $normalized_first_name = manual_batch_normalize_lookup_text($student_first_name);
+                  $normalized_last_name = manual_batch_normalize_lookup_text($student_last_name);
+                  $pending_lookup_matric_no = manual_batch_pending_lookup_matric($student_matric);
                   $item_ref = make_batch_item_ref($student_id, $student_matric, 'manual_ext_');
 
-                  $item_stmt->bind_param('iiisssis', $batch_id, $manual_id, $student_id, $student_matric, $student_first_name, $student_last_name, $price_per_student, $item_ref);
+                  $placeholder_user_id = 0;
+                  $matched_user_id = $student_id > 0 ? $student_id : 0;
+                  $claim_status = $student_id > 0
+                    ? manual_batch_claim_status_confirmed()
+                    : manual_batch_claim_status_awaiting_claim_confirmation();
+                  $purchase_buyer_id = $student_id;
+
+                  if ($purchase_buyer_id <= 0) {
+                    $placeholder_user_id = manual_batch_find_or_create_placeholder_user($conn, [
+                      'school_id' => $school_id,
+                      'dept_id' => $dept_id,
+                      'first_name' => $student_first_name,
+                      'last_name' => $student_last_name,
+                      'normalized_first_name' => $normalized_first_name,
+                      'normalized_last_name' => $normalized_last_name,
+                      'normalized_matric_no' => $student_matric,
+                      'pending_lookup_matric_no' => $pending_lookup_matric_no,
+                    ]);
+                    $purchase_buyer_id = $placeholder_user_id;
+                  }
+
+                  if ($purchase_buyer_id <= 0) {
+                    throw new Exception('Failed to resolve a buyer profile for one manual batch row.');
+                  }
+
+                  $manual_stmt->bind_param('iiiiis', $manual_id, $price_per_student, $seller, $purchase_buyer_id, $school_id, $item_ref);
+                  if (!$manual_stmt->execute()) {
+                    throw new Exception('Failed to record one manual material purchase.');
+                  }
+
+                  $manuals_bought_id = (int)$manual_stmt->insert_id;
+                  $inserted_manual_refs[] = $item_ref;
+
+                  $item_stmt->bind_param('iiisssiiissssis', $batch_id, $manual_id, $student_id, $student_matric, $student_first_name, $student_last_name, $placeholder_user_id, $matched_user_id, $manuals_bought_id, $normalized_first_name, $normalized_last_name, $pending_lookup_matric_no, $claim_status, $price_per_student, $item_ref);
                   if (!$item_stmt->execute()) {
                     throw new Exception('Failed to save a manual batch item.');
                   }
-
-                  if ($student_id <= 0) {
-                    continue;
-                  }
-
-                  $manual_stmt->bind_param('iiiiis', $manual_id, $price_per_student, $seller, $student_id, $school_id, $item_ref);
-                  if (!$manual_stmt->execute()) {
-                    throw new Exception('Failed to grant material access for a matched student.');
-                  }
-
-                  $inserted_manual_refs[] = $item_ref;
                 }
 
                 $item_stmt->close();
@@ -826,7 +943,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $status = 'success';
                 $message = 'Manual material purchases recorded successfully.';
                 if ((int)$student_map['unmatched_count'] > 0) {
-                  $message .= ' ' . (int)$student_map['unmatched_count'] . ' student row(s) were stored without a linked user account.';
+                  $message .= ' ' . (int)$student_map['unmatched_count'] . ' student row(s) were recorded as pending claims and can be claimed when the matching student account becomes available.';
                 }
                 $data = [
                   'batch_id' => $batch_id,
