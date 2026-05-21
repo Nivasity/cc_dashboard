@@ -27,6 +27,15 @@ function granted_export_is_external_payment_ref($refId) {
   return stripos(trim((string)$refId), 'manual_ext_') === 0;
 }
 
+function granted_export_format_export_matric($matricNo) {
+  $matricNo = trim((string)$matricNo);
+  if ($matricNo === '') {
+    return '';
+  }
+
+  return preg_replace('/_PEND_$/i', '', $matricNo) ?? $matricNo;
+}
+
 function parse_bought_ids_json($raw_json) {
   if ($raw_json === null) {
     return [];
@@ -263,7 +272,7 @@ if ($action === 'students') {
       'student_id' => (int)$row['student_id'],
       'full_name' => trim((string)$row['first_name'] . ' ' . (string)$row['last_name']),
       'email' => (string)$row['email'],
-      'matric_no' => (string)$row['matric_no'],
+      'matric_no' => granted_export_format_export_matric($row['matric_no'] ?? ''),
       'dept_name' => (string)$row['dept_name'],
       'faculty_name' => (string)$row['faculty_name'],
       'price' => (int)$row['price'],

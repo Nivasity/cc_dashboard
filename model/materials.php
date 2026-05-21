@@ -379,12 +379,19 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
     if ($admin_faculty != 0) { $faculty = $admin_faculty; }
   }
 
-  $material_sql = "SELECT m.id, m.title, m.course_code, m.price, m.level, m.user_id, m.admin_id, m.school_id, m.faculty, m.dept, m.depts, m.coverage, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, m.status AS status, m.status AS db_status, u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
-  if ($school > 0) {
-    $material_sql .= " AND m.school_id = $school";
-  }
-  if ($faculty != 0) {
-    $material_sql .= buildMaterialFacultyFilterClause($faculty);
+  $material_sql = "SELECT m.id, m.code, m.title, m.course_code, m.price, m.level, m.user_id, m.admin_id, m.school_id, m.faculty, m.host_faculty, m.dept, m.depts, m.coverage, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, COUNT(DISTINCT b.ref_id) AS purchase_count, m.status AS status, m.status AS db_status, u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name, d.name AS dept_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
+  if ($admin_role == 5) {
+    $material_sql .= " AND m.school_id = $admin_school";
+    if ($admin_faculty != 0) {
+      $material_sql .= buildMaterialFacultyFilterClause($admin_faculty);
+    }
+  } else {
+    if ($school > 0) {
+      $material_sql .= " AND m.school_id = $school";
+    }
+    if ($faculty != 0) {
+      $material_sql .= buildMaterialFacultyFilterClause($faculty);
+    }
   }
   if ($dept > 0) {
     $material_sql .= buildMaterialDeptFilterClause($dept);
