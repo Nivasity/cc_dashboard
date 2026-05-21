@@ -33,10 +33,15 @@ function has_column($conn, $table, $column) {
   return $result && mysqli_num_rows($result) > 0;
 }
 
+function material_grant_is_external_payment_ref($refId) {
+  return stripos(trim((string)$refId), 'manual_ext_') === 0;
+}
+
 function normalize_student_row($row) {
   $first = trim((string)($row['first_name'] ?? ''));
   $last = trim((string)($row['last_name'] ?? ''));
   $full_name = trim($first . ' ' . $last);
+  $is_external_payment = material_grant_is_external_payment_ref($row['ref_id'] ?? '');
 
   return [
     'bought_id' => (int)($row['bought_id'] ?? 0),
@@ -52,7 +57,11 @@ function normalize_student_row($row) {
     'grant_status' => (int)($row['grant_status'] ?? 0),
     'is_granted' => ((int)($row['grant_status'] ?? 0)) === 1,
     'grant_status_text' => ((int)($row['grant_status'] ?? 0)) === 1 ? 'Granted' : 'Pending',
-    'export_id' => isset($row['export_id']) && $row['export_id'] !== null ? (int)$row['export_id'] : null
+    'export_id' => isset($row['export_id']) && $row['export_id'] !== null ? (int)$row['export_id'] : null,
+    'is_external_payment' => $is_external_payment,
+    'payment_source' => $is_external_payment ? 'external' : 'nivasity',
+    'payment_source_label' => $is_external_payment ? 'Paid outside Nivasity' : 'Paid on Nivasity',
+    'payment_source_note' => $is_external_payment ? 'This material was paid outside Nivasity.' : ''
   ];
 }
 
@@ -401,6 +410,7 @@ if ($action === 'lookup') {
         mb.created_at,
         mb.grant_status,
         mb.export_id,
+      mb.ref_id,
         COALESCE(u.first_name, '') AS first_name,
         COALESCE(u.last_name, '') AS last_name,
         COALESCE(u.email, '') AS email,
@@ -496,6 +506,7 @@ if ($action === 'lookup') {
         mb.created_at,
         mb.grant_status,
         mb.export_id,
+      mb.ref_id,
         COALESCE(u.first_name, '') AS first_name,
         COALESCE(u.last_name, '') AS last_name,
         COALESCE(u.email, '') AS email,

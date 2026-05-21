@@ -462,6 +462,13 @@ CREATE TABLE `manual_payment_batches` (
   `paystack_subaccount_code` varchar(100) DEFAULT NULL,
   `flw_tx_id` varchar(100) DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'pending',
+  `paid_by_name` varchar(120) DEFAULT NULL,
+  `paid_by_phone` varchar(30) DEFAULT NULL,
+  `payment_reason` text DEFAULT NULL,
+  `receipt_path` varchar(255) DEFAULT NULL,
+  `receipt_name` varchar(255) DEFAULT NULL,
+  `receipt_mime_type` varchar(100) DEFAULT NULL,
+  `receipt_size` int(11) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
@@ -477,6 +484,8 @@ CREATE TABLE `manual_payment_batch_items` (
   `manual_id` int(11) NOT NULL,
   `student_id` int(11) NOT NULL,
   `student_matric` varchar(50) DEFAULT NULL,
+  `student_first_name` varchar(100) DEFAULT NULL,
+  `student_last_name` varchar(100) DEFAULT NULL,
   `price` int(11) NOT NULL,
   `ref_id` varchar(50) NOT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'pending',

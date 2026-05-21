@@ -3,6 +3,16 @@ session_start();
 include('model/config.php');
 include('model/page_config.php');
 
+function cc_fetch_result_rows($result) {
+  $rows = [];
+  if ($result instanceof mysqli_result) {
+    while ($row = mysqli_fetch_assoc($result)) {
+      $rows[] = $row;
+    }
+  }
+  return $rows;
+}
+
 $admin_role = $_SESSION['nivas_adminRole'];
 $admin_school = $admin_['school'];
 $admin_faculty = $admin_['faculty'] ?? 0;
@@ -21,6 +31,10 @@ if ($admin_role == 5) {
   $faculties_query = mysqli_query($conn, "SELECT id, name FROM faculties WHERE status = 'active' ORDER BY name");
   $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'active' ORDER BY name");
 }
+
+$school_options = cc_fetch_result_rows($schools_query);
+$faculty_options = cc_fetch_result_rows($faculties_query);
+$dept_options = cc_fetch_result_rows($depts_query);
 ?>
 <!DOCTYPE html>
 <html lang="en" class="light-style layout-menu-fixed" dir="ltr" data-theme="theme-default" data-assets-path="assets/" data-template="vertical-menu-template-free">
@@ -64,7 +78,10 @@ if ($admin_role == 5) {
             <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 py-3 mb-4">
               <h4 class="fw-bold mb-0"><span class="text-muted fw-light">Payments /</span> Batch Payments</h4>
               <?php if (!in_array((int)$admin_role, [3, 5], true)) { ?>
-              <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createBatchModal">Create Batch</button>
+              <div class="d-flex flex-wrap gap-2">
+                <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createBatchModal">Create Batch</button>
+                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#manualBatchModal">Record Manual Purchase</button>
+              </div>
               <?php } ?>
             </div>
 
@@ -98,7 +115,7 @@ if ($admin_role == 5) {
                     <thead class="table-secondary">
                       <tr>
                         <th>tx_ref</th>
-                        <th>Gateway</th>
+                        <th>Source</th>
                         <th>Material</th>
                         <th>Dept</th>
                         <th>School</th>
@@ -132,6 +149,50 @@ if ($admin_role == 5) {
         </div>
         <div class="modal-body">
           <div id="batchItemsNotice" class="alert alert-warning d-none" role="alert"></div>
+          <div id="batchItemsSummary" class="border rounded p-3 mb-3 d-none">
+            <div class="row g-3">
+              <div class="col-md-4">
+                <small class="text-muted d-block">Reference</small>
+                <div id="bis_txref" class="fw-semibold">-</div>
+              </div>
+              <div class="col-md-4">
+                <small class="text-muted d-block">Source</small>
+                <div id="bis_source" class="fw-semibold">-</div>
+              </div>
+              <div class="col-md-4">
+                <small class="text-muted d-block">Status</small>
+                <div id="bis_status" class="fw-semibold">-</div>
+              </div>
+              <div class="col-md-6">
+                <small class="text-muted d-block">Material</small>
+                <div id="bis_manual" class="fw-semibold">-</div>
+              </div>
+              <div class="col-md-3">
+                <small class="text-muted d-block">Students</small>
+                <div id="bis_students" class="fw-semibold">-</div>
+              </div>
+              <div class="col-md-3">
+                <small class="text-muted d-block">Total</small>
+                <div id="bis_total" class="fw-semibold">-</div>
+              </div>
+              <div class="col-md-6">
+                <small class="text-muted d-block">Paid By</small>
+                <div id="bis_paid_by" class="fw-semibold">-</div>
+              </div>
+              <div class="col-md-6">
+                <small class="text-muted d-block">Created</small>
+                <div id="bis_created" class="fw-semibold">-</div>
+              </div>
+              <div class="col-12">
+                <small class="text-muted d-block">Reason</small>
+                <div id="bis_reason" class="fw-semibold">-</div>
+              </div>
+              <div class="col-12 d-none" id="bis_receipt_wrap">
+                <small class="text-muted d-block">Receipt</small>
+                <a href="#" id="bis_receipt_link" target="_blank" rel="noopener">View uploaded receipt</a>
+              </div>
+            </div>
+          </div>
           <div class="table-responsive">
             <table class="table" id="batchItemsTable">
               <thead>
@@ -166,7 +227,7 @@ if ($admin_role == 5) {
               <label for="bp_school" class="form-label">School</label>
               <select id="bp_school" class="form-select" <?php if($admin_role == 5) echo 'disabled'; ?>>
                 <?php if($admin_role != 5) { ?><option value="0">Select School</option><?php } ?>
-                <?php while($school = mysqli_fetch_array($schools_query)) { ?>
+                <?php foreach($school_options as $school) { ?>
                   <option value="<?php echo $school['id']; ?>" <?php if($admin_role == 5) echo 'selected'; ?>><?php echo $school['name']; ?></option>
                 <?php } ?>
               </select>
@@ -175,7 +236,7 @@ if ($admin_role == 5) {
               <label for="bp_faculty" class="form-label">Faculty</label>
               <select id="bp_faculty" class="form-select">
                 <?php if(!($admin_role == 5 && $admin_faculty != 0)) { ?><option value="0">All Faculties</option><?php } ?>
-                <?php while($fac = mysqli_fetch_array($faculties_query)) { ?>
+                <?php foreach($faculty_options as $fac) { ?>
                   <option value="<?php echo $fac['id']; ?>" <?php if($admin_role == 5 && $admin_faculty == $fac['id']) echo 'selected'; ?>><?php echo $fac['name']; ?></option>
                 <?php } ?>
               </select>
@@ -184,7 +245,7 @@ if ($admin_role == 5) {
               <label for="bp_dept" class="form-label">Department</label>
               <select id="bp_dept" class="form-select">
                 <option value="0">Select Department</option>
-                <?php while($dept = mysqli_fetch_array($depts_query)) { ?>
+                <?php foreach($dept_options as $dept) { ?>
                   <option value="<?php echo $dept['id']; ?>"><?php echo $dept['name']; ?></option>
                 <?php } ?>
               </select>
@@ -235,6 +296,103 @@ if ($admin_role == 5) {
             <div class="col-12 d-flex justify-content-end gap-2">
               <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
               <button type="submit" class="btn btn-primary" id="bp_submit" disabled>Create Batch</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal fade" id="manualBatchModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Record Manual Material Purchase</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <form id="manualBatchForm" class="row g-3" enctype="multipart/form-data">
+            <div class="col-md-3">
+              <label for="mb_school" class="form-label">School</label>
+              <select id="mb_school" class="form-select" <?php if($admin_role == 5) echo 'disabled'; ?>>
+                <?php if($admin_role != 5) { ?><option value="0">Select School</option><?php } ?>
+                <?php foreach($school_options as $school) { ?>
+                  <option value="<?php echo $school['id']; ?>" <?php if($admin_role == 5) echo 'selected'; ?>><?php echo $school['name']; ?></option>
+                <?php } ?>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label for="mb_faculty" class="form-label">Faculty</label>
+              <select id="mb_faculty" class="form-select">
+                <?php if(!($admin_role == 5 && $admin_faculty != 0)) { ?><option value="0">All Faculties</option><?php } ?>
+                <?php foreach($faculty_options as $fac) { ?>
+                  <option value="<?php echo $fac['id']; ?>" <?php if($admin_role == 5 && $admin_faculty == $fac['id']) echo 'selected'; ?>><?php echo $fac['name']; ?></option>
+                <?php } ?>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label for="mb_dept" class="form-label">Department</label>
+              <select id="mb_dept" class="form-select">
+                <option value="0">Select Department</option>
+                <?php foreach($dept_options as $dept) { ?>
+                  <option value="<?php echo $dept['id']; ?>"><?php echo $dept['name']; ?></option>
+                <?php } ?>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label for="mb_manual" class="form-label">Course Material</label>
+              <select id="mb_manual" class="form-select">
+                <option value="0">Select Material</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <div id="mb_alert" class="alert d-none mb-0" role="alert"></div>
+            </div>
+            <div class="col-md-6">
+              <label for="mb_students_file" class="form-label">Students CSV</label>
+              <input type="file" id="mb_students_file" name="students_csv" class="form-control" accept=".csv,text/csv" />
+              <div class="form-text">Upload a CSV with <code>first_name</code>, <code>last_name</code>, and <code>matric_no</code> columns. Duplicate matric numbers are ignored.</div>
+            </div>
+            <div class="col-md-6">
+              <label for="mb_receipt_file" class="form-label">Payment Receipt</label>
+              <input type="file" id="mb_receipt_file" name="payment_receipt" class="form-control" accept="image/*,.pdf,application/pdf" />
+              <div class="form-text">Upload the external receipt as an image or PDF. Manual records do not create a Nivasity transaction and are not remitted into <code>school_payable_ledger</code>.</div>
+            </div>
+            <div class="col-md-6">
+              <label for="mb_paid_by_name" class="form-label">Paid By Name</label>
+              <input type="text" id="mb_paid_by_name" class="form-control" placeholder="Enter the payer's full name" />
+            </div>
+            <div class="col-md-6">
+              <label for="mb_paid_by_phone" class="form-label">Paid By Phone Number</label>
+              <input type="tel" id="mb_paid_by_phone" class="form-control" placeholder="e.g. 08012345678" />
+            </div>
+            <div class="col-12">
+              <label for="mb_payment_reason" class="form-label">Reason</label>
+              <textarea id="mb_payment_reason" class="form-control" rows="3" placeholder="Why was this payment recorded manually?"></textarea>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Price/Student</label>
+              <input type="text" id="mb_price" class="form-control" readonly value="0" />
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Students in CSV</label>
+              <input type="text" id="mb_students" class="form-control" readonly value="0" />
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Matched</label>
+              <input type="text" id="mb_matched" class="form-control" readonly value="0" />
+            </div>
+            <div class="col-md-2">
+              <label class="form-label">Unmatched</label>
+              <input type="text" id="mb_unmatched" class="form-control" readonly value="0" />
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">Recorded Subtotal</label>
+              <input type="text" id="mb_total" class="form-control" readonly value="0" />
+            </div>
+            <div class="col-12 d-flex justify-content-end gap-2">
+              <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+              <button type="submit" class="btn btn-primary" id="mb_submit" disabled>Record Manual Purchase</button>
             </div>
           </form>
         </div>

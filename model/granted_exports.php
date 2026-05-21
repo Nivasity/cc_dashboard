@@ -23,6 +23,10 @@ function has_column($conn, $table, $column) {
   return $result && mysqli_num_rows($result) > 0;
 }
 
+function granted_export_is_external_payment_ref($refId) {
+  return stripos(trim((string)$refId), 'manual_ext_') === 0;
+}
+
 function parse_bought_ids_json($raw_json) {
   if ($raw_json === null) {
     return [];
@@ -231,6 +235,7 @@ if ($action === 'students') {
       mb.price,
       mb.created_at,
       mb.grant_status,
+      mb.ref_id,
       u.id AS student_id,
       u.first_name,
       u.last_name,
@@ -252,6 +257,7 @@ if ($action === 'students') {
 
   $students = [];
   while ($row = mysqli_fetch_assoc($student_result)) {
+    $is_external_payment = granted_export_is_external_payment_ref($row['ref_id'] ?? '');
     $students[] = [
       'bought_id' => (int)$row['bought_id'],
       'student_id' => (int)$row['student_id'],
@@ -262,7 +268,11 @@ if ($action === 'students') {
       'faculty_name' => (string)$row['faculty_name'],
       'price' => (int)$row['price'],
       'created_at' => (string)$row['created_at'],
-      'is_granted' => ((int)$row['grant_status']) === 1
+      'is_granted' => ((int)$row['grant_status']) === 1,
+      'is_external_payment' => $is_external_payment,
+      'payment_source' => $is_external_payment ? 'external' : 'nivasity',
+      'payment_source_label' => $is_external_payment ? 'Paid outside Nivasity' : 'Paid on Nivasity',
+      'payment_source_note' => $is_external_payment ? 'This material was paid outside Nivasity.' : ''
     ];
   }
 

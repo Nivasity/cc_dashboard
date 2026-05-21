@@ -408,9 +408,12 @@ $nav_pic = file_exists("assets/images/users/$admin_image") ? "assets/images/user
         const rowsHtml = records.map(function(row, index) {
           const badgeClass = row.is_granted ? 'bg-success' : 'bg-warning';
           const statusText = row.is_granted ? 'Granted' : 'Pending';
+          const nameHtml = row.is_external_payment
+            ? '<div class="fw-semibold">' + escapeHtml(row.full_name) + '</div><small class="text-warning d-block">Paid outside Nivasity</small>'
+            : escapeHtml(row.full_name);
           return '<tr>' +
             '<td>' + (index + 1) + '</td>' +
-            '<td>' + escapeHtml(row.full_name) + '</td>' +
+            '<td>' + nameHtml + '</td>' +
             '<td>' + escapeHtml(row.email) + '</td>' +
             '<td>' + escapeHtml(row.matric_no) + '</td>' +
             '<td>' + fmtAmount(row.price || 0) + '</td>' +

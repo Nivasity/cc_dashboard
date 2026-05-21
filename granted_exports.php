@@ -427,7 +427,7 @@ $depts_query = mysqli_query($conn, "SELECT id, name FROM depts WHERE status = 'a
       const students = Array.isArray(data.students) ? data.students : [];
       studentsTableBody.innerHTML = students.map((student) => `
         <tr>
-          <td>${escapeHtml(student.full_name)}</td>
+          <td>${student.is_external_payment ? `<div class="fw-semibold">${escapeHtml(student.full_name)}</div><small class="text-warning d-block">Paid outside Nivasity</small>` : escapeHtml(student.full_name)}</td>
           <td>${escapeHtml(student.email)}</td>
           <td>${escapeHtml(student.matric_no || 'N/A')}</td>
           <td>${escapeHtml(student.faculty_name || 'N/A')}</td>
