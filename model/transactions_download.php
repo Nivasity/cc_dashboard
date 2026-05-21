@@ -4,6 +4,15 @@ session_start();
 require_once(__DIR__ . '/config.php');
 require_once(__DIR__ . '/transactions_helpers.php');
 
+function format_transactions_export_matric($matric_no) {
+  $matric_no = trim((string)$matric_no);
+  if ($matric_no === '') {
+    return '';
+  }
+
+  return preg_replace('/_PEND_$/i', '', $matric_no) ?? $matric_no;
+}
+
 $admin_role = $_SESSION['nivas_adminRole'] ?? null;
 $admin_id = $_SESSION['nivas_adminId'] ?? null;
 $admin_school = $admin_faculty = 0;
@@ -64,37 +73,66 @@ if ($material_id > 0 && $admin_role == 5) {
   $dept = 0;
 }
 
-// Always compute the sum of material prices per transaction, but keep the
-// original transaction amount so we can choose which one to export based
-// on context (overall transactions list vs. single-material export).
-$tran_sql = "SELECT t.ref_id, u.first_name, u.last_name, u.matric_no, u.adm_year, " .
-  "COALESCE(s.name, '') AS school_name, COALESCE(uf.name, '') AS faculty_name, COALESCE(ud.name, '') AS dept_name, " .
-  "GROUP_CONCAT(CONCAT(m.title, ' - ', m.course_code, ' (', b.price, ')') SEPARATOR ' | ') AS materials, " .
-  "SUM(b.price) AS material_amount, t.amount AS transaction_amount, t.status, t.created_at " .
-  "FROM transactions t " .
-  "JOIN users u ON t.user_id = u.id " .
-  "JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
-  "JOIN manuals m ON b.manual_id = m.id " .
-  "LEFT JOIN schools s ON u.school = s.id " .
-  "LEFT JOIN depts ud ON u.dept = ud.id " .
-  "LEFT JOIN faculties uf ON ud.faculty_id = uf.id " .
-  "WHERE 1=1";
-if ($school > 0) {
-  $tran_sql .= " AND u.school = $school";
-}
-if ($faculty != 0) {
-  $tran_sql .= buildHostedMaterialFacultyFilter('m', $faculty);
-}
-if ($dept > 0) {
-  $tran_sql .= buildHostedMaterialDeptFilter('m', $dept);
-}
+// Single-material downloads need to include manual batch purchases that do
+// not have a matching transactions row. Keep the broader transactions export
+// on the existing transactions-based query.
 if ($material_id > 0) {
+  $tran_sql = "SELECT COALESCE(MAX(t.ref_id), b.ref_id) AS ref_id, u.first_name, u.last_name, u.matric_no, u.adm_year, " .
+    "COALESCE(s.name, '') AS school_name, COALESCE(uf.name, '') AS faculty_name, COALESCE(ud.name, '') AS dept_name, " .
+    "GROUP_CONCAT(CONCAT(m.title, ' - ', m.course_code, ' (', b.price, ')') ORDER BY m.title, m.course_code SEPARATOR ' | ') AS materials, " .
+    "SUM(b.price) AS material_amount, MAX(t.amount) AS transaction_amount, " .
+    "COALESCE(SUBSTRING_INDEX(GROUP_CONCAT(NULLIF(t.status, '') ORDER BY t.created_at DESC SEPARATOR ','), ',', 1), MAX(b.status)) AS status, " .
+    "COALESCE(MAX(t.created_at), MAX(b.created_at)) AS created_at " .
+    "FROM manuals_bought b " .
+    "JOIN users u ON b.buyer = u.id " .
+    "JOIN manuals m ON b.manual_id = m.id " .
+    "LEFT JOIN transactions t ON t.ref_id = b.ref_id AND t.user_id = b.buyer " .
+    "LEFT JOIN schools s ON u.school = s.id " .
+    "LEFT JOIN depts ud ON u.dept = ud.id " .
+    "LEFT JOIN faculties uf ON ud.faculty_id = uf.id " .
+    "WHERE b.status='successful'";
+  if ($school > 0) {
+    $tran_sql .= " AND u.school = $school";
+  }
+  if ($faculty != 0) {
+    $tran_sql .= buildHostedMaterialFacultyFilter('m', $faculty);
+  }
+  if ($dept > 0) {
+    $tran_sql .= buildHostedMaterialDeptFilter('m', $dept);
+  }
   $tran_sql .= " AND m.id = $material_id";
+  $tran_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date, 'b');
+  $tran_sql .= " GROUP BY b.ref_id, u.id, u.first_name, u.last_name, u.matric_no, u.adm_year, s.name, uf.name, ud.name ORDER BY created_at DESC";
+} else {
+  // Always compute the sum of material prices per transaction, but keep the
+  // original transaction amount so we can choose which one to export based
+  // on context (overall transactions list vs. single-material export).
+  $tran_sql = "SELECT t.ref_id, u.first_name, u.last_name, u.matric_no, u.adm_year, " .
+    "COALESCE(s.name, '') AS school_name, COALESCE(uf.name, '') AS faculty_name, COALESCE(ud.name, '') AS dept_name, " .
+    "GROUP_CONCAT(CONCAT(m.title, ' - ', m.course_code, ' (', b.price, ')') SEPARATOR ' | ') AS materials, " .
+    "SUM(b.price) AS material_amount, t.amount AS transaction_amount, t.status, t.created_at " .
+    "FROM transactions t " .
+    "JOIN users u ON t.user_id = u.id " .
+    "JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
+    "JOIN manuals m ON b.manual_id = m.id " .
+    "LEFT JOIN schools s ON u.school = s.id " .
+    "LEFT JOIN depts ud ON u.dept = ud.id " .
+    "LEFT JOIN faculties uf ON ud.faculty_id = uf.id " .
+    "WHERE 1=1";
+  if ($school > 0) {
+    $tran_sql .= " AND u.school = $school";
+  }
+  if ($faculty != 0) {
+    $tran_sql .= buildHostedMaterialFacultyFilter('m', $faculty);
+  }
+  if ($dept > 0) {
+    $tran_sql .= buildHostedMaterialDeptFilter('m', $dept);
+  }
+
+  $tran_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date);
+
+  $tran_sql .= " GROUP BY t.id, t.ref_id, t.amount, t.status, t.created_at, u.first_name, u.last_name, u.matric_no, u.adm_year, s.name, uf.name, ud.name ORDER BY t.created_at DESC";
 }
-
-$tran_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date);
-
-$tran_sql .= " GROUP BY t.id, t.ref_id, t.amount, t.status, t.created_at, u.first_name, u.last_name, u.matric_no, u.adm_year, s.name, uf.name, ud.name ORDER BY t.created_at DESC";
 $tran_query = mysqli_query($conn, $tran_sql);
 
 header('Content-Type: text/csv; charset=utf-8');
@@ -122,7 +160,7 @@ if ($tran_query) {
     fputcsv($out, [
       $row['ref_id'],
       trim($row['first_name'] . ' ' . $row['last_name']),
-      $row['matric_no'],
+      format_transactions_export_matric($row['matric_no'] ?? ''),
       $row['adm_year'],
       $row['school_name'],
       $row['faculty_name'],
