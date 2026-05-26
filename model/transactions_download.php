@@ -77,6 +77,7 @@ if ($material_id > 0 && $admin_role == 5) {
 // not have a matching transactions row. Keep the broader transactions export
 // on the existing transactions-based query.
 if ($material_id > 0) {
+  $purchase_context_expr = buildPurchaseTransactionContextExpression('t');
   $tran_sql = "SELECT COALESCE(MAX(t.ref_id), b.ref_id) AS ref_id, u.first_name, u.last_name, u.matric_no, u.adm_year, " .
     "COALESCE(s.name, '') AS school_name, COALESCE(uf.name, '') AS faculty_name, COALESCE(ud.name, '') AS dept_name, " .
     "GROUP_CONCAT(CONCAT(m.title, ' - ', m.course_code, ' (', b.price, ')') ORDER BY m.title, m.course_code SEPARATOR ' | ') AS materials, " .
@@ -86,7 +87,7 @@ if ($material_id > 0) {
     "FROM manuals_bought b " .
     "JOIN users u ON b.buyer = u.id " .
     "JOIN manuals m ON b.manual_id = m.id " .
-    "LEFT JOIN transactions t ON t.ref_id = b.ref_id AND t.user_id = b.buyer " .
+    "LEFT JOIN transactions t ON t.ref_id = b.ref_id AND t.user_id = b.buyer AND {$purchase_context_expr} IN ('purchase', 'bulk_material_purchase') " .
     "LEFT JOIN schools s ON u.school = s.id " .
     "LEFT JOIN depts ud ON u.dept = ud.id " .
     "LEFT JOIN faculties uf ON ud.faculty_id = uf.id " .
@@ -119,6 +120,7 @@ if ($material_id > 0) {
     "LEFT JOIN depts ud ON u.dept = ud.id " .
     "LEFT JOIN faculties uf ON ud.faculty_id = uf.id " .
     "WHERE 1=1";
+  $tran_sql .= buildPurchaseTransactionContextFilter('t');
   if ($school > 0) {
     $tran_sql .= " AND u.school = $school";
   }

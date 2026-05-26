@@ -191,7 +191,7 @@ if (!function_exists('batchFinalizeTransactionForItem')) {
 
     if ($existingRow) {
       $transactionId = (int)($existingRow['id'] ?? 0);
-      $updateStmt = $conn->prepare('UPDATE transactions SET user_id = ?, batch_id = ?, amount = ?, status = "successful", medium = ? WHERE id = ?');
+      $updateStmt = $conn->prepare('UPDATE transactions SET user_id = ?, batch_id = ?, amount = ?, status = "successful", medium = ?, transaction_context = "bulk_material_purchase" WHERE id = ?');
       if (!$updateStmt) {
         throw new RuntimeException('Failed to prepare batch transaction update: ' . mysqli_error($conn));
       }
@@ -209,7 +209,7 @@ if (!function_exists('batchFinalizeTransactionForItem')) {
       ];
     }
 
-    $insertStmt = $conn->prepare('INSERT INTO transactions (ref_id, user_id, batch_id, amount, status, medium) VALUES (?, ?, ?, ?, "successful", ?)');
+    $insertStmt = $conn->prepare('INSERT INTO transactions (ref_id, user_id, batch_id, amount, status, medium, transaction_context) VALUES (?, ?, ?, ?, "successful", ?, "bulk_material_purchase")');
     if (!$insertStmt) {
       throw new RuntimeException('Failed to prepare batch transaction insert: ' . mysqli_error($conn));
     }

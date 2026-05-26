@@ -39,6 +39,7 @@ $tran_sql = "SELECT t.ref_id, t.amount, t.status, t.created_at, u.first_name, u.
   "LEFT JOIN manuals m ON b.manual_id = m.id " .
   "LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
 
+$tran_sql .= buildPurchaseTransactionContextFilter('t');
 $tran_sql .= " AND (b.ref_id IS NOT NULL OR (t.status = 'refunded' AND t.medium = 'MANUAL'))";
 
 if ($admin_role == 5 && $admin_school > 0) {

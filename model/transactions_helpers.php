@@ -50,6 +50,61 @@ function buildDateFilter($conn, $date_range, $start_date, $end_date, $table_alia
 }
 
 /**
+ * Get the transaction contexts treated as material purchases.
+ *
+ * @return array<int, string>
+ */
+function getPurchaseTransactionContexts() {
+  return ['purchase', 'bulk_material_purchase'];
+}
+
+/**
+ * Build the normalized SQL expression used for transaction_context checks.
+ * Blank legacy values are treated as purchases to preserve older records.
+ *
+ * @param string $transaction_alias
+ * @return string
+ */
+function buildPurchaseTransactionContextExpression($transaction_alias = 't') {
+  $transaction_alias = preg_replace('/[^a-zA-Z0-9_]/', '', (string) $transaction_alias);
+  if ($transaction_alias === '') {
+    $transaction_alias = 't';
+  }
+
+  return "COALESCE(NULLIF({$transaction_alias}.transaction_context, ''), 'purchase')";
+}
+
+/**
+ * Build SQL clause to restrict transaction queries to purchase-related contexts.
+ * Blank legacy values are treated as purchases to preserve older records.
+ *
+ * @param string $transaction_alias
+ * @return string
+ */
+function buildPurchaseTransactionContextFilter($transaction_alias = 't') {
+  $contexts = array_map(static function ($context) {
+    return "'" . str_replace("'", "''", (string) $context) . "'";
+  }, getPurchaseTransactionContexts());
+
+  return ' AND ' . buildPurchaseTransactionContextExpression($transaction_alias) . ' IN (' . implode(', ', $contexts) . ')';
+}
+
+/**
+ * Determine whether a transaction context should be treated as a purchase.
+ *
+ * @param mixed $transaction_context
+ * @return bool
+ */
+function isPurchaseTransactionContext($transaction_context) {
+  $normalized = strtolower(trim((string) $transaction_context));
+  if ($normalized === '') {
+    $normalized = 'purchase';
+  }
+
+  return in_array($normalized, getPurchaseTransactionContexts(), true);
+}
+
+/**
  * Build SQL clause for filtering materials by host faculty, falling back to faculty.
  *
  * @param string $manual_alias

@@ -117,16 +117,8 @@ if ($admin_role == 5 && $admin_school > 0 && $admin_faculty != 0) {
 $total_users = mysqli_fetch_assoc(mysqli_query($conn, $users_sql))["count"];
 
 // Additional metrics (current year only)
-$transactions_base = "SELECT COALESCE(SUM(t.amount),0) AS total FROM transactions t";
-$transactions_where = " WHERE t.status = 'successful' AND YEAR(t.created_at) = YEAR(CURDATE())";
-if ($admin_role == 5 && $admin_school > 0) {
-  $transactions_where .= " AND EXISTS (SELECT 1 FROM manuals_bought b JOIN manuals m ON b.manual_id = m.id LEFT JOIN depts d ON m.dept = d.id WHERE b.ref_id = t.ref_id AND b.status='successful' AND b.school_id = $admin_school";
-  if ($admin_faculty != 0) {
-    $transactions_where .= " AND (CASE WHEN m.host_faculty IS NOT NULL AND m.host_faculty <> 0 THEN m.host_faculty ELSE IFNULL(m.faculty, 0) END = $admin_faculty)";
-  }
-  $transactions_where .= ")";
-}
-$transactions_sql = $transactions_base . $transactions_where;
+$transactions_base = dashboard_build_amount_base_sql('t.amount', $admin_role, $admin_school, $admin_faculty);
+$transactions_sql = $transactions_base . " AND YEAR(t.created_at) = YEAR(CURDATE())";
 $transactions_amount = mysqli_fetch_assoc(mysqli_query($conn, $transactions_sql))["total"];
 
 ?>

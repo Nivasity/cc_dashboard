@@ -4,6 +4,7 @@ require_once(__DIR__ . '/config.php');
 require_once(__DIR__ . '/functions.php');
 require_once(__DIR__ . '/mail.php');
 require_once(__DIR__ . '/notification_helpers.php');
+require_once(__DIR__ . '/transactions_helpers.php');
 
 header('Content-Type: application/json');
 
@@ -242,7 +243,7 @@ function handleQueue(mysqli $conn, array $adminScope, array $request): void
        COALESCE(NULLIF(t.medium, ''), 'UNKNOWN') AS medium,
        CASE
          WHEN COALESCE(NULLIF(t.payment_channel, ''), 'gateway') = 'wallet'
-           AND COALESCE(NULLIF(t.transaction_context, ''), 'purchase') = 'purchase'
+           AND COALESCE(NULLIF(t.transaction_context, ''), 'purchase') IN ('purchase', 'bulk_material_purchase')
            THEN 'wallet_credit'
          ELSE 'settlement_offset'
        END AS refund_mode,
@@ -308,7 +309,7 @@ function handleDetail(mysqli $conn, array $adminScope, array $request): void
        COALESCE(NULLIF(t.medium, ''), 'UNKNOWN') AS medium,
        CASE
          WHEN COALESCE(NULLIF(t.payment_channel, ''), 'gateway') = 'wallet'
-           AND COALESCE(NULLIF(t.transaction_context, ''), 'purchase') = 'purchase'
+           AND COALESCE(NULLIF(t.transaction_context, ''), 'purchase') IN ('purchase', 'bulk_material_purchase')
            THEN 'wallet_credit'
          ELSE 'settlement_offset'
        END AS refund_mode,
@@ -637,7 +638,7 @@ function handleLookupSource(mysqli $conn, array $adminScope, array $request): vo
        COALESCE(NULLIF(t.medium, ''), 'UNKNOWN') AS medium,
        CASE
          WHEN COALESCE(NULLIF(t.payment_channel, ''), 'gateway') = 'wallet'
-           AND COALESCE(NULLIF(t.transaction_context, ''), 'purchase') = 'purchase'
+           AND COALESCE(NULLIF(t.transaction_context, ''), 'purchase') IN ('purchase', 'bulk_material_purchase')
            THEN 'wallet_credit'
          ELSE 'settlement_offset'
        END AS refund_mode
@@ -666,7 +667,7 @@ function handleLookupSource(mysqli $conn, array $adminScope, array $request): vo
   }
 
   $transactionContext = strtolower(trim((string) ($transaction['transaction_context'] ?? 'purchase')));
-  if ($transactionContext !== 'purchase') {
+  if (!isPurchaseTransactionContext($transactionContext)) {
     respond(409, [
       'status' => 'failed',
       'message' => 'Only purchase transactions can be refunded from the admin dashboard.',
@@ -2455,7 +2456,7 @@ function consumeRefundIntoEligibleLedgers(
     ];
   }
 
-  if ($transactionContext !== 'purchase') {
+  if (!isPurchaseTransactionContext($transactionContext)) {
     return [
       'status' => 'ignored',
       'applied_total' => 0.0,
@@ -2619,7 +2620,7 @@ function bootstrapLegacySchoolPayableLedgerFromSourceTransaction(
   }
 
   $transactionContext = strtolower(trim((string) ($sourceTransaction['transaction_context'] ?? 'purchase')));
-  if ($transactionContext !== 'purchase') {
+  if (!isPurchaseTransactionContext($transactionContext)) {
     return [
       'status' => 'ignored',
       'payable_amount' => 0.0,
@@ -2735,7 +2736,7 @@ function reconcileLegacyDirectLedgerRefund(
   }
 
   $transactionContext = strtolower(trim((string) ($sourceTransaction['transaction_context'] ?? 'purchase')));
-  if ($transactionContext !== 'purchase') {
+  if (!isPurchaseTransactionContext($transactionContext)) {
     return [
       'status' => 'ignored',
     ];

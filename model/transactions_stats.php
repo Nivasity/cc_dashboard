@@ -37,52 +37,46 @@ if ($admin_role == 5) {
   }
 }
 
-// First query: Get total count and sum
-$stats_sql = "SELECT COUNT(DISTINCT t.id) as total_count, SUM(t.amount) as total_sum " .
-  "FROM transactions t " .
-  "JOIN users u ON t.user_id = u.id " .
-  "LEFT JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
-  "LEFT JOIN manuals m ON b.manual_id = m.id " .
-  "LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
+function buildTransactionStatsBaseSql($conn, $school, $faculty, $dept, $date_range, $start_date, $end_date)
+{
+  $school = (int) $school;
+  $faculty = (int) $faculty;
+  $dept = (int) $dept;
 
-$stats_sql .= " AND (b.ref_id IS NOT NULL OR (t.status = 'refunded' AND t.medium = 'MANUAL'))";
+  $base_sql = "SELECT t.id, t.amount " .
+    "FROM transactions t " .
+    "JOIN users u ON t.user_id = u.id " .
+    "LEFT JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
+    "LEFT JOIN manuals m ON b.manual_id = m.id " .
+    "LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
 
-if ($school > 0) {
-  $stats_sql .= " AND (b.school_id = $school OR (b.school_id IS NULL AND u.school = $school))";
+  $base_sql .= buildPurchaseTransactionContextFilter('t');
+  $base_sql .= " AND (b.ref_id IS NOT NULL OR (t.status = 'refunded' AND t.medium = 'MANUAL'))";
+
+  if ($school > 0) {
+    $base_sql .= " AND (b.school_id = $school OR (b.school_id IS NULL AND u.school = $school))";
+  }
+  if ($faculty != 0) {
+    $base_sql .= buildHostedMaterialFacultyFilter('m', $faculty);
+  }
+  if ($dept > 0) {
+    $base_sql .= buildHostedMaterialDeptFilter('m', $dept);
+  }
+
+  $base_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date);
+  $base_sql .= " GROUP BY t.id, t.amount";
+
+  return $base_sql;
 }
-if ($faculty != 0) {
-  $stats_sql .= buildHostedMaterialFacultyFilter('m', $faculty);
-}
-if ($dept > 0) {
-  $stats_sql .= buildHostedMaterialDeptFilter('m', $dept);
-}
 
-$stats_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date);
+$detail_sql = buildTransactionStatsBaseSql($conn, $school, $faculty, $dept, $date_range, $start_date, $end_date);
 
+// First query: Get total count and sum from de-duplicated transactions.
+$stats_sql = "SELECT COUNT(*) AS total_count, COALESCE(SUM(filtered.amount), 0) AS total_sum FROM ({$detail_sql}) filtered";
 $stats_query = mysqli_query($conn, $stats_sql);
 
-// Second query: Get the most common payment amount (mode)
-$mode_sql = "SELECT t.amount, COUNT(*) as frequency " .
-  "FROM transactions t " .
-  "JOIN users u ON t.user_id = u.id " .
-  "LEFT JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
-  "LEFT JOIN manuals m ON b.manual_id = m.id " .
-  "LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
-
-$mode_sql .= " AND (b.ref_id IS NOT NULL OR (t.status = 'refunded' AND t.medium = 'MANUAL'))";
-
-if ($school > 0) {
-  $mode_sql .= " AND (b.school_id = $school OR (b.school_id IS NULL AND u.school = $school))";
-}
-if ($faculty != 0) {
-  $mode_sql .= buildHostedMaterialFacultyFilter('m', $faculty);
-}
-if ($dept > 0) {
-  $mode_sql .= buildHostedMaterialDeptFilter('m', $dept);
-}
-
-$mode_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date);
-$mode_sql .= " GROUP BY t.amount ORDER BY frequency DESC, t.amount DESC LIMIT 1";
+// Second query: Get the most common payment amount (mode) from de-duplicated transactions.
+$mode_sql = "SELECT filtered.amount, COUNT(*) AS frequency FROM ({$detail_sql}) filtered GROUP BY filtered.amount ORDER BY frequency DESC, filtered.amount DESC LIMIT 1";
 
 $mode_query = mysqli_query($conn, $mode_sql);
 
@@ -103,24 +97,9 @@ if ($stats_query && $mode_query) {
   
   // Build query for previous period
   if ($date_range !== 'all') {
-    $prev_stats_sql = "SELECT COUNT(DISTINCT t.id) as total_count, SUM(t.amount) as total_sum " .
-      "FROM transactions t " .
-      "JOIN users u ON t.user_id = u.id " .
-      "LEFT JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
-      "LEFT JOIN manuals m ON b.manual_id = m.id " .
-      "LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
-    
-    $prev_stats_sql .= " AND (b.ref_id IS NOT NULL OR (t.status = 'refunded' AND t.medium = 'MANUAL'))";
-    
-    if ($school > 0) {
-      $prev_stats_sql .= " AND (b.school_id = $school OR (b.school_id IS NULL AND u.school = $school))";
-    }
-    if ($faculty != 0) {
-      $prev_stats_sql .= buildHostedMaterialFacultyFilter('m', $faculty);
-    }
-    if ($dept > 0) {
-      $prev_stats_sql .= buildHostedMaterialDeptFilter('m', $dept);
-    }
+    $prev_date_range = $date_range;
+    $prev_start_date = $start_date;
+    $prev_end_date = $end_date;
     
     // Calculate previous period based on date range
     if ($date_range === 'custom' && $start_date && $end_date) {
@@ -134,17 +113,19 @@ if ($stats_query && $mode_query) {
       $prev_start = clone $prev_end;
       $prev_start->modify("-{$days} days");
       
-      $prev_start_str = $prev_start->format('Y-m-d');
-      $prev_end_str = $prev_end->format('Y-m-d');
-      $prev_stats_sql .= " AND t.created_at BETWEEN '{$prev_start_str} 00:00:00' AND '{$prev_end_str} 23:59:59'";
+      $prev_start_date = $prev_start->format('Y-m-d');
+      $prev_end_date = $prev_end->format('Y-m-d');
     } else {
       $days = intval($date_range);
       if ($days > 0) {
-        $prev_stats_sql .= " AND t.created_at >= DATE_SUB(NOW(), INTERVAL " . ($days * 2) . " DAY)";
-        $prev_stats_sql .= " AND t.created_at < DATE_SUB(NOW(), INTERVAL {$days} DAY)";
+        $prev_date_range = 'custom';
+        $prev_end_date = date('Y-m-d', strtotime('-' . $days . ' days'));
+        $prev_start_date = date('Y-m-d', strtotime('-' . (($days * 2) - 1) . ' days'));
       }
     }
-    
+
+    $prev_detail_sql = buildTransactionStatsBaseSql($conn, $school, $faculty, $dept, $prev_date_range, $prev_start_date, $prev_end_date);
+    $prev_stats_sql = "SELECT COUNT(*) AS total_count, COALESCE(SUM(filtered.amount), 0) AS total_sum FROM ({$prev_detail_sql}) filtered";
     $prev_query = mysqli_query($conn, $prev_stats_sql);
     if ($prev_query) {
       $prev_row = mysqli_fetch_assoc($prev_query);

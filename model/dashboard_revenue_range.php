@@ -66,6 +66,7 @@ if (!function_exists('dashboard_build_amount_base_sql')) {
     $admin_faculty = (int) $admin_faculty;
 
     $base = "SELECT COALESCE(SUM({$amount_field}),0) AS total FROM transactions t WHERE t.status = 'successful'";
+    $base .= buildPurchaseTransactionContextFilter('t');
     if ($admin_role === 5 && $admin_school > 0) {
       $base .= " AND EXISTS (SELECT 1 FROM manuals_bought b JOIN manuals m ON b.manual_id = m.id LEFT JOIN depts d ON m.dept = d.id WHERE b.ref_id = t.ref_id AND b.status='successful' AND b.school_id = {$admin_school}";
       if ($admin_faculty !== 0) {

@@ -338,6 +338,7 @@ if (isset($_GET['fetch'])) {
       "LEFT JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
       "LEFT JOIN manuals m ON b.manual_id = m.id " .
       "LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
+    $tran_sql .= buildPurchaseTransactionContextFilter('t');
     if ($school > 0) {
       $tran_sql .= " AND (b.school_id = $school OR (b.school_id IS NULL AND u.school = $school))";
     }

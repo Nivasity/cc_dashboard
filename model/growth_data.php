@@ -2,19 +2,17 @@
 session_start();
 include('config.php');
 include('page_config.php');
+include_once('dashboard_revenue_range.php');
 
 $admin_role = $_SESSION['nivas_adminRole'];
 $admin_school = $admin_['school'];
-$school_clause = ($admin_role == 5) ? " AND u.school = $admin_school" : '';
+$admin_faculty = $admin_['faculty'] ?? 0;
 
 $year = isset($_GET['year']) ? (int)$_GET['year'] : date('Y');
 $curr_year = $year;
 $prev_year = $curr_year - 1;
 
-$revenue_base = "SELECT COALESCE(SUM(t.profit),0) AS total FROM transactions t JOIN users u ON t.user_id = u.id WHERE t.status = 'successful'";
-if ($admin_role == 5) {
-  $revenue_base .= " AND u.school = $admin_school";
-}
+$revenue_base = dashboard_build_amount_base_sql('t.profit', $admin_role, $admin_school, $admin_faculty);
 
 $curr_sql = $revenue_base . " AND YEAR(t.created_at) = $curr_year";
 $total_revenue = mysqli_fetch_assoc(mysqli_query($conn, $curr_sql))["total"];
