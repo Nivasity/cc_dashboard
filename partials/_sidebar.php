@@ -212,6 +212,12 @@ $admin_faculty = $admin_['faculty'] ?? 0;
           <div data-i18n="Career Applications">Career Applications</div>
         </a>
       </li>
+      <li class="menu-item <?php echo $current_page == 'surveys.php' ? 'active' : ''; ?>">
+        <a href="surveys.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-bar-chart-alt-2"></i>
+          <div data-i18n="Surveys">Surveys</div>
+        </a>
+      </li>
       <?php } ?>
       <?php if (in_array((int) $_SESSION['nivas_adminRole'], [1, 2, 3], true)) { ?>
       <li class="menu-item <?php echo $current_page == 'granted_exports.php' ? 'active' : ''; ?>">

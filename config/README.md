@@ -107,7 +107,30 @@ define('PAYSTACK_SECRET_KEY', 'sk_test_your-actual-key-here');
 
 **Note:** The `fw.php` file is ignored by Git to keep your API keys secure.
 
+### 4. LLM Configuration (`llm.php`)
+
+This file contains API keys for Large Language Model integrations (currently Gemini AI for survey analysis).
+
+To enable LLM functionality:
+
+1. Copy `llm.example.php` to `llm.php`
+2. Edit `llm.php` and replace placeholder values with your actual API keys
+3. Get Gemini API keys from: https://aistudio.google.com/apikey
+
+**Example:**
+
+```php
+<?php
+// Gemini API Key
+define('GEMINI_API_KEY', 'your_gemini_api_key_here');
+
+// Gemini Model (e.g. gemini-2.5-flash, gemini-2.5-pro)
+define('GEMINI_MODEL', 'gemini-2.5-flash');
+?>
+```
+
+**Note:** The `llm.php` file is ignored by Git to keep your API keys secure.
+
 ---
 
-**Security Note**: Never commit actual API keys or passwords to version control. All configuration files with credentials (`db.php`, `mail.php`, `fw.php`) are protected by `.gitignore`.
-
+**Security Note**: Never commit actual API keys or passwords to version control. All configuration files with credentials (`db.php`, `mail.php`, `fw.php`, `llm.php`) are protected by `.gitignore`.
