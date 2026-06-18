@@ -468,111 +468,187 @@ function ccSurveysAiChat(string $question, array $survey, array $responses): arr
     $model = defined('GEMINI_MODEL') ? (string) GEMINI_MODEL : 'gemini-2.5-flash';
     $apiKey = (string) GEMINI_API_KEY;
 
-    // Build context from survey data
     $surveyTitle = $survey['title'] ?? 'Survey';
+    $surveyId = (int) $survey['id'];
     $totalResponses = count($responses);
 
-    // Parse questions for context
     $questionsJson = json_decode($survey['questions_json'] ?? '{}', true);
     $questionMap = ccSurveysExtractQuestionMap($questionsJson ?: []);
 
-    // Build a summary of all responses
-    $responseSummary = [];
-    foreach ($responses as $idx => $resp) {
-        $answersJson = json_decode($resp['responses_json'] ?? '{}', true);
-        if (!is_array($answersJson)) $answersJson = [];
-
-        $entry = [
-            'respondent' => ($resp['first_name'] ?? '') . ' ' . ($resp['last_name'] ?? ''),
-            'email' => $resp['email'] ?? '',
-            'submitted_at' => $resp['created_at'] ?? '',
-            'answers' => [],
-        ];
-
-        foreach ($questionMap as $qId => $qLabel) {
-            $answer = $answersJson[$qId] ?? '';
-            if (is_array($answer)) {
-                $answer = implode(', ', $answer);
-            }
-            $entry['answers'][$qLabel] = (string) $answer;
-        }
-
-        $responseSummary[] = $entry;
-    }
-
-    $systemPrompt = "You are an analytics assistant for Nivasity's survey system. You analyze survey responses and provide clear, actionable insights. Be concise but thorough. Use numbers and percentages when relevant. Format responses with markdown.";
-
-    $contextPrompt = "Here is the survey data you have access to:\n\n"
-        . "**Survey Title:** {$surveyTitle}\n"
-        . "**Total Responses:** {$totalResponses}\n\n"
-        . "**Questions in this survey:**\n";
-
+    $schemaDesc = "Database Schema:\n";
+    $schemaDesc .= "- Table `surveys` (id, slug, title, description, questions_json, status, created_at)\n";
+    $schemaDesc .= "- Table `survey_responses` (id, survey_id, responses_json, created_at) Note: names, email and phone are strictly protected and omitted.\n\n";
+    $schemaDesc .= "The `responses_json` column contains a JSON object mapping Question IDs to Answers. For this survey (ID {$surveyId}), the Question IDs are:\n";
     foreach ($questionMap as $qId => $qLabel) {
-        $contextPrompt .= "- [{$qId}] {$qLabel}\n";
+        $schemaDesc .= "- `{$qId}`: \"{$qLabel}\"\n";
     }
+    $schemaDesc .= "\nExample query: SELECT JSON_EXTRACT(responses_json, '$.user_school') as school, COUNT(*) FROM survey_responses WHERE survey_id = {$surveyId} GROUP BY school;";
 
-    $contextPrompt .= "\n**All Response Data (JSON):**\n```json\n" . json_encode($responseSummary, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . "\n```\n\n";
-    $contextPrompt .= "**User's Question:** {$question}";
+    $systemPrompt = "You are an AI Analyst for Nivasity's survey system. You have access to a database of survey responses via the `run_read_query` tool.
+Instead of guessing, USE the `run_read_query` tool to execute SQL SELECT queries to fetch data before answering.
+Only use `run_read_query` for SELECT queries against `surveys` or `survey_responses`.
 
-    // Call Gemini API
-    $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
+$schemaDesc
 
-    $payload = [
-        'system_instruction' => [
+Always formulate an accurate SQL query based on the user's question, run it using `run_read_query`, and then provide a clear, concise markdown answer using the returned data. If a query fails, adjust and retry. Do NOT return raw JSON unless asked.";
+
+    $messages = [
+        [
+            'role' => 'user',
             'parts' => [
-                ['text' => $systemPrompt],
-            ],
-        ],
-        'contents' => [
-            [
-                'parts' => [
-                    ['text' => $contextPrompt],
-                ],
-            ],
-        ],
-        'generationConfig' => [
-            'temperature' => 0.3,
-            'maxOutputTokens' => 2048,
-        ],
-        'safetySettings' => [
-            ['category' => 'HARM_CATEGORY_HARASSMENT', 'threshold' => 'BLOCK_NONE'],
-            ['category' => 'HARM_CATEGORY_HATE_SPEECH', 'threshold' => 'BLOCK_NONE'],
-            ['category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold' => 'BLOCK_NONE'],
-            ['category' => 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold' => 'BLOCK_NONE']
-        ],
+                ['text' => $question]
+            ]
+        ]
     ];
 
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
-        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 60,
-        CURLOPT_SSL_VERIFYPEER => true,
-    ]);
+    $url = "https://generativelanguage.googleapis.com/v1beta/models/{$model}:generateContent?key={$apiKey}";
 
-    $rawResponse = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $curlError = curl_error($ch);
-    curl_close($ch);
+    $tools = [
+        [
+            'functionDeclarations' => [
+                [
+                    'name' => 'run_read_query',
+                    'description' => 'Executes a SQL SELECT query against the survey database.',
+                    'parameters' => [
+                        'type' => 'OBJECT',
+                        'properties' => [
+                            'sql_query' => [
+                                'type' => 'STRING',
+                                'description' => 'The complete SQL SELECT query to execute.'
+                            ]
+                        ],
+                        'required' => ['sql_query']
+                    ]
+                ]
+            ]
+        ]
+    ];
 
-    if ($curlError !== '') {
-        return ['success' => false, 'answer' => '', 'error' => 'Network error: ' . $curlError];
-    }
+    $maxLoops = 5;
+    $loopCount = 0;
+    
+    global $conn;
 
-    if ($httpCode !== 200) {
+    while ($loopCount < $maxLoops) {
+        $loopCount++;
+
+        $payload = [
+            'system_instruction' => [
+                'parts' => [['text' => $systemPrompt]],
+            ],
+            'contents' => $messages,
+            'tools' => $tools,
+            'generationConfig' => [
+                'temperature' => 0.1,
+                'maxOutputTokens' => 2048,
+            ],
+            'safetySettings' => [
+                ['category' => 'HARM_CATEGORY_HARASSMENT', 'threshold' => 'BLOCK_NONE'],
+                ['category' => 'HARM_CATEGORY_HATE_SPEECH', 'threshold' => 'BLOCK_NONE'],
+                ['category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold' => 'BLOCK_NONE'],
+                ['category' => 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold' => 'BLOCK_NONE']
+            ],
+        ];
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_POST => true,
+            CURLOPT_HTTPHEADER => ['Content-Type: application/json'],
+            CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 60,
+            CURLOPT_SSL_VERIFYPEER => true,
+        ]);
+
+        $rawResponse = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($curlError !== '') {
+            return ['success' => false, 'answer' => '', 'error' => 'Network error: ' . $curlError];
+        }
+
+        if ($httpCode !== 200) {
+            $decoded = json_decode($rawResponse, true);
+            $errMsg = $decoded['error']['message'] ?? "Gemini API returned HTTP {$httpCode}";
+            return ['success' => false, 'answer' => '', 'error' => $errMsg];
+        }
+
         $decoded = json_decode($rawResponse, true);
-        $errMsg = $decoded['error']['message'] ?? "Gemini API returned HTTP {$httpCode}";
-        return ['success' => false, 'answer' => '', 'error' => $errMsg];
+        $candidate = $decoded['candidates'][0] ?? null;
+        if (!$candidate) {
+            return ['success' => false, 'answer' => '', 'error' => 'No candidate returned.'];
+        }
+
+        $parts = $candidate['content']['parts'] ?? [];
+        $modelMessageParts = [];
+        $hasFunctionCall = false;
+        $functionCallName = '';
+        $functionCallArgs = [];
+
+        foreach ($parts as $part) {
+            if (isset($part['functionCall'])) {
+                $hasFunctionCall = true;
+                $functionCallName = $part['functionCall']['name'];
+                $functionCallArgs = $part['functionCall']['args'] ?? [];
+                $modelMessageParts[] = ['functionCall' => $part['functionCall']];
+            } elseif (isset($part['text'])) {
+                $modelMessageParts[] = ['text' => $part['text']];
+            }
+        }
+
+        if (!$hasFunctionCall) {
+            // Final text response
+            $text = '';
+            foreach ($parts as $p) {
+                if (isset($p['text'])) $text .= $p['text'];
+            }
+            return ['success' => true, 'answer' => $text, 'error' => null];
+        }
+
+        // Add model's function call to history
+        $messages[] = [
+            'role' => 'model',
+            'parts' => $modelMessageParts
+        ];
+
+        // Execute function
+        $funcResult = null;
+        if ($functionCallName === 'run_read_query') {
+            $sql = trim((string) ($functionCallArgs['sql_query'] ?? ''));
+            if (stripos($sql, 'SELECT') !== 0) {
+                $funcResult = ['error' => 'Only SELECT queries are allowed for security.'];
+            } else {
+                $res = mysqli_query($conn, $sql);
+                if (!$res) {
+                    $funcResult = ['error' => mysqli_error($conn)];
+                } else {
+                    $rows = [];
+                    while ($r = mysqli_fetch_assoc($res)) {
+                        unset($r['first_name'], $r['last_name'], $r['email'], $r['phone']);
+                        $rows[] = $r;
+                    }
+                    $funcResult = ['rows' => $rows];
+                }
+            }
+        } else {
+            $funcResult = ['error' => 'Unknown function call'];
+        }
+
+        // Add function response to history
+        $messages[] = [
+            'role' => 'function',
+            'parts' => [
+                [
+                    'functionResponse' => [
+                        'name' => $functionCallName,
+                        'response' => $funcResult
+                    ]
+                ]
+            ]
+        ];
     }
 
-    $decoded = json_decode($rawResponse, true);
-    $text = $decoded['candidates'][0]['content']['parts'][0]['text'] ?? '';
-
-    if ($text === '') {
-        return ['success' => false, 'answer' => '', 'error' => 'Gemini returned an empty response.'];
-    }
-
-    return ['success' => true, 'answer' => $text, 'error' => null];
+    return ['success' => false, 'answer' => '', 'error' => 'Agent exceeded maximum execution loops.'];
 }
