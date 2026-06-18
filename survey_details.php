@@ -438,6 +438,74 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
       <div class="layout-overlay layout-menu-toggle"></div>
     </div>
 
+    <!-- ═══ SURVEY EDITOR MODAL ═══ -->
+    <div class="modal fade" id="surveyEditorModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="surveyModalTitle">Edit Survey</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <form method="post" class="ajax-form">
+            <div class="modal-body" style="max-height: calc(100vh - 200px); overflow-y: auto;">
+              <input type="hidden" name="action" value="update_survey" id="modalAction" />
+              <input type="hidden" name="survey_id" value="<?php echo (int) $selectedSurvey['id']; ?>" id="modalSurveyId" />
+
+              <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                  <label class="form-label" for="surveyTitle">Survey Title <span class="text-danger">*</span></label>
+                  <input type="text" class="form-control" id="surveyTitle" name="title" required value="<?php echo htmlspecialchars((string) ($selectedSurvey['title'] ?? '')); ?>" placeholder="e.g. Student Feedback 2026" />
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label" for="surveyStatus">Status</label>
+                  <select class="form-select" id="surveyStatus" name="status">
+                    <?php foreach (ccSurveysStatuses() as $statusOpt) { ?>
+                    <option value="<?php echo htmlspecialchars($statusOpt); ?>" <?php echo (($selectedSurvey['status'] ?? 'draft') === $statusOpt) ? 'selected' : ''; ?>><?php echo htmlspecialchars(ucfirst($statusOpt)); ?></option>
+                    <?php } ?>
+                  </select>
+                </div>
+                <div class="col-md-3">
+                  <label class="form-label" for="surveyExpiry">Expiry Date</label>
+                  <input type="datetime-local" class="form-control" id="surveyExpiry" name="expiry_date" value="<?php echo htmlspecialchars(!empty($selectedSurvey['expiry_date']) ? date('Y-m-d\TH:i', strtotime($selectedSurvey['expiry_date'])) : ''); ?>" />
+                </div>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="surveyDescription">Description</label>
+                <textarea class="form-control" id="surveyDescription" name="description" rows="2" placeholder="Optional description shown on the welcome screen"><?php echo htmlspecialchars((string) ($selectedSurvey['description'] ?? '')); ?></textarea>
+              </div>
+
+              <div class="mb-3">
+                <label class="form-label" for="surveyJson">Survey Questions JSON <span class="text-danger">*</span></label>
+                <textarea class="form-control json-editor" id="surveyJson" name="questions_json" required placeholder='Paste the full survey JSON here...'><?php echo htmlspecialchars((string) ($selectedSurvey['questions_json'] ?? '')); ?></textarea>
+                <small class="text-muted d-block mt-1">Paste the full JSON including <code>"title"</code>, <code>"description"</code>, and either <code>"questions"</code> or <code>"sections"</code>.</small>
+                <a href="assets/surveys/_template.json" download class="btn btn-sm btn-outline-info mt-2"><i class="bx bx-download me-1"></i>Download Template JSON</a>
+              </div>
+
+              <div class="mb-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="allowDuplicate" name="allow_duplicate_email" <?php echo (!empty($selectedSurvey['allow_duplicate_email'])) ? 'checked' : ''; ?> />
+                  <label class="form-check-label" for="allowDuplicate">Allow duplicate email submissions</label>
+                </div>
+              </div>
+            </div>
+            <div class="modal-footer d-flex justify-content-between">
+                <button type="button" class="btn btn-outline-danger" onclick="if(confirm('Delete this survey and all its responses? This cannot be undone.')){document.getElementById('deleteSurveyForm').submit();}">Delete Survey</button>
+              <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" id="modalSubmitBtn">Update Survey</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    
+    <form id="deleteSurveyForm" method="post" class="d-none ajax-form">
+      <input type="hidden" name="action" value="delete_survey" />
+      <input type="hidden" name="survey_id" id="deleteSurveyId" value="<?php echo (int) $selectedSurvey['id']; ?>" />
+    </form>
+
     <!-- ═══ RESPONSE DETAILS MODAL ═══ -->
     <div class="modal fade" id="responseModal" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
