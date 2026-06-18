@@ -318,7 +318,7 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
                       </thead>
                       <tbody>
                         <?php foreach ($allSurveys as $s) { ?>
-                        <tr>
+                        <tr style="cursor: pointer;" onclick="window.location='survey_details.php?id=<?php echo (int) $s['id']; ?>';">
                           <td class="fw-semibold"><?php echo htmlspecialchars($s['title']); ?></td>
                           <td><code><?php echo htmlspecialchars($s['slug']); ?></code></td>
                           <td><span class="badge bg-label-<?php echo ccSurveysStatusBadge($s['status']); ?>"><?php echo htmlspecialchars(ucfirst($s['status'])); ?></span></td>
@@ -327,8 +327,8 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
                           <td><?php echo !empty($s['created_at']) ? htmlspecialchars(date('d M Y', strtotime($s['created_at']))) : '-'; ?></td>
                           <td>
                             <div class="d-flex gap-1">
-                              <a href="survey_details.php?id=<?php echo (int) $s['id']; ?>" class="btn btn-sm btn-outline-primary">View</a>
-                              <a href="surveys.php?edit=<?php echo (int) $s['id']; ?>" class="btn btn-sm btn-outline-secondary"><i class="bx bx-edit"></i></a>
+                              <a href="survey_details.php?id=<?php echo (int) $s['id']; ?>" class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation();">View</a>
+                              <a href="surveys.php?edit=<?php echo (int) $s['id']; ?>" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();"><i class="bx bx-edit"></i></a>
                             </div>
                           </td>
                         </tr>
@@ -525,69 +525,6 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
         }
       }
 
-      // AI Chat
-      const BEARER_TOKEN = <?php echo json_encode($bearerToken); ?>;
-      const SURVEY_ID = <?php echo $selectedSurveyId; ?>;
-      const API_BASE = 'API/surveys/';
-
-      function sendAiChat(e) {
-        e.preventDefault();
-        const input = document.getElementById('aiChatInput');
-        const question = input.value.trim();
-        if (!question) return false;
-
-        const messagesEl = document.getElementById('aiChatMessages');
-        const btn = document.getElementById('aiChatBtn');
-
-        // Add user message
-        messagesEl.innerHTML += `<div class="ai-msg ai-msg-user"><div class="ai-bubble">${escapeHtml(question)}</div></div>`;
-        messagesEl.innerHTML += `<div class="ai-msg ai-msg-bot" id="aiLoading"><div class="ai-bubble"><i class="bx bx-loader-alt bx-spin me-1"></i>Analyzing...</div></div>`;
-        messagesEl.scrollTop = messagesEl.scrollHeight;
-        input.value = '';
-        btn.disabled = true;
-
-        fetch(API_BASE + '?admin=1', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + BEARER_TOKEN
-          },
-          body: JSON.stringify({
-            action: 'ai_chat',
-            survey_id: SURVEY_ID,
-            question: question
-          })
-        })
-        .then(res => res.json())
-        .then(data => {
-          const loadingEl = document.getElementById('aiLoading');
-          if (loadingEl) loadingEl.remove();
-
-          if (data.success && data.data && data.data.answer) {
-            const html = typeof marked !== 'undefined' ? marked.parse(data.data.answer) : escapeHtml(data.data.answer);
-            messagesEl.innerHTML += `<div class="ai-msg ai-msg-bot"><div class="ai-bubble">${html}</div></div>`;
-          } else {
-            messagesEl.innerHTML += `<div class="ai-msg ai-msg-bot"><div class="ai-bubble text-danger">${escapeHtml(data.message || 'Something went wrong.')}</div></div>`;
-          }
-          messagesEl.scrollTop = messagesEl.scrollHeight;
-          btn.disabled = false;
-          input.focus();
-        })
-        .catch(err => {
-          const loadingEl = document.getElementById('aiLoading');
-          if (loadingEl) loadingEl.remove();
-          messagesEl.innerHTML += `<div class="ai-msg ai-msg-bot"><div class="ai-bubble text-danger">Network error: ${escapeHtml(err.message)}</div></div>`;
-          messagesEl.scrollTop = messagesEl.scrollHeight;
-          btn.disabled = false;
-        });
-
-        return false;
-      }
-
-      function escapeHtml(text) {
-        const div = document.createElement('div');
-        div.textContent = text;
-        return div.innerHTML;
       }
     </script>
   </body>

@@ -272,7 +272,7 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
           <?php include('partials/_navbar.php') ?>
           <div class="content-wrapper">
             <div class="container-xxl flex-grow-1 container-p-y">
-              <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Surveys /</span> Survey Details</h4>
+              <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Surveys /</span> <?php echo htmlspecialchars($selectedSurvey['title']); ?></h4>
 
               <?php if ($flash = ccSurveysGetFlash()) { ?>
               <div class="alert alert-<?php echo htmlspecialchars((string) ($flash['type'] ?? 'info')); ?> alert-dismissible" role="alert">
@@ -281,38 +281,84 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
               </div>
               <?php } ?>
 
-              <!-- ═══ ACTION BAR ═══ -->
-              <div class="d-flex justify-content-between align-items-center mb-4 gap-3 flex-wrap">
-                <div class="d-flex gap-2 flex-wrap">
-                  <a href="surveys.php" class="btn btn-outline-secondary"><i class="bx bx-arrow-back me-1"></i>Back to Surveys</a>
-                  <a href="API/surveys/?admin=1&export=csv&survey_id=<?php echo (int) $selectedSurvey['id']; ?>" class="btn btn-outline-primary" target="_blank"><i class="bx bx-download me-1"></i>Download CSV</a>
-                </div>
+              <div class="mb-3">
+                <a href="surveys.php" class="btn btn-sm btn-outline-secondary"><i class="bx bx-arrow-back me-1"></i>Back to Surveys</a>
               </div>
 
-              <!-- ═══ SURVEY-SPECIFIC STATS ═══ -->
+              <!-- ═══ TOP CARDS ═══ -->
               <div class="row g-4 mb-4">
-                <?php
-                  $surveyStatCards = [
-                    ['label' => 'Total Responses', 'value' => $selectedStats['total']],
-                    ['label' => 'Today', 'value' => $selectedStats['today']],
-                    ['label' => 'This Week', 'value' => $selectedStats['this_week']],
-                    ['label' => 'This Month', 'value' => $selectedStats['this_month']],
-                  ];
-                  foreach ($surveyStatCards as $ssc) { ?>
-                <div class="col-xl-3 col-md-6">
-                  <div class="card survey-stat-card h-100">
-                    <div class="card-body">
-                      <span class="label"><?php echo htmlspecialchars($ssc['label']); ?></span>
-                      <span class="value"><?php echo (int) $ssc['value']; ?></span>
+                <!-- Left Column: Survey Info -->
+                <div class="col-lg-6">
+                  <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                      <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                          <h5 class="mb-1"><?php echo htmlspecialchars($selectedSurvey['title']); ?></h5>
+                          <span class="badge bg-label-<?php echo ccSurveysStatusBadge($selectedSurvey['status']); ?>"><?php echo htmlspecialchars(ucfirst($selectedSurvey['status'])); ?></span>
+                        </div>
+                        <a href="API/surveys/?admin=1&export=csv&survey_id=<?php echo (int) $selectedSurvey['id']; ?>" class="btn btn-sm btn-outline-primary" target="_blank"><i class="bx bx-download me-1"></i>CSV</a>
+                      </div>
+                      
+                      <div class="mb-3">
+                        <span class="survey-link-copy small" onclick="navigator.clipboard.writeText('https://nivasity.com/survey/<?php echo htmlspecialchars($selectedSurvey['slug']); ?>').then(()=>this.textContent='Copied!').catch(()=>{});" title="Click to copy survey link">
+                          <i class="bx bx-link"></i> nivasity.com/survey/<?php echo htmlspecialchars($selectedSurvey['slug']); ?>
+                        </span>
+                        <?php if (!empty($selectedSurvey['expiry_date'])) { ?>
+                        <div class="text-muted small mt-1"><i class="bx bx-time-five"></i> Expires: <?php echo htmlspecialchars(date('d M Y, h:i A', strtotime($selectedSurvey['expiry_date']))); ?></div>
+                        <?php } ?>
+                      </div>
+                      
+                      <div class="d-flex gap-2 flex-wrap mt-auto pt-3 border-top">
+                        <?php if ($selectedSurvey['status'] === 'published') { ?>
+                        <form method="post" class="d-inline ajax-form">
+                          <input type="hidden" name="action" value="update_status" />
+                          <input type="hidden" name="survey_id" value="<?php echo (int) $selectedSurvey['id']; ?>" />
+                          <input type="hidden" name="status" value="closed" />
+                          <button type="submit" class="btn btn-sm btn-outline-warning" onclick="return confirm('Close this survey?');">Close Survey</button>
+                        </form>
+                        <?php } elseif ($selectedSurvey['status'] === 'closed' || $selectedSurvey['status'] === 'draft') { ?>
+                        <form method="post" class="d-inline ajax-form">
+                          <input type="hidden" name="action" value="update_status" />
+                          <input type="hidden" name="survey_id" value="<?php echo (int) $selectedSurvey['id']; ?>" />
+                          <input type="hidden" name="status" value="published" />
+                          <button type="submit" class="btn btn-sm btn-outline-success">Publish Survey</button>
+                        </form>
+                        <?php } ?>
+                      </div>
                     </div>
                   </div>
                 </div>
-                <?php } ?>
+
+                <!-- Right Column: Analytics -->
+                <div class="col-lg-6">
+                  <div class="card h-100">
+                    <div class="card-body">
+                      <h6 class="mb-3 text-muted">Analytics</h6>
+                      <div class="row g-3">
+                        <?php
+                          $surveyStatCards = [
+                            ['label' => 'Total Responses', 'value' => $selectedStats['total']],
+                            ['label' => 'Today', 'value' => $selectedStats['today']],
+                            ['label' => 'This Week', 'value' => $selectedStats['this_week']],
+                            ['label' => 'This Month', 'value' => $selectedStats['this_month']],
+                          ];
+                          foreach ($surveyStatCards as $ssc) { ?>
+                        <div class="col-6">
+                          <div class="survey-stat-card p-3 h-100 bg-lighter rounded text-center">
+                            <span class="label mb-1"><?php echo htmlspecialchars($ssc['label']); ?></span>
+                            <span class="value mb-0" style="font-size:1.5rem;"><?php echo (int) $ssc['value']; ?></span>
+                          </div>
+                        </div>
+                        <?php } ?>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <!-- ═══ RESPONSES TABLE + DETAIL ═══ -->
+              <!-- ═══ RESPONSES TABLE ═══ -->
               <div class="row g-4 align-items-start">
-                <div class="<?php echo $selectedResponse ? 'col-xl-7' : 'col-12'; ?>">
+                <div class="col-12">
                   <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center gap-3">
                       <div>
@@ -335,12 +381,12 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
                           </thead>
                           <tbody>
                             <?php foreach ($selectedResponses as $idx => $resp) { ?>
-                            <tr class="<?php echo $selectedResponseId === (int) $resp['id'] ? 'table-active' : ''; ?>">
+                            <tr style="cursor: pointer;" onclick="openResponseModal(<?php echo $idx; ?>)">
                               <td><?php echo $idx + 1; ?></td>
                               <td><div class="fw-semibold"><?php echo htmlspecialchars(($resp['first_name'] ?? '') . ' ' . ($resp['last_name'] ?? '')); ?></div></td>
                               <td><div class="small text-muted"><?php echo htmlspecialchars($resp['email'] ?? ''); ?></div></td>
                               <td><?php echo !empty($resp['created_at']) ? htmlspecialchars(date('d M Y', strtotime($resp['created_at']))) : '-'; ?></td>
-                              <td><a href="survey_details.php?id=<?php echo $surveyId; ?>&response=<?php echo (int) $resp['id']; ?>" class="btn btn-sm btn-outline-primary">View</a></td>
+                              <td><button type="button" class="btn btn-sm btn-outline-primary" onclick="openResponseModal(<?php echo $idx; ?>); event.stopPropagation();">View</button></td>
                             </tr>
                             <?php } ?>
                           </tbody>
@@ -349,31 +395,6 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
                     </div>
                   </div>
                 </div>
-
-                <?php if ($selectedResponse) { ?>
-                <div class="col-xl-5">
-                  <div class="card response-detail-card">
-                    <div class="card-header d-flex justify-content-between align-items-center gap-3">
-                      <div><h5 class="mb-1">Response Detail</h5></div>
-                      <a href="survey_details.php?id=<?php echo $surveyId; ?>" class="btn btn-sm btn-outline-secondary"><i class="bx bx-x"></i></a>
-                    </div>
-                    <div class="card-body">
-                      <div class="detail-section">
-                        <h6 class="mb-3">Answers</h6>
-                        <?php $detailAnswers = json_decode($selectedResponse['responses_json'] ?? '{}', true);
-                        foreach ($detailAnswers as $qId => $answer) {
-                          $qLabel = $selectedQuestionMap[$qId] ?? $qId;
-                          if (is_array($answer)) $answer = implode(', ', $answer); ?>
-                          <div>
-                            <div class="fw-semibold mb-1"><?php echo htmlspecialchars((string) $qLabel); ?></div>
-                            <div class="text-muted mb-2"><?php echo nl2br(htmlspecialchars((string) $answer)); ?></div>
-                          </div>
-                        <?php } ?>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <?php } ?>
               </div>
 
               <!-- ═══ AI CHAT ═══ -->
@@ -416,80 +437,47 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
       <div class="layout-overlay layout-menu-toggle"></div>
     </div>
 
-    <!-- ═══ SURVEY EDITOR MODAL ═══ -->
-    <div class="modal fade" id="surveyEditorModal" tabindex="-1" aria-hidden="true">
-      <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <!-- ═══ RESPONSE DETAILS MODAL ═══ -->
+    <div class="modal fade" id="responseModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
         <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title" id="surveyModalTitle"><?php echo $editSurvey ? 'Edit Survey' : 'Create New Survey'; ?></h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          <div class="modal-header d-flex justify-content-between align-items-center">
+            <h5 class="modal-title" id="responseModalTitle">Response Details</h5>
+            <div class="d-flex gap-2 align-items-center">
+              <button type="button" class="btn btn-sm btn-icon btn-outline-secondary" id="btnPrevResponse" onclick="navigateResponse(-1)"><i class="bx bx-chevron-left"></i></button>
+              <span id="responseCounter" class="text-muted small"></span>
+              <button type="button" class="btn btn-sm btn-icon btn-outline-secondary" id="btnNextResponse" onclick="navigateResponse(1)"><i class="bx bx-chevron-right"></i></button>
+              <button type="button" class="btn-close ms-2" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
           </div>
-          <form method="post" class="ajax-form">
-            <div class="modal-body" style="max-height: calc(100vh - 200px); overflow-y: auto;">
-              <input type="hidden" name="action" value="<?php echo $editSurvey ? 'update_survey' : 'create_survey'; ?>" id="modalAction" />
-              <?php if ($editSurvey) { ?>
-              <input type="hidden" name="survey_id" value="<?php echo (int) $editSurvey['id']; ?>" id="modalSurveyId" />
-              <?php } ?>
-
-              <div class="row g-3 mb-3">
-                <div class="col-md-6">
-                  <label class="form-label" for="surveyTitle">Survey Title <span class="text-danger">*</span></label>
-                  <input type="text" class="form-control" id="surveyTitle" name="title" required value="<?php echo htmlspecialchars((string) ($editSurvey['title'] ?? '')); ?>" placeholder="e.g. Student Feedback 2026" />
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label" for="surveyStatus">Status</label>
-                  <select class="form-select" id="surveyStatus" name="status">
-                    <?php foreach (ccSurveysStatuses() as $statusOpt) { ?>
-                    <option value="<?php echo htmlspecialchars($statusOpt); ?>" <?php echo (($editSurvey['status'] ?? 'draft') === $statusOpt) ? 'selected' : ''; ?>><?php echo htmlspecialchars(ucfirst($statusOpt)); ?></option>
-                    <?php } ?>
-                  </select>
-                </div>
-                <div class="col-md-3">
-                  <label class="form-label" for="surveyExpiry">Expiry Date</label>
-                  <input type="datetime-local" class="form-control" id="surveyExpiry" name="expiry_date" value="<?php echo htmlspecialchars(!empty($editSurvey['expiry_date']) ? date('Y-m-d\TH:i', strtotime($editSurvey['expiry_date'])) : ''); ?>" />
-                </div>
+          <div class="modal-body">
+            <!-- Contact Info -->
+            <div class="row g-3 mb-4 pb-3 border-bottom">
+              <div class="col-md-6">
+                <small class="text-muted d-block">Name</small>
+                <div class="fw-semibold" id="respName"></div>
               </div>
-
-              <div class="mb-3">
-                <label class="form-label" for="surveyDescription">Description</label>
-                <textarea class="form-control" id="surveyDescription" name="description" rows="2" placeholder="Optional description shown on the welcome screen"><?php echo htmlspecialchars((string) ($editSurvey['description'] ?? '')); ?></textarea>
+              <div class="col-md-6">
+                <small class="text-muted d-block">Email</small>
+                <div id="respEmail"></div>
               </div>
-
-              <div class="mb-3">
-                <label class="form-label" for="surveyJson">Survey Questions JSON <span class="text-danger">*</span></label>
-                <textarea class="form-control json-editor" id="surveyJson" name="questions_json" required placeholder='Paste the full survey JSON here...'><?php echo htmlspecialchars((string) ($editSurvey['questions_json'] ?? '')); ?></textarea>
-                <small class="text-muted d-block mt-1">Paste the full JSON including <code>"title"</code>, <code>"description"</code>, and either <code>"questions"</code> or <code>"sections"</code>.</small>
-                <a href="assets/surveys/_template.json" download class="btn btn-sm btn-outline-info mt-2"><i class="bx bx-download me-1"></i>Download Template JSON</a>
+              <div class="col-md-6">
+                <small class="text-muted d-block">Phone</small>
+                <div id="respPhone"></div>
               </div>
-
-              <div class="mb-3">
-                <div class="form-check">
-                  <input class="form-check-input" type="checkbox" id="allowDuplicate" name="allow_duplicate_email" <?php echo (!empty($editSurvey['allow_duplicate_email'])) ? 'checked' : ''; ?> />
-                  <label class="form-check-label" for="allowDuplicate">Allow duplicate email submissions</label>
-                </div>
+              <div class="col-md-6">
+                <small class="text-muted d-block">Submitted</small>
+                <div id="respDate"></div>
               </div>
             </div>
-            <div class="modal-footer d-flex justify-content-between">
-              <?php if ($editSurvey) { ?>
-                <button type="button" class="btn btn-outline-danger" onclick="if(confirm('Delete this survey and all its responses? This cannot be undone.')){document.getElementById('deleteSurveyForm').submit();}">Delete Survey</button>
-              <?php } else { ?>
-                <div></div>
-              <?php } ?>
-              <div class="d-flex gap-2">
-                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary" id="modalSubmitBtn"><?php echo $editSurvey ? 'Update Survey' : 'Create Survey'; ?></button>
-              </div>
-            </div>
-          </form>
+            <!-- Answers -->
+            <h6 class="mb-3">Answers</h6>
+            <div id="respAnswers" class="d-flex flex-column gap-3"></div>
+          </div>
         </div>
       </div>
     </div>
-    <?php if ($editSurvey) { ?>
-    <form id="deleteSurveyForm" method="post" class="d-none ajax-form">
-      <input type="hidden" name="action" value="delete_survey" />
-      <input type="hidden" name="survey_id" value="<?php echo (int) $editSurvey['id']; ?>" />
-    </form>
-    <?php } ?>
+
 
     <script src="assets/vendor/libs/jquery/jquery.min.js"></script>
     <script src="assets/vendor/js/bootstrap.min.js"></script>
@@ -505,24 +493,11 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
       $(document).ready(function() {
         if ($('#responsesTable tbody tr').length > 1 || ($('#responsesTable tbody tr').length === 1 && !$('#responsesTable tbody tr td[colspan]').length)) {
           $('#responsesTable').DataTable({
-            order: [[0, 'desc']],
+            order: [[0, 'asc']],
             pageLength: 25,
             language: { search: 'Search responses:' }
           });
         }
-        if ($('#surveysListTable tbody tr').length > 0) {
-          $('#surveysListTable').DataTable({
-            order: [[5, 'desc']],
-            pageLength: 25,
-            language: { search: 'Search surveys:' }
-          });
-        }
-
-        <?php if ($editorMode || $editSurvey) { ?>
-        // Auto-open modal if we are in editor mode via URL
-        var myModal = new bootstrap.Modal(document.getElementById('surveyEditorModal'));
-        myModal.show();
-        <?php } ?>
       });
 
       // AJAX form submission handler
@@ -564,27 +539,61 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
         });
       });
 
-      function resetSurveyModal() {
-        document.getElementById('surveyModalTitle').textContent = 'Create New Survey';
-        document.getElementById('modalAction').value = 'create_survey';
-        document.getElementById('surveyTitle').value = '';
-        document.getElementById('surveyStatus').value = 'draft';
-        document.getElementById('surveyExpiry').value = '';
-        document.getElementById('surveyDescription').value = '';
-        document.getElementById('surveyJson').value = '';
-        document.getElementById('allowDuplicate').checked = false;
-        document.getElementById('modalSubmitBtn').textContent = 'Create Survey';
 
-        // Remove hidden survey_id input if it exists
-        const surveyIdInput = document.getElementById('modalSurveyId');
-        if (surveyIdInput) {
-          surveyIdInput.remove();
+
+      const RESPONSES = <?php echo json_encode($selectedResponses); ?>;
+      const QUESTION_MAP = <?php echo json_encode($selectedQuestionMap); ?>;
+
+      let currentResponseIdx = -1;
+      let responseModalInstance = null;
+
+      function openResponseModal(idx) {
+        if (idx < 0 || idx >= RESPONSES.length) return;
+        currentResponseIdx = idx;
+        const resp = RESPONSES[idx];
+        
+        document.getElementById('respName').textContent = (resp.first_name || '') + ' ' + (resp.last_name || '');
+        document.getElementById('respEmail').textContent = resp.email || '';
+        document.getElementById('respPhone').textContent = resp.phone || '—';
+        
+        const d = new Date(resp.created_at);
+        document.getElementById('respDate').textContent = resp.created_at ? d.toLocaleString() : '-';
+
+        const answersContainer = document.getElementById('respAnswers');
+        answersContainer.innerHTML = '';
+        
+        let answers = {};
+        try {
+          answers = JSON.parse(resp.responses_json || '{}');
+        } catch(e){}
+        
+        for (const [qId, answer] of Object.entries(answers)) {
+          const qLabel = QUESTION_MAP[qId] || qId;
+          const ansText = Array.isArray(answer) ? answer.join(', ') : answer;
+          
+          const div = document.createElement('div');
+          div.innerHTML = `<div class="fw-semibold mb-1">${escapeHtml(qLabel)}</div><div class="text-muted">${escapeHtml(String(ansText)).replace(/\n/g, '<br>')}</div>`;
+          answersContainer.appendChild(div);
         }
         
-        // Remove the delete button if it exists
-        const deleteBtn = document.querySelector('.modal-footer .btn-outline-danger');
-        if (deleteBtn) {
-          deleteBtn.style.display = 'none';
+        if (Object.keys(answers).length === 0) {
+          answersContainer.innerHTML = '<div class="text-muted">No answers recorded.</div>';
+        }
+
+        document.getElementById('responseCounter').textContent = `${idx + 1} of ${RESPONSES.length}`;
+        document.getElementById('btnPrevResponse').disabled = (idx === 0);
+        document.getElementById('btnNextResponse').disabled = (idx === RESPONSES.length - 1);
+        
+        if (!responseModalInstance) {
+          responseModalInstance = new bootstrap.Modal(document.getElementById('responseModal'));
+        }
+        responseModalInstance.show();
+      }
+
+      function navigateResponse(dir) {
+        const nextIdx = currentResponseIdx + dir;
+        if (nextIdx >= 0 && nextIdx < RESPONSES.length) {
+          openResponseModal(nextIdx);
         }
       }
 
