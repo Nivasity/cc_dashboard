@@ -152,13 +152,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $flash = ccSurveysGetFlash();
-$allSurveys = $tablesReady ? ccSurveysFetchAll($conn) : [];
-$globalStats = $tablesReady ? ccSurveysBuildGlobalStats($conn) : ['total_surveys' => 0, 'published_surveys' => 0, 'total_responses' => 0, 'responses_today' => 0, 'responses_this_week' => 0];
 
-// Editor mode
-$editorMode = isset($_GET['editor']);
-$editSurveyId = isset($_GET['edit']) ? (int) $_GET['edit'] : 0;
-$editSurvey = $editSurveyId > 0 ? ccSurveysFetchById($conn, $editSurveyId) : null;
+// Selected survey
+$selectedSurveyId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
+if ($selectedSurveyId <= 0) {
+    header('Location: surveys.php');
+    exit();
+}
+$selectedSurvey = ccSurveysFetchById($conn, $selectedSurveyId);
+if (!$selectedSurvey) {
+    ccSurveysSetFlash('danger', 'Survey not found.');
+    header('Location: surveys.php');
+    exit();
+}
+
+$selectedResponses = ccSurveysFetchResponses($conn, $selectedSurveyId);
+$selectedStats = ccSurveysBuildStats($conn, $selectedSurveyId);
+$selectedQuestionMap = [];
+if ($selectedSurvey) {
+  $qJson = json_decode($selectedSurvey['questions_json'] ?? '{}', true);
+  $selectedQuestionMap = ccSurveysExtractQuestionMap($qJson ?: []);
+}
+
+// Selected response detail
+$selectedResponseId = isset($_GET['response']) ? (int) $_GET['response'] : 0;
+$selectedResponse = $selectedResponseId > 0 ? ccSurveysFetchResponseById($conn, $selectedResponseId) : null;
 
 // Bearer token for JS (AI chat)
 $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
@@ -254,96 +272,141 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
           <?php include('partials/_navbar.php') ?>
           <div class="content-wrapper">
             <div class="container-xxl flex-grow-1 container-p-y">
-              <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Resources /</span> Surveys</h4>
+              <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Surveys /</span> Survey Details</h4>
 
-              <?php if ($flash) { ?>
+              <?php if ($flash = ccSurveysGetFlash()) { ?>
               <div class="alert alert-<?php echo htmlspecialchars((string) ($flash['type'] ?? 'info')); ?> alert-dismissible" role="alert">
                 <?php echo htmlspecialchars((string) ($flash['message'] ?? '')); ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
               </div>
               <?php } ?>
 
-              <?php if (!$tablesReady) { ?>
-              <div class="alert alert-warning mb-4" role="alert">
-                The survey tables are not available in this database yet. Run <code>sql/add_surveys_tables.sql</code> first.
+              <!-- ═══ ACTION BAR ═══ -->
+              <div class="d-flex justify-content-between align-items-center mb-4 gap-3 flex-wrap">
+                <div class="d-flex gap-2 flex-wrap">
+                  <a href="surveys.php" class="btn btn-outline-secondary"><i class="bx bx-arrow-back me-1"></i>Back to Surveys</a>
+                  <a href="API/surveys/?admin=1&export=csv&survey_id=<?php echo (int) $selectedSurvey['id']; ?>" class="btn btn-outline-primary" target="_blank"><i class="bx bx-download me-1"></i>Download CSV</a>
+                </div>
               </div>
-              <?php } ?>
 
-
-
-              <!-- ═══ GLOBAL STATS ═══ -->
+              <!-- ═══ SURVEY-SPECIFIC STATS ═══ -->
               <div class="row g-4 mb-4">
                 <?php
-                  $statCards = [
-                    ['label' => 'Total Surveys', 'value' => $globalStats['total_surveys'], 'icon' => 'bx bx-bar-chart-alt-2'],
-                    ['label' => 'Published', 'value' => $globalStats['published_surveys'], 'icon' => 'bx bx-check-circle'],
-                    ['label' => 'Total Responses', 'value' => $globalStats['total_responses'], 'icon' => 'bx bx-message-square-dots'],
-                    ['label' => 'Today', 'value' => $globalStats['responses_today'], 'icon' => 'bx bx-calendar-check'],
-                    ['label' => 'This Week', 'value' => $globalStats['responses_this_week'], 'icon' => 'bx bx-trending-up'],
+                  $surveyStatCards = [
+                    ['label' => 'Total Responses', 'value' => $selectedStats['total']],
+                    ['label' => 'Today', 'value' => $selectedStats['today']],
+                    ['label' => 'This Week', 'value' => $selectedStats['this_week']],
+                    ['label' => 'This Month', 'value' => $selectedStats['this_month']],
                   ];
-                  foreach ($statCards as $sc) { ?>
-                <div class="col-xl col-md-4 col-sm-6">
+                  foreach ($surveyStatCards as $ssc) { ?>
+                <div class="col-xl-3 col-md-6">
                   <div class="card survey-stat-card h-100">
                     <div class="card-body">
-                      <span class="label"><i class="<?php echo $sc['icon']; ?> me-1"></i><?php echo htmlspecialchars($sc['label']); ?></span>
-                      <span class="value"><?php echo (int) $sc['value']; ?></span>
+                      <span class="label"><?php echo htmlspecialchars($ssc['label']); ?></span>
+                      <span class="value"><?php echo (int) $ssc['value']; ?></span>
                     </div>
                   </div>
                 </div>
                 <?php } ?>
               </div>
 
-              <!-- Survey list table -->
-              <div class="card">
-                <div class="card-header d-flex justify-content-between align-items-center gap-3">
-                  <div>
-                    <h5 class="mb-1">All Surveys</h5>
-                    <p class="text-muted mb-0">Select a survey to view its responses.</p>
+              <!-- ═══ RESPONSES TABLE + DETAIL ═══ -->
+              <div class="row g-4 align-items-start">
+                <div class="<?php echo $selectedResponse ? 'col-xl-7' : 'col-12'; ?>">
+                  <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center gap-3">
+                      <div>
+                        <h5 class="mb-1">Responses</h5>
+                        <p class="text-muted mb-0">Click a row to view detailed answers.</p>
+                      </div>
+                      <span class="badge bg-dark"><?php echo count($selectedResponses); ?></span>
+                    </div>
+                    <div class="card-body">
+                      <div class="table-responsive text-nowrap">
+                        <table class="table align-middle" id="responsesTable">
+                          <thead class="table-light">
+                            <tr>
+                              <th>#</th>
+                              <th>Name</th>
+                              <th>Email</th>
+                              <th>Submitted</th>
+                              <th>Action</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <?php foreach ($selectedResponses as $idx => $resp) { ?>
+                            <tr class="<?php echo $selectedResponseId === (int) $resp['id'] ? 'table-active' : ''; ?>">
+                              <td><?php echo $idx + 1; ?></td>
+                              <td><div class="fw-semibold"><?php echo htmlspecialchars(($resp['first_name'] ?? '') . ' ' . ($resp['last_name'] ?? '')); ?></div></td>
+                              <td><div class="small text-muted"><?php echo htmlspecialchars($resp['email'] ?? ''); ?></div></td>
+                              <td><?php echo !empty($resp['created_at']) ? htmlspecialchars(date('d M Y', strtotime($resp['created_at']))) : '-'; ?></td>
+                              <td><a href="survey_details.php?id=<?php echo $surveyId; ?>&response=<?php echo (int) $resp['id']; ?>" class="btn btn-sm btn-outline-primary">View</a></td>
+                            </tr>
+                            <?php } ?>
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   </div>
-                  <button type="button" class="btn btn-primary btn-sm" onclick="resetSurveyModal()" data-bs-toggle="modal" data-bs-target="#surveyEditorModal"><i class="bx bx-plus me-1"></i>New Survey</button>
                 </div>
-                <div class="card-body">
-                  <div class="table-responsive text-nowrap">
-                    <table class="table align-middle" id="surveysListTable">
-                      <thead class="table-light">
-                        <tr>
-                          <th>Title</th>
-                          <th>Slug</th>
-                          <th>Status</th>
-                          <th>Responses</th>
-                          <th>Expiry</th>
-                          <th>Created</th>
-                          <th>Action</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        <?php foreach ($allSurveys as $s) { ?>
-                        <tr>
-                          <td class="fw-semibold"><?php echo htmlspecialchars($s['title']); ?></td>
-                          <td><code><?php echo htmlspecialchars($s['slug']); ?></code></td>
-                          <td><span class="badge bg-label-<?php echo ccSurveysStatusBadge($s['status']); ?>"><?php echo htmlspecialchars(ucfirst($s['status'])); ?></span></td>
-                          <td><?php echo (int) ($s['response_count'] ?? 0); ?></td>
-                          <td><?php echo !empty($s['expiry_date']) ? htmlspecialchars(date('d M Y', strtotime($s['expiry_date']))) : '—'; ?></td>
-                          <td><?php echo !empty($s['created_at']) ? htmlspecialchars(date('d M Y', strtotime($s['created_at']))) : '-'; ?></td>
-                          <td>
-                            <div class="d-flex gap-1">
-                              <a href="survey_details.php?id=<?php echo (int) $s['id']; ?>" class="btn btn-sm btn-outline-primary">View</a>
-                              <a href="surveys.php?edit=<?php echo (int) $s['id']; ?>" class="btn btn-sm btn-outline-secondary"><i class="bx bx-edit"></i></a>
-                            </div>
-                          </td>
-                        </tr>
+
+                <?php if ($selectedResponse) { ?>
+                <div class="col-xl-5">
+                  <div class="card response-detail-card">
+                    <div class="card-header d-flex justify-content-between align-items-center gap-3">
+                      <div><h5 class="mb-1">Response Detail</h5></div>
+                      <a href="survey_details.php?id=<?php echo $surveyId; ?>" class="btn btn-sm btn-outline-secondary"><i class="bx bx-x"></i></a>
+                    </div>
+                    <div class="card-body">
+                      <div class="detail-section">
+                        <h6 class="mb-3">Answers</h6>
+                        <?php $detailAnswers = json_decode($selectedResponse['responses_json'] ?? '{}', true);
+                        foreach ($detailAnswers as $qId => $answer) {
+                          $qLabel = $selectedQuestionMap[$qId] ?? $qId;
+                          if (is_array($answer)) $answer = implode(', ', $answer); ?>
+                          <div>
+                            <div class="fw-semibold mb-1"><?php echo htmlspecialchars((string) $qLabel); ?></div>
+                            <div class="text-muted mb-2"><?php echo nl2br(htmlspecialchars((string) $answer)); ?></div>
+                          </div>
                         <?php } ?>
-                      </tbody>
-                    </table>
+                      </div>
+                    </div>
                   </div>
                 </div>
+                <?php } ?>
               </div>
 
-              <!-- Floating + Button -->
-              <button type="button" class="btn btn-primary new_formBtn" onclick="resetSurveyModal()" data-bs-toggle="modal" data-bs-target="#surveyEditorModal" aria-label="Create new survey">
-                <i class='bx bx-plus fs-3'></i>
-              </button>
-
+              <!-- ═══ AI CHAT ═══ -->
+              <?php if (count($selectedResponses) > 0) { ?>
+              <div class="card mt-4">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                  <div>
+                    <h5 class="mb-1"><i class="bx bx-bot me-1"></i>AI Survey Analyst</h5>
+                  </div>
+                  <?php if (!$llmAvailable) { ?>
+                  <span class="badge bg-label-warning">Not Configured</span>
+                  <?php } else { ?>
+                  <span class="badge bg-label-success">Ready</span>
+                  <?php } ?>
+                </div>
+                <div class="card-body">
+                  <?php if (!$llmAvailable) { ?>
+                  <div class="alert alert-warning mb-0">
+                    <i class="bx bx-info-circle me-1"></i>
+                    To use the AI analyst, please configure <code>config/llm.php</code> with your Gemini API key.
+                  </div>
+                  <?php } else { ?>
+                  <div id="aiChatMessages" class="ai-chat-messages mb-3">
+                    <div class="ai-msg ai-msg-bot"><div class="ai-bubble">Ask me about this survey's responses!</div></div>
+                  </div>
+                  <form id="aiChatForm" class="d-flex gap-2" onsubmit="return sendAiChat(event);">
+                    <input type="text" class="form-control" id="aiChatInput" placeholder="Ask question..." />
+                    <button type="submit" class="btn btn-primary" id="aiChatBtn"><i class="bx bx-send"></i></button>
+                  </form>
+                  <?php } ?>
+                </div>
+              </div>
+              <?php } ?>
             </div>
             <?php include('partials/_footer.php') ?>
             <div class="content-backdrop fade"></div>

@@ -1,0 +1,97 @@
+{
+  "_comment": "SURVEY TEMPLATE — Supports two formats: flat questions OR sections.",
+
+  "title": "Your Survey Title",
+  "description": "Optional description shown on the welcome screen.",
+
+  "_format_1_flat": "Use top-level 'questions' for a flat survey (no section headers):",
+  "questions": [
+    {
+      "id": "unique_field_id",
+      "question": "The question text displayed to the user",
+      "description": "Optional helper text below the question",
+      "type": "text",
+      "required": true,
+      "placeholder": "Placeholder text..."
+    },
+    {
+      "id": "long_answer",
+      "question": "A multi-line text question",
+      "type": "textarea",
+      "required": false,
+      "placeholder": "Type your detailed answer..."
+    },
+    {
+      "id": "age",
+      "question": "A number question",
+      "type": "number",
+      "required": true,
+      "placeholder": "e.g. 25",
+      "min": 0,
+      "max": 150
+    },
+    {
+      "id": "dropdown_choice",
+      "question": "A single-choice question (dropdown-style)",
+      "type": "select",
+      "required": true,
+      "options": ["Option A", "Option B", "Option C"]
+    },
+    {
+      "id": "multiple_choices",
+      "question": "A multi-choice question (checkboxes)",
+      "description": "Users can select multiple options.",
+      "type": "multi-select",
+      "required": true,
+      "options": ["Choice 1", "Choice 2", "Choice 3", "Choice 4"]
+    }
+  ],
+
+  "_format_2_sections": "OR use 'sections' for grouped questions with section headers. If both exist, 'sections' takes priority:",
+  "sections": [
+    {
+      "title": "Section Title",
+      "description": "Optional section description shown on the header slide.",
+      "questions": [
+        {
+          "id": "section1_q1",
+          "question": "First question in this section",
+          "type": "text",
+          "required": true
+        },
+        {
+          "id": "section1_q2",
+          "question": "Second question in this section",
+          "type": "select",
+          "required": true,
+          "options": ["Yes", "No", "Maybe"]
+        },
+        {
+          "id": "section1_q3",
+          "question": "This question only appears if you selected 'Yes' above!",
+          "description": "Uses condition logic to show/hide based on previous answers.",
+          "type": "text",
+          "required": true,
+          "condition": {
+            "fieldId": "section1_q2",
+            "operator": "equals",
+            "value": "Yes"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Another Section",
+      "description": "Questions in this section relate to another topic.",
+      "questions": [
+        {
+          "id": "section2_q1",
+          "question": "A question in section 2",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Write here..."
+        }
+      ]
+    }
+  ]
+}
