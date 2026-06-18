@@ -296,7 +296,7 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
                           <h5 class="mb-1"><?php echo htmlspecialchars($selectedSurvey['title']); ?></h5>
                           <span class="badge bg-label-<?php echo ccSurveysStatusBadge($selectedSurvey['status']); ?>"><?php echo htmlspecialchars(ucfirst($selectedSurvey['status'])); ?></span>
                         </div>
-                        <a href="API/surveys/?admin=1&export=csv&survey_id=<?php echo (int) $selectedSurvey['id']; ?>" class="btn btn-sm btn-outline-primary" target="_blank"><i class="bx bx-download me-1"></i>CSV</a>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="downloadCsv(event, <?php echo (int) $selectedSurvey['id']; ?>)"><i class="bx bx-download me-1"></i>CSV</button>
                       </div>
                       
                       <div class="mb-3">
@@ -309,6 +309,7 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
                       </div>
                       
                       <div class="d-flex gap-2 flex-wrap mt-auto pt-3 border-top">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="editSurvey()"><i class="bx bx-edit me-1"></i>Edit Survey</button>
                         <?php if ($selectedSurvey['status'] === 'published') { ?>
                         <form method="post" class="d-inline ajax-form">
                           <input type="hidden" name="action" value="update_status" />
@@ -595,6 +596,110 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
         if (nextIdx >= 0 && nextIdx < RESPONSES.length) {
           openResponseModal(nextIdx);
         }
+      }
+
+      function editSurvey() {
+        document.getElementById('surveyModalTitle').textContent = 'Edit Survey';
+        document.getElementById('modalAction').value = 'update_survey';
+        document.getElementById('surveyTitle').value = <?php echo json_encode((string) ($selectedSurvey['title'] ?? '')); ?>;
+        document.getElementById('surveyStatus').value = <?php echo json_encode((string) ($selectedSurvey['status'] ?? 'draft')); ?>;
+        
+        let expiry = '';
+        <?php if (!empty($selectedSurvey['expiry_date'])) { ?>
+          const d = new Date(<?php echo json_encode($selectedSurvey['expiry_date']); ?>);
+          const tzOffset = d.getTimezoneOffset() * 60000; 
+          expiry = (new Date(d - tzOffset)).toISOString().slice(0, 16);
+        <?php } ?>
+        document.getElementById('surveyExpiry').value = expiry;
+        
+        document.getElementById('surveyDescription').value = <?php echo json_encode((string) ($selectedSurvey['description'] ?? '')); ?>;
+        document.getElementById('surveyJson').value = <?php echo json_encode((string) ($selectedSurvey['questions_json'] ?? '')); ?>;
+        document.getElementById('allowDuplicate').checked = <?php echo !empty($selectedSurvey['allow_duplicate_email']) ? 'true' : 'false'; ?>;
+        document.getElementById('modalSubmitBtn').textContent = 'Update Survey';
+
+        let surveyIdInput = document.getElementById('modalSurveyId');
+        if (!surveyIdInput) {
+          surveyIdInput = document.createElement('input');
+          surveyIdInput.type = 'hidden';
+          surveyIdInput.name = 'survey_id';
+          surveyIdInput.id = 'modalSurveyId';
+          document.querySelector('#surveyEditorModal form').appendChild(surveyIdInput);
+        }
+        surveyIdInput.value = <?php echo (int) $selectedSurvey['id']; ?>;
+
+        const deleteBtn = document.querySelector('.modal-footer .btn-outline-danger');
+        if (deleteBtn) {
+          deleteBtn.style.display = 'block';
+          deleteBtn.setAttribute('onclick', `if(confirm('Delete this survey and all its responses? This cannot be undone.')){ document.getElementById('deleteSurveyId').value = <?php echo (int) $selectedSurvey['id']; ?>; document.getElementById('deleteSurveyForm').submit(); }`);
+        } else {
+          const footer = document.querySelector('.modal-footer');
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn btn-outline-danger';
+          btn.textContent = 'Delete Survey';
+          btn.onclick = function() {
+            if(confirm('Delete this survey and all its responses? This cannot be undone.')){ 
+              document.getElementById('deleteSurveyId').value = <?php echo (int) $selectedSurvey['id']; ?>; 
+              document.getElementById('deleteSurveyForm').submit(); 
+            }
+          };
+          footer.insertBefore(btn, footer.firstChild);
+        }
+
+        const deleteForm = document.getElementById('deleteSurveyForm');
+        if (!deleteForm) {
+          const form = document.createElement('form');
+          form.id = 'deleteSurveyForm';
+          form.method = 'post';
+          form.className = 'd-none ajax-form';
+          form.innerHTML = `
+            <input type="hidden" name="action" value="delete_survey" />
+            <input type="hidden" name="survey_id" id="deleteSurveyId" value="<?php echo (int) $selectedSurvey['id']; ?>" />
+          `;
+          document.body.appendChild(form);
+        } else {
+          document.getElementById('deleteSurveyId').value = <?php echo (int) $selectedSurvey['id']; ?>;
+        }
+
+        const myModal = new bootstrap.Modal(document.getElementById('surveyEditorModal'));
+        myModal.show();
+      }
+
+      function downloadCsv(e, surveyId) {
+        e.preventDefault();
+        const btn = e.currentTarget;
+        const originalHtml = btn.innerHTML;
+        btn.innerHTML = '<i class="bx bx-loader-alt bx-spin me-1"></i>';
+        btn.classList.add('disabled');
+        
+        fetch('API/surveys/?admin=1&export=csv&survey_id=' + surveyId, {
+          method: 'GET',
+          headers: {
+            'Authorization': 'Bearer ' + BEARER_TOKEN
+          }
+        })
+        .then(res => {
+          if (!res.ok) throw new Error('Network response was not ok');
+          return res.blob();
+        })
+        .then(blob => {
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `survey_${surveyId}_responses.csv`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          window.URL.revokeObjectURL(url);
+          btn.innerHTML = originalHtml;
+          btn.classList.remove('disabled');
+        })
+        .catch(err => {
+          console.error(err);
+          alert('Failed to download CSV');
+          btn.innerHTML = originalHtml;
+          btn.classList.remove('disabled');
+        });
       }
 
       // AI Chat

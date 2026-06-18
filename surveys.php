@@ -328,7 +328,7 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
                           <td>
                             <div class="d-flex gap-1">
                               <a href="survey_details.php?id=<?php echo (int) $s['id']; ?>" class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation();">View</a>
-                              <a href="surveys.php?edit=<?php echo (int) $s['id']; ?>" class="btn btn-sm btn-outline-secondary" onclick="event.stopPropagation();"><i class="bx bx-edit"></i></a>
+                              <button type="button" class="btn btn-sm btn-outline-secondary" onclick="editSurvey(<?php echo (int) $s['id']; ?>); event.stopPropagation();"><i class="bx bx-edit"></i></button>
                             </div>
                           </td>
                         </tr>
@@ -525,6 +525,81 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
         }
       }
 
+      }
+
+      const ALL_SURVEYS = <?php echo json_encode($allSurveys); ?>;
+
+      function editSurvey(id) {
+        const survey = ALL_SURVEYS.find(s => parseInt(s.id) === parseInt(id));
+        if (!survey) return;
+
+        document.getElementById('surveyModalTitle').textContent = 'Edit Survey';
+        document.getElementById('modalAction').value = 'update_survey';
+        document.getElementById('surveyTitle').value = survey.title || '';
+        document.getElementById('surveyStatus').value = survey.status || 'draft';
+        
+        let expiry = '';
+        if (survey.expiry_date) {
+          // Format as YYYY-MM-DDThh:mm
+          const d = new Date(survey.expiry_date);
+          const tzOffset = d.getTimezoneOffset() * 60000; 
+          const localISOTime = (new Date(d - tzOffset)).toISOString().slice(0, 16);
+          expiry = localISOTime;
+        }
+        document.getElementById('surveyExpiry').value = expiry;
+        
+        document.getElementById('surveyDescription').value = survey.description || '';
+        document.getElementById('surveyJson').value = survey.questions_json || '';
+        document.getElementById('allowDuplicate').checked = !!survey.allow_duplicate_email;
+        document.getElementById('modalSubmitBtn').textContent = 'Update Survey';
+
+        let surveyIdInput = document.getElementById('modalSurveyId');
+        if (!surveyIdInput) {
+          surveyIdInput = document.createElement('input');
+          surveyIdInput.type = 'hidden';
+          surveyIdInput.name = 'survey_id';
+          surveyIdInput.id = 'modalSurveyId';
+          document.querySelector('#surveyEditorModal form').appendChild(surveyIdInput);
+        }
+        surveyIdInput.value = survey.id;
+
+        const deleteBtn = document.querySelector('.modal-footer .btn-outline-danger');
+        if (deleteBtn) {
+          deleteBtn.style.display = 'block';
+          deleteBtn.setAttribute('onclick', `if(confirm('Delete this survey and all its responses? This cannot be undone.')){ document.getElementById('deleteSurveyId').value = ${survey.id}; document.getElementById('deleteSurveyForm').submit(); }`);
+        } else {
+          // If the button doesn't exist (because the page loaded with no editSurvey), we should create it or just submit directly
+          const footer = document.querySelector('.modal-footer');
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'btn btn-outline-danger';
+          btn.textContent = 'Delete Survey';
+          btn.onclick = function() {
+            if(confirm('Delete this survey and all its responses? This cannot be undone.')){ 
+              document.getElementById('deleteSurveyId').value = survey.id; 
+              document.getElementById('deleteSurveyForm').submit(); 
+            }
+          };
+          footer.insertBefore(btn, footer.firstChild);
+        }
+
+        const deleteForm = document.getElementById('deleteSurveyForm');
+        if (!deleteForm) {
+          const form = document.createElement('form');
+          form.id = 'deleteSurveyForm';
+          form.method = 'post';
+          form.className = 'd-none ajax-form';
+          form.innerHTML = `
+            <input type="hidden" name="action" value="delete_survey" />
+            <input type="hidden" name="survey_id" id="deleteSurveyId" value="${survey.id}" />
+          `;
+          document.body.appendChild(form);
+        } else {
+          document.getElementById('deleteSurveyId').value = survey.id;
+        }
+
+        const myModal = new bootstrap.Modal(document.getElementById('surveyEditorModal'));
+        myModal.show();
       }
     </script>
   </body>
