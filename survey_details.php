@@ -299,6 +299,10 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
                         <button type="button" class="btn btn-sm btn-outline-primary" onclick="downloadCsv(event, <?php echo (int) $selectedSurvey['id']; ?>)"><i class="bx bx-download me-1"></i>CSV</button>
                       </div>
                       
+                      <?php if (!empty($selectedSurvey['description'])) { ?>
+                      <p class="text-muted mb-3" style="font-size: 0.9rem;"><?php echo nl2br(htmlspecialchars((string) $selectedSurvey['description'])); ?></p>
+                      <?php } ?>
+
                       <div class="mb-3">
                         <span class="survey-link-copy small" onclick="navigator.clipboard.writeText('https://nivasity.com/survey/<?php echo htmlspecialchars($selectedSurvey['slug']); ?>').then(()=>this.textContent='Copied!').catch(()=>{});" title="Click to copy survey link">
                           <i class="bx bx-link"></i> nivasity.com/survey/<?php echo htmlspecialchars($selectedSurvey['slug']); ?>
