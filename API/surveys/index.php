@@ -336,15 +336,22 @@ function verifyBearerToken(): void
     }
 
     $authHeader = trim((string) ($_SERVER['HTTP_AUTHORIZATION'] ?? $_SERVER['REDIRECT_HTTP_AUTHORIZATION'] ?? ''));
+    
+    // Fallback for Apache
+    if ($authHeader === '' && function_exists('apache_request_headers')) {
+        $headers = apache_request_headers();
+        $authHeader = trim((string) ($headers['Authorization'] ?? $headers['authorization'] ?? ''));
+    }
+
     if ($authHeader === '') {
         surveyRespond(401, ['success' => false, 'message' => 'Authorization header is required.']);
     }
 
-    if (strpos($authHeader, 'Bearer ') !== 0) {
-        surveyRespond(401, ['success' => false, 'message' => 'Invalid authorization format. Use Bearer token.']);
+    if (stripos($authHeader, 'Bearer ') !== 0) {
+        surveyRespond(401, ['success' => false, 'message' => 'Invalid authorization format. Use Bearer token. (Received: ' . htmlspecialchars($authHeader) . ')']);
     }
 
-    $token = substr($authHeader, 7);
+    $token = trim(substr($authHeader, 7));
     if ($token !== (string) API_BEARER_TOKEN) {
         surveyRespond(403, ['success' => false, 'message' => 'Invalid bearer token.']);
     }

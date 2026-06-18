@@ -402,36 +402,11 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
                 </div>
               </div>
 
-              <!-- ═══ AI CHAT ═══ -->
+              <!-- ═══ AI CHAT FLOATING BTN ═══ -->
               <?php if (count($selectedResponses) > 0) { ?>
-              <div class="card mt-4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                  <div>
-                    <h5 class="mb-1"><i class="bx bx-bot me-1"></i>AI Survey Analyst</h5>
-                  </div>
-                  <?php if (!$llmAvailable) { ?>
-                  <span class="badge bg-label-warning">Not Configured</span>
-                  <?php } else { ?>
-                  <span class="badge bg-label-success">Ready</span>
-                  <?php } ?>
-                </div>
-                <div class="card-body">
-                  <?php if (!$llmAvailable) { ?>
-                  <div class="alert alert-warning mb-0">
-                    <i class="bx bx-info-circle me-1"></i>
-                    To use the AI analyst, please configure <code>config/llm.php</code> with your Gemini API key.
-                  </div>
-                  <?php } else { ?>
-                  <div id="aiChatMessages" class="ai-chat-messages mb-3">
-                    <div class="ai-msg ai-msg-bot"><div class="ai-bubble">Ask me about this survey's responses!</div></div>
-                  </div>
-                  <form id="aiChatForm" class="d-flex gap-2" onsubmit="return sendAiChat(event);">
-                    <input type="text" class="form-control" id="aiChatInput" placeholder="Ask question..." />
-                    <button type="submit" class="btn btn-primary" id="aiChatBtn"><i class="bx bx-send"></i></button>
-                  </form>
-                  <?php } ?>
-                </div>
-              </div>
+              <button type="button" class="btn btn-primary" data-bs-toggle="offcanvas" data-bs-target="#aiChatOffcanvas" aria-controls="aiChatOffcanvas" style="position: fixed; bottom: 2rem; right: 2rem; z-index: 1050; border-radius: 50%; width: 60px; height: 60px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.15);" aria-label="Open AI Chat">
+                <i class='bx bx-bot fs-3'></i>
+              </button>
               <?php } ?>
             </div>
             <?php include('partials/_footer.php') ?>
@@ -548,6 +523,37 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
             <div id="respAnswers" class="d-flex flex-column gap-3"></div>
           </div>
         </div>
+      </div>
+    </div>
+
+    <!-- ═══ AI CHAT OFFCANVAS ═══ -->
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="aiChatOffcanvas" aria-labelledby="aiChatOffcanvasLabel" style="margin: 1rem; height: calc(100vh - 2rem); border-radius: 1rem; width: 400px; box-shadow: 0 0.25rem 1rem rgba(161, 172, 184, 0.45);">
+      <div class="offcanvas-header border-bottom">
+        <h5 id="aiChatOffcanvasLabel" class="offcanvas-title d-flex align-items-center gap-2">
+          <i class="bx bx-bot text-primary fs-4"></i> AI Survey Analyst
+          <?php if (!$llmAvailable) { ?>
+          <span class="badge bg-label-warning" style="font-size: 0.7rem;">Not Configured</span>
+          <?php } else { ?>
+          <span class="badge bg-label-success" style="font-size: 0.7rem;">Ready</span>
+          <?php } ?>
+        </h5>
+        <button type="button" class="btn-close text-reset" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+      </div>
+      <div class="offcanvas-body d-flex flex-column h-100 p-3">
+        <?php if (!$llmAvailable) { ?>
+        <div class="alert alert-warning">
+          <i class="bx bx-info-circle me-1"></i>
+          To use the AI analyst, please configure <code>config/llm.php</code> with your Gemini API key.
+        </div>
+        <?php } else { ?>
+        <div id="aiChatMessages" class="ai-chat-messages flex-grow-1 mb-3" style="max-height: none; border: none; background: transparent; padding: 0;">
+          <div class="ai-msg ai-msg-bot"><div class="ai-bubble">Hi! Ask me about this survey's responses.</div></div>
+        </div>
+        <form id="aiChatForm" class="d-flex gap-2 mt-auto pt-3 border-top" onsubmit="return sendAiChat(event);">
+          <input type="text" class="form-control" id="aiChatInput" placeholder="Ask question..." autocomplete="off" />
+          <button type="submit" class="btn btn-primary" id="aiChatBtn"><i class="bx bx-send"></i></button>
+        </form>
+        <?php } ?>
       </div>
     </div>
 
