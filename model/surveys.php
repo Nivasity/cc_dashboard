@@ -534,6 +534,12 @@ function ccSurveysAiChat(string $question, array $survey, array $responses): arr
             'temperature' => 0.3,
             'maxOutputTokens' => 2048,
         ],
+        'safetySettings' => [
+            ['category' => 'HARM_CATEGORY_HARASSMENT', 'threshold' => 'BLOCK_NONE'],
+            ['category' => 'HARM_CATEGORY_HATE_SPEECH', 'threshold' => 'BLOCK_NONE'],
+            ['category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold' => 'BLOCK_NONE'],
+            ['category' => 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold' => 'BLOCK_NONE']
+        ],
     ];
 
     $ch = curl_init($url);

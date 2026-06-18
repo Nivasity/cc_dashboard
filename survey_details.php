@@ -527,7 +527,7 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
     </div>
 
     <!-- ═══ AI CHAT OFFCANVAS ═══ -->
-    <div class="offcanvas offcanvas-end" tabindex="-1" id="aiChatOffcanvas" aria-labelledby="aiChatOffcanvasLabel" style="margin: 1rem; height: calc(100vh - 2rem); border-radius: 1rem; width: 400px; box-shadow: 0 0.25rem 1rem rgba(161, 172, 184, 0.45);">
+    <div class="offcanvas offcanvas-end" tabindex="-1" id="aiChatOffcanvas" aria-labelledby="aiChatOffcanvasLabel" style="margin: 1rem; height: calc(100vh - 2rem); border-radius: 1rem; width: 600px; box-shadow: 0 0.25rem 1rem rgba(161, 172, 184, 0.45);">
       <div class="offcanvas-header border-bottom">
         <h5 id="aiChatOffcanvasLabel" class="offcanvas-title d-flex align-items-center gap-2">
           <i class="bx bx-bot text-primary fs-4"></i> AI Survey Analyst
