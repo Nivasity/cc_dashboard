@@ -55,7 +55,7 @@ function buildDateFilter($conn, $date_range, $start_date, $end_date, $table_alia
  * @return array<int, string>
  */
 function getPurchaseTransactionContexts() {
-  return ['purchase', 'bulk_material_purchase'];
+  return ['purchase'];
 }
 
 /**

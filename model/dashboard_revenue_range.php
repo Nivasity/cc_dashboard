@@ -66,7 +66,17 @@ if (!function_exists('dashboard_build_amount_base_sql')) {
     $admin_faculty = (int) $admin_faculty;
 
     $base = "SELECT COALESCE(SUM({$amount_field}),0) AS total FROM transactions t WHERE t.status = 'successful'";
-    $base .= buildPurchaseTransactionContextFilter('t');
+    
+    // As per user preference: 'purchase' is the only global helper context.
+    // However, for calculating profit, we must explicitly include 'bulk_material_purchase' 
+    // because the profit is held on the parent bulk transaction.
+    if ($amount_field === 't.profit') {
+      $expr = buildPurchaseTransactionContextExpression('t');
+      $base .= " AND $expr IN ('purchase', 'bulk_material_purchase')";
+    } else {
+      $base .= buildPurchaseTransactionContextFilter('t');
+    }
+
     if ($admin_role === 5 && $admin_school > 0) {
       $base .= " AND EXISTS (SELECT 1 FROM manuals_bought b JOIN manuals m ON b.manual_id = m.id LEFT JOIN depts d ON m.dept = d.id WHERE b.ref_id = t.ref_id AND b.status='successful' AND b.school_id = {$admin_school}";
       if ($admin_faculty !== 0) {
