@@ -180,17 +180,14 @@ function ccSurveysCreate(mysqli $conn, string $title, string $description, strin
  */
 function ccSurveysUpdate(mysqli $conn, int $id, string $title, string $description, string $questionsJson, string $status, ?string $expiryDate, int $allowDuplicateEmail, int $adminId): bool
 {
-    $slug = ccSurveysEnsureUniqueSlug($conn, ccSurveysGenerateSlug($title), $id);
     $titleSafe = mysqli_real_escape_string($conn, $title);
     $descSafe = mysqli_real_escape_string($conn, $description);
     $jsonSafe = mysqli_real_escape_string($conn, $questionsJson);
     $statusSafe = mysqli_real_escape_string($conn, ccSurveysNormalizeStatus($status));
-    $slugSafe = mysqli_real_escape_string($conn, $slug);
     $expiryValue = ($expiryDate !== null && $expiryDate !== '') ? "'" . mysqli_real_escape_string($conn, $expiryDate) . "'" : 'NULL';
     $allowDup = $allowDuplicateEmail ? 1 : 0;
 
     $sql = "UPDATE surveys SET
-                slug = '$slugSafe',
                 title = '$titleSafe',
                 description = '$descSafe',
                 questions_json = '$jsonSafe',
