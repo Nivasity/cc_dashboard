@@ -620,8 +620,8 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
 
 
 
-      const RESPONSES = <?php echo json_encode($selectedResponses); ?>;
-      const QUESTION_MAP = <?php echo json_encode($selectedQuestionMap); ?>;
+      const RESPONSES = <?php echo json_encode($selectedResponses, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_INVALID_UTF8_SUBSTITUTE) ?: '[]'; ?>;
+      const QUESTION_MAP = <?php echo json_encode($selectedQuestionMap, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_INVALID_UTF8_SUBSTITUTE) ?: '{}'; ?>;
 
       let currentResponseIdx = -1;
       let responseModalInstance = null;
@@ -679,19 +679,19 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
       function editSurvey() {
         document.getElementById('surveyModalTitle').textContent = 'Edit Survey';
         document.getElementById('modalAction').value = 'update_survey';
-        document.getElementById('surveyTitle').value = <?php echo json_encode((string) ($selectedSurvey['title'] ?? '')); ?>;
-        document.getElementById('surveyStatus').value = <?php echo json_encode((string) ($selectedSurvey['status'] ?? 'draft')); ?>;
+        document.getElementById('surveyTitle').value = <?php echo json_encode((string) ($selectedSurvey['title'] ?? ''), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_INVALID_UTF8_SUBSTITUTE) ?: '""'; ?>;
+        document.getElementById('surveyStatus').value = <?php echo json_encode((string) ($selectedSurvey['status'] ?? 'draft'), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_INVALID_UTF8_SUBSTITUTE) ?: '""'; ?>;
         
         let expiry = '';
         <?php if (!empty($selectedSurvey['expiry_date'])) { ?>
-          const d = new Date(<?php echo json_encode($selectedSurvey['expiry_date']); ?>);
+          const d = new Date(<?php echo json_encode($selectedSurvey['expiry_date'], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_INVALID_UTF8_SUBSTITUTE) ?: '""'; ?>);
           const tzOffset = d.getTimezoneOffset() * 60000; 
           expiry = (new Date(d - tzOffset)).toISOString().slice(0, 16);
         <?php } ?>
         document.getElementById('surveyExpiry').value = expiry;
         
-        document.getElementById('surveyDescription').value = <?php echo json_encode((string) ($selectedSurvey['description'] ?? '')); ?>;
-        document.getElementById('surveyJson').value = <?php echo json_encode((string) ($selectedSurvey['questions_json'] ?? '')); ?>;
+        document.getElementById('surveyDescription').value = <?php echo json_encode((string) ($selectedSurvey['description'] ?? ''), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_INVALID_UTF8_SUBSTITUTE) ?: '""'; ?>;
+        document.getElementById('surveyJson').value = <?php echo json_encode((string) ($selectedSurvey['questions_json'] ?? ''), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_INVALID_UTF8_SUBSTITUTE) ?: '""'; ?>;
         document.getElementById('allowDuplicate').checked = <?php echo !empty($selectedSurvey['allow_duplicate_email']) ? 'true' : 'false'; ?>;
         document.getElementById('modalSubmitBtn').textContent = 'Update Survey';
 
@@ -781,7 +781,7 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
       }
 
       // AI Chat
-      const BEARER_TOKEN = <?php echo json_encode($bearerToken); ?>;
+      const BEARER_TOKEN = <?php echo json_encode($bearerToken, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_INVALID_UTF8_SUBSTITUTE) ?: '""'; ?>;
       const SURVEY_ID = <?php echo $selectedSurveyId; ?>;
       const API_BASE = 'API/surveys/';
 

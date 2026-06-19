@@ -527,7 +527,7 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
 
       }
 
-      const ALL_SURVEYS = <?php echo json_encode($allSurveys); ?>;
+      const ALL_SURVEYS = <?php echo json_encode($allSurveys, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_INVALID_UTF8_SUBSTITUTE) ?: '[]'; ?>;
 
       function editSurvey(id) {
         const survey = ALL_SURVEYS.find(s => parseInt(s.id) === parseInt(id));
