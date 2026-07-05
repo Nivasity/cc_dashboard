@@ -41,7 +41,7 @@ if (!function_exists('ccSchoolSettlementTablesReady')) {
 if (!function_exists('ccSchoolSettlementCapPerSchool')) {
   function ccSchoolSettlementCapPerSchool(): int
   {
-    return 8000000;
+    return 6000000;
   }
 }
 
