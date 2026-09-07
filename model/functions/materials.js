@@ -34,7 +34,7 @@ $(document).ready(function () {
   }
 
   InitiateDatatable('.table');
-  $('#school, #faculty, #dept, #creatorType, #dateRange').select2({ theme: 'bootstrap-5', width: '100%' });
+  $('#school, #faculty, #dept, #creatorType, #dateRange, #deptFilterType').select2({ theme: 'bootstrap-5', width: '100%' });
 
   function getCreatorType() {
     return $('#creatorType').val() || DEFAULT_CREATOR_TYPE;
@@ -50,7 +50,14 @@ $(document).ready(function () {
     $('#customDateRange').toggleClass('d-none', !showDateFilter || $('#dateRange').val() !== 'custom');
   }
 
+  function syncDeptFilterVisibility() {
+    var deptVal = $('#dept').val();
+    var showDeptFilter = deptVal && deptVal !== '0';
+    $('#deptFilterGroup').toggleClass('d-none', !showDeptFilter);
+  }
+
   syncDateRangeVisibility();
+  syncDeptFilterVisibility();
 
   // Fetch materials on page load
   fetchMaterials();
@@ -112,6 +119,7 @@ $(document).ready(function () {
     var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
     var deptId = $('#dept').val();
+    var deptFilterType = $('#deptFilterType').val() || 'sold_to_dept';
     var creatorType = getCreatorType();
     var isUserMaterials = creatorType === 'users';
     var dateRange = isUserMaterials ? ($('#dateRange').val() || DEFAULT_DATE_RANGE) : 'all';
@@ -130,6 +138,7 @@ $(document).ready(function () {
         school: schoolId,
         faculty: facultyId,
         dept: deptId,
+        dept_filter_type: deptFilterType,
         creator_type: creatorType,
         date_range: dateRange,
         start_date: startDate,
@@ -298,6 +307,11 @@ $(document).ready(function () {
   });
 
   $('#dept').on('change', function () {
+    syncDeptFilterVisibility();
+    fetchMaterials();
+  });
+
+  $('#deptFilterType').on('change', function () {
     fetchMaterials();
   });
 
@@ -417,6 +431,7 @@ $(document).ready(function () {
     var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $('#faculty').val();
     var deptId = $('#dept').val();
+    var deptFilterType = $('#deptFilterType').val() || 'sold_to_dept';
     var creatorType = getCreatorType();
     var isUserMaterials = creatorType === 'users';
     var dateRange = isUserMaterials ? ($('#dateRange').val() || DEFAULT_DATE_RANGE) : 'all';
@@ -431,6 +446,7 @@ $(document).ready(function () {
         school: schoolId,
         faculty: facultyId,
         dept: deptId,
+        dept_filter_type: deptFilterType,
         creator_type: creatorType,
         date_range: dateRange,
         start_date: startDate,
