@@ -549,6 +549,11 @@ if(isset($_GET['fetch'])){
       error_log("SQL: " . $material_sql);
     } else {
       $materials = array();
+      $total_amount_paid = 0;
+      $total_qty_sold = 0;
+      $max_qty_sold = 0;
+      $best_selling_code = 'N/A';
+
       while($row = mysqli_fetch_assoc($mat_query)){
         $coverage_info = resolveMaterialCoverage($conn, $row);
 
@@ -563,6 +568,16 @@ if(isset($_GET['fetch'])){
           $is_admin = false;
         }
         
+        $revenue = (float) ($row['revenue'] ?? 0);
+        $qty_sold = (int) ($row['qty_sold'] ?? 0);
+        $total_amount_paid += $revenue;
+        $total_qty_sold += $qty_sold;
+
+        if ($qty_sold > 0 && $qty_sold > $max_qty_sold) {
+          $max_qty_sold = $qty_sold;
+          $best_selling_code = $row['course_code'] ?? 'N/A';
+        }
+
         $materials[] = array(
           'id' => $row['id'],
           'code' => $row['code'],
@@ -591,6 +606,14 @@ if(isset($_GET['fetch'])){
           'dept_count' => $coverage_info['dept_count']
         );
       }
+
+      $stats = array(
+        'total_amount_paid' => $total_amount_paid,
+        'total_count' => count($materials),
+        'total_qty_sold' => $total_qty_sold,
+        'best_selling_code' => $best_selling_code,
+        'best_selling_qty' => $max_qty_sold
+      );
       $statusRes = 'success';
     }
   }
@@ -1102,6 +1125,7 @@ $responseData = array(
   'faculties' => $faculties,
   'departments' => $departments,
   'materials' => $materials,
+  'stats' => $stats ?? null,
   'restrict_faculty' => $restrict_faculty
 );
 
