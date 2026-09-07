@@ -66,21 +66,54 @@ function buildMaterialFacultyFilterClause($faculty_id) {
 }
 
 /**
- * Build SQL clause for department filter using dept first, then depts when dept is 0.
+ * Build SQL clause for department filter.
+ * Modes:
+ *   - 'only_available': materials explicitly targeted/posted for this department
+ *   - 'sold_to_dept' (default): materials buyable by students of this department (school-wide, faculty-wide, custom for dept, or bought by students of this dept)
  *
+ * @param mysqli $conn
  * @param int $dept_id
+ * @param string $dept_filter_type
  * @return string
  */
-function buildMaterialDeptFilterClause($dept_id) {
+function buildMaterialDeptFilterClause($conn, $dept_id, $dept_filter_type = 'sold_to_dept') {
   $dept_id = intval($dept_id);
   if ($dept_id <= 0) {
     return '';
   }
 
+  if ($dept_filter_type === 'only_available') {
+    return " AND (
+      (IFNULL(m.dept, 0) <> 0 AND m.dept = $dept_id)
+      OR
+      (IFNULL(m.dept, 0) = 0 AND m.depts IS NOT NULL AND m.depts <> '' AND FIND_IN_SET($dept_id, m.depts))
+    )";
+  }
+
+  // Get department's faculty_id for faculty-wide coverage match
+  $dept_faculty_id = 0;
+  $dept_res = mysqli_query($conn, "SELECT faculty_id FROM depts WHERE id = $dept_id LIMIT 1");
+  if ($dept_res && $dept_row = mysqli_fetch_assoc($dept_res)) {
+    $dept_faculty_id = intval($dept_row['faculty_id'] ?? 0);
+  }
+
+  $faculty_match_clause = "";
+  if ($dept_faculty_id > 0) {
+    $faculty_match_clause = "OR (m.coverage = 'Faculty' AND (
+      CASE WHEN m.host_faculty IS NOT NULL AND m.host_faculty <> 0 THEN m.host_faculty ELSE IFNULL(m.faculty, 0) END = $dept_faculty_id
+    ))";
+  }
+
   return " AND (
     (IFNULL(m.dept, 0) <> 0 AND m.dept = $dept_id)
-    OR
-    (IFNULL(m.dept, 0) = 0 AND m.depts IS NOT NULL AND m.depts <> '' AND FIND_IN_SET($dept_id, m.depts))
+    OR (IFNULL(m.dept, 0) = 0 AND m.depts IS NOT NULL AND m.depts <> '' AND FIND_IN_SET($dept_id, m.depts))
+    OR (m.coverage = 'School')
+    $faculty_match_clause
+    OR EXISTS (
+      SELECT 1 FROM manuals_bought mb_dept
+      JOIN users u_dept ON mb_dept.buyer = u_dept.id
+      WHERE mb_dept.manual_id = m.id AND mb_dept.status = 'successful' AND u_dept.dept = $dept_id
+    )
   )";
 }
 
@@ -366,6 +399,7 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
   $school = intval($_GET['school'] ?? 0);
   $faculty = intval($_GET['faculty'] ?? 0);
   $dept = intval($_GET['dept'] ?? 0);
+  $dept_filter_type = $_GET['dept_filter_type'] ?? 'sold_to_dept';
   $creator_type = $_GET['creator_type'] ?? 'admins';
   if ($creator_type !== 'users') {
     $creator_type = 'admins';
@@ -394,7 +428,7 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
     }
   }
   if ($dept > 0) {
-    $material_sql .= buildMaterialDeptFilterClause($dept);
+    $material_sql .= buildMaterialDeptFilterClause($conn, $dept, $dept_filter_type);
   }
   $material_sql .= buildMaterialCreatorFilterClause($creator_type);
   if ($creator_type === 'users') {
@@ -509,6 +543,7 @@ if(isset($_GET['fetch'])){
   }
 
   if($fetch == 'materials'){
+    $dept_filter_type = $_GET['dept_filter_type'] ?? 'sold_to_dept';
     $creator_type = $_GET['creator_type'] ?? 'admins';
     if ($creator_type !== 'users') {
       $creator_type = 'admins';
@@ -532,7 +567,7 @@ if(isset($_GET['fetch'])){
       }
     }
     if($dept > 0){
-      $material_sql .= buildMaterialDeptFilterClause($dept);
+      $material_sql .= buildMaterialDeptFilterClause($conn, $dept, $dept_filter_type);
     }
     $material_sql .= buildMaterialCreatorFilterClause($creator_type);
     if ($creator_type === 'users') {

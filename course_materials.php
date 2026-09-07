@@ -145,6 +145,12 @@ if ($admin_role == 5) {
                       <option value="users">User Materials</option>
                     </select>
                   </div>
+                  <div class="col-md-3 d-none" id="deptFilterGroup">
+                    <select name="dept_filter_type" id="deptFilterType" class="form-select">
+                      <option value="sold_to_dept" selected>Sold to Department</option>
+                      <option value="only_available">Only Available to Department</option>
+                    </select>
+                  </div>
                   <div class="col-md-3 d-none" id="dateRangeFilterGroup">
                     <select name="date_range" id="dateRange" class="form-select">
                       <option value="7">Last 7 Days</option>
