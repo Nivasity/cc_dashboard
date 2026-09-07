@@ -40,6 +40,74 @@ if ($admin_role == 5) {
         <div class="content-wrapper">
           <div class="container-xxl flex-grow-1 container-p-y">
             <h4 class="fw-bold py-3 mb-4"><span class="text-muted fw-light">Resources Management /</span> Course Materials</h4>
+
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+              <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card" id="amountCard">
+                  <div class="card-body">
+                    <div class="d-flex align-items-start">
+                      <div class="avatar flex-shrink-0 me-3">
+                        <i class='bx bx-wallet bx-sm'></i>
+                      </div>
+                      <div class="flex-grow-1">
+                        <span class="fw-semibold d-block mb-1">Total Amount Paid</span>
+                        <h3 class="card-title mb-1" id="totalAmountPaid">₦ 0</h3>
+                        <small class="text-muted" id="totalQtySold">0 sold</small>
+                      </div>
+                    </div>
+                    <div class="stats-loading-spinner">
+                      <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card" id="countCard">
+                  <div class="card-body">
+                    <div class="d-flex align-items-start">
+                      <div class="avatar flex-shrink-0 me-3">
+                        <i class='bx bx-book-open bx-sm'></i>
+                      </div>
+                      <div class="flex-grow-1">
+                        <span class="fw-semibold d-block mb-1">Count of Materials</span>
+                        <h3 class="card-title mb-1" id="totalCount">0</h3>
+                        <small class="text-muted" id="materialsCountSub"></small>
+                      </div>
+                    </div>
+                    <div class="stats-loading-spinner">
+                      <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="col-lg-4 col-md-6 mb-4">
+                <div class="card" id="bestSellingCard">
+                  <div class="card-body">
+                    <div class="d-flex align-items-start">
+                      <div class="avatar flex-shrink-0 me-3">
+                        <i class='bx bx-trophy bx-sm'></i>
+                      </div>
+                      <div class="flex-grow-1">
+                        <span class="fw-semibold d-block mb-1">Best Selling Material</span>
+                        <h3 class="card-title mb-1 text-uppercase" id="bestSellingCourseCode">N/A</h3>
+                        <small class="text-info" id="bestSellingSales">0 sales</small>
+                      </div>
+                    </div>
+                    <div class="stats-loading-spinner">
+                      <div class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="card mb-4" id="materialsCard">
               <div class="card-body">
                 <form id="filterForm" class="row g-3 mb-4">

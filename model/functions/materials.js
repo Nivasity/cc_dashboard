@@ -119,6 +119,7 @@ $(document).ready(function () {
     var endDate = isUserMaterials ? $('#endDate').val() : '';
 
     // Show loading state
+    showStatsLoading();
     showTableLoading();
 
     $.ajax({
@@ -147,8 +148,17 @@ $(document).ready(function () {
         if (res.status === 'error') {
           console.error('Backend error:', res.message);
           showToast('danger', 'Error Loading Materials', res.message || 'Failed to load materials. Please check console for details.');
+          hideStatsLoading();
           hideTableLoading();
           return;
+        }
+
+        if (res.status === 'success' && res.stats) {
+          $('#totalAmountPaid').text('₦ ' + Number(res.stats.total_amount_paid || 0).toLocaleString());
+          $('#totalQtySold').text(Number(res.stats.total_qty_sold || 0).toLocaleString() + ' sold');
+          $('#totalCount').text(Number(res.stats.total_count || 0).toLocaleString());
+          $('#bestSellingCourseCode').text(res.stats.best_selling_code || 'N/A');
+          $('#bestSellingSales').text(Number(res.stats.best_selling_qty || 0).toLocaleString() + ' sales');
         }
 
         if (res.status === 'success' && res.materials) {
@@ -233,6 +243,7 @@ $(document).ready(function () {
         InitiateDatatable('.table');
 
         // Hide loading state after table is loaded
+        hideStatsLoading();
         hideTableLoading();
       },
       error: function (xhr, status, error) {
@@ -249,12 +260,21 @@ $(document).ready(function () {
         }
 
         // Hide loading state on error
+        hideStatsLoading();
         hideTableLoading();
       }
     });
   }
 
   // Helper functions for loading state
+  function showStatsLoading() {
+    $('#amountCard, #countCard, #bestSellingCard').addClass('stats-card-loading');
+  }
+
+  function hideStatsLoading() {
+    $('#amountCard, #countCard, #bestSellingCard').removeClass('stats-card-loading');
+  }
+
   function showTableLoading() {
     $('#materialsCard').addClass('stats-card-loading');
   }
