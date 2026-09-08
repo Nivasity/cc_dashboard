@@ -68,7 +68,7 @@ function buildMaterialFacultyFilterClause($faculty_id) {
 /**
  * Build SQL clause for department filter.
  * Modes:
- *   - 'only_available': materials explicitly targeted/posted for this department
+ *   - 'only_available': materials with Custom coverage explicitly targeted/posted for this department (excludes School/Faculty-wide coverage)
  *   - 'sold_to_dept' (default): materials buyable by students of this department (school-wide, faculty-wide, custom for dept, or bought by students of this dept)
  *
  * @param mysqli $conn
@@ -83,7 +83,10 @@ function buildMaterialDeptFilterClause($conn, $dept_id, $dept_filter_type = 'sol
   }
 
   if ($dept_filter_type === 'only_available') {
-    return " AND (
+    // Materials posted specifically for this department (Custom coverage only) —
+    // excludes School/Faculty-wide materials whose expanded `depts` CSV also
+    // happens to include this department's id.
+    return " AND m.coverage = 'Custom' AND (
       (IFNULL(m.dept, 0) <> 0 AND m.dept = $dept_id)
       OR
       (IFNULL(m.dept, 0) = 0 AND m.depts IS NOT NULL AND m.depts <> '' AND FIND_IN_SET($dept_id, m.depts))
