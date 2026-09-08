@@ -54,6 +54,9 @@ $(document).ready(function () {
     var deptVal = $('#dept').val();
     var showDeptFilter = deptVal && deptVal !== '0';
     $('#deptFilterGroup').toggleClass('d-none', !showDeptFilter);
+    if (!showDeptFilter) {
+      $('#deptFilterType').val('sold_to_dept').trigger('change.select2');
+    }
   }
 
   syncDateRangeVisibility();
