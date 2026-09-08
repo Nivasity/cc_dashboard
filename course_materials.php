@@ -147,8 +147,8 @@ if ($admin_role == 5) {
                   </div>
                   <div class="col-md-3 d-none" id="deptFilterGroup">
                     <select name="dept_filter_type" id="deptFilterType" class="form-select">
-                      <option value="sold_to_dept" selected>Sold to Department</option>
-                      <option value="only_available">Only Available to Department</option>
+                      <option value="sold_to_dept" selected>All Materials Available to Department</option>
+                      <option value="only_available">Exclusive to Department</option>
                     </select>
                   </div>
                   <div class="col-md-3 d-none" id="dateRangeFilterGroup">

@@ -297,6 +297,7 @@ $(document).ready(function () {
 
   $('#school').on('change', function () {
     var schoolId = adminRole == 5 ? adminSchool : $(this).val();
+    $('#dept').val('0').trigger('change.select2');
     fetchFaculties(schoolId);
     fetchDepts(schoolId, 0);
     fetchMaterials();
@@ -305,6 +306,7 @@ $(document).ready(function () {
   $('#faculty').on('change', function () {
     var schoolId = adminRole == 5 ? adminSchool : $('#school').val();
     var facultyId = (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : $(this).val();
+    $('#dept').val('0').trigger('change.select2');
     fetchDepts(schoolId, facultyId);
     fetchMaterials();
   });
