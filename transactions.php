@@ -171,6 +171,7 @@ if ($admin_role == 5) {
                         <th>Student Details</th>
                         <th>Course materials</th>
                         <th>Total Paid</th>
+                        <th>Payment Method</th>
                         <th>Date &amp; Time</th>
                         <th>Status</th>
                         <?php if (in_array((int)$admin_role, [1, 2, 4], true)) { ?>
