@@ -31,16 +31,21 @@ if ($admin_role == 5 && $admin_id) {
   }
 }
 
-$tran_sql = "SELECT t.ref_id, t.amount, t.status, t.created_at, u.first_name, u.last_name, u.matric_no, " .
+// Drive from manuals_bought so manually-recorded batch payments (which have
+// no transactions row at all — see manual_payment_batches) still appear
+// here, alongside gateway purchases and gateway/online bulk purchases.
+// Refunded rows never have a successful manuals_bought row, so they're
+// naturally excluded.
+$purchase_context_expr = buildPurchaseTransactionContextExpression('t');
+$tran_sql = "SELECT b.ref_id, SUM(b.price) AS amount, 'successful' AS status, " .
+  "COALESCE(MAX(t.medium), 'MANUAL (Offline Batch)') AS medium, " .
+  "MIN(b.created_at) AS created_at, u.first_name, u.last_name, u.matric_no, " .
   "GROUP_CONCAT(CONCAT(m.title, ' - ', m.course_code) SEPARATOR ', ') AS materials " .
-  "FROM transactions t " .
-  "JOIN users u ON t.user_id = u.id " .
-  "LEFT JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
-  "LEFT JOIN manuals m ON b.manual_id = m.id " .
-  "LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
-
-$tran_sql .= buildPurchaseTransactionContextFilter('t');
-$tran_sql .= " AND (b.ref_id IS NOT NULL OR (t.status = 'refunded' AND t.medium = 'MANUAL'))";
+  "FROM manuals_bought b " .
+  "JOIN users u ON b.buyer = u.id " .
+  "JOIN manuals m ON b.manual_id = m.id " .
+  "LEFT JOIN transactions t ON t.ref_id = b.ref_id AND {$purchase_context_expr} IN ('purchase', 'bulk_material_purchase') " .
+  "WHERE b.status = 'successful'";
 
 if ($admin_role == 5 && $admin_school > 0) {
   $school_safe = (int)$admin_school;
@@ -50,7 +55,7 @@ if ($admin_role == 5 && $admin_school > 0) {
   }
 }
 
-$tran_sql .= " GROUP BY t.id, t.ref_id, t.amount, t.status, t.created_at, u.first_name, u.last_name, u.matric_no ORDER BY t.created_at DESC LIMIT 5";
+$tran_sql .= " GROUP BY b.ref_id, u.first_name, u.last_name, u.matric_no ORDER BY created_at DESC LIMIT 5";
 $tran_query = mysqli_query($conn, $tran_sql);
 
 if ($tran_query) {
@@ -63,7 +68,8 @@ if ($tran_query) {
       'amount' => $row['amount'],
       'date' => date('M j, Y', strtotime($row['created_at'])),
       'time' => date('h:i a', strtotime($row['created_at'])),
-      'status' => $row['status']
+      'status' => $row['status'],
+      'medium' => $row['medium']
     ];
   }
   $status = 'success';

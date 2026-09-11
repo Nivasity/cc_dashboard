@@ -43,15 +43,19 @@ function buildTransactionStatsBaseSql($conn, $school, $faculty, $dept, $date_ran
   $faculty = (int) $faculty;
   $dept = (int) $dept;
 
-  $base_sql = "SELECT t.id, t.amount " .
-    "FROM transactions t " .
-    "JOIN users u ON t.user_id = u.id " .
-    "LEFT JOIN manuals_bought b ON b.ref_id = t.ref_id AND b.status='successful' " .
-    "LEFT JOIN manuals m ON b.manual_id = m.id " .
-    "LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
-
-  $base_sql .= buildPurchaseTransactionContextFilter('t');
-  $base_sql .= " AND (b.ref_id IS NOT NULL OR (t.status = 'refunded' AND t.medium = 'MANUAL'))";
+  // Drive from manuals_bought so manually-recorded batch payments (which have
+  // no transactions row at all — see manual_payment_batches) are still
+  // counted, alongside gateway purchases and gateway/online bulk purchases.
+  // A LEFT JOIN to transactions supplies payment-medium context where it
+  // exists; refunded rows never have a successful manuals_bought row, so
+  // b.status='successful' naturally excludes them.
+  $purchase_context_expr = buildPurchaseTransactionContextExpression('t');
+  $base_sql = "SELECT b.ref_id, SUM(b.price) AS amount " .
+    "FROM manuals_bought b " .
+    "JOIN users u ON b.buyer = u.id " .
+    "JOIN manuals m ON b.manual_id = m.id " .
+    "LEFT JOIN transactions t ON t.ref_id = b.ref_id AND {$purchase_context_expr} IN ('purchase', 'bulk_material_purchase') " .
+    "WHERE b.status = 'successful'";
 
   if ($school > 0) {
     $base_sql .= " AND (b.school_id = $school OR (b.school_id IS NULL AND u.school = $school))";
@@ -63,8 +67,8 @@ function buildTransactionStatsBaseSql($conn, $school, $faculty, $dept, $date_ran
     $base_sql .= buildHostedMaterialDeptFilter('m', $dept);
   }
 
-  $base_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date);
-  $base_sql .= " GROUP BY t.id, t.amount";
+  $base_sql .= buildDateFilter($conn, $date_range, $start_date, $end_date, 'b');
+  $base_sql .= " GROUP BY b.ref_id";
 
   return $base_sql;
 }
