@@ -40,6 +40,7 @@ if ($admin_role == 5) {
 $purchase_context_expr = buildPurchaseTransactionContextExpression('t');
 $tran_sql = "SELECT b.ref_id, SUM(b.price) AS amount, 'successful' AS status, " .
   "COALESCE(MAX(t.medium), 'MANUAL (Offline Batch)') AS medium, " .
+  "COALESCE(MAX(t.charge), 0) AS charge, " .
   "MIN(b.created_at) AS created_at, u.first_name, u.last_name, u.matric_no, " .
   "GROUP_CONCAT(CONCAT(m.title, ' - ', m.course_code, ' (', b.price, ')') SEPARATOR '<br>') AS materials " .
   "FROM manuals_bought b " .
@@ -70,6 +71,7 @@ if ($tran_query) {
       'matric' => $row['matric_no'],
       'materials' => $row['materials'] ?? '',
       'amount' => $row['amount'],
+      'charge' => $row['charge'],
       'date' => date('M j, Y', strtotime($row['created_at'])),
       'time' => date('h:i a', strtotime($row['created_at'])),
       'status' => $row['status'],

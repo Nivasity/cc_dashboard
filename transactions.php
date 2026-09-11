@@ -171,6 +171,7 @@ if ($admin_role == 5) {
                         <th>Student Details</th>
                         <th>Course materials</th>
                         <th>Total Paid</th>
+                        <th>Charge</th>
                         <th>Payment Method</th>
                         <th>Date &amp; Time</th>
                         <th>Status</th>
