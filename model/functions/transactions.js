@@ -594,6 +594,7 @@
               '<td><span class="text-uppercase text-primary">' + trn.student + '</span><br>Matric no: ' + trn.matric + '</td>' +
               '<td>' + trn.materials + '</td>' +
               '<td class="fw-bold">₦ ' + Number(trn.amount).toLocaleString() + '</td>' +
+              '<td>₦ ' + Number(trn.charge || 0).toLocaleString() + '</td>' +
               '<td>' + (trn.medium || '') + '</td>' +
               '<td>' + trn.date + '<br>' + trn.time + '</td>' +
               '<td><span class="fw-bold badge bg-label-' + badgeClass + '">' +
