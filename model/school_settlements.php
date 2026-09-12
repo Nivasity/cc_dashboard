@@ -116,6 +116,62 @@ try {
       echo json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
       break;
 
+    case 'get_auto_config':
+      $config = ccSchoolSettlementGetConfig($conn);
+      echo json_encode(['status' => 'success', 'config' => $config], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+      break;
+
+    case 'update_auto_config':
+      $result = ccSchoolSettlementUpdateConfig($conn, $_POST, $adminId);
+      if (($result['status'] ?? '') === 'success' && function_exists('log_audit_event')) {
+        log_audit_event(
+          $conn,
+          $adminId,
+          'update',
+          'school_settlement_config',
+          '1',
+          $_POST
+        );
+      }
+      echo json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+      break;
+
+    case 'list_cron_logs':
+      $limit = (int) ($_GET['limit'] ?? $_POST['limit'] ?? 20);
+      $logs = ccSchoolSettlementListCronLogs($conn, $limit);
+      echo json_encode(['status' => 'success', 'logs' => $logs], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+      break;
+
+    case 'get_cron_log_details':
+      $logId = (int) ($_GET['log_id'] ?? $_POST['log_id'] ?? 0);
+      $log = ccSchoolSettlementGetCronLogDetails($conn, $logId);
+      if ($log) {
+        echo json_encode(['status' => 'success', 'log' => $log], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+      } else {
+        http_response_code(404);
+        echo json_encode(['status' => 'not_found', 'message' => 'Log not found']);
+      }
+      break;
+
+    case 'trigger_midnight_run':
+      $result = ccSchoolSettlementExecuteMidnightRun($conn, 'MANUAL_DASHBOARD_TRIGGER', $adminId);
+      if (function_exists('log_audit_event')) {
+        log_audit_event(
+          $conn,
+          $adminId,
+          'execute',
+          'school_settlement_midnight_run',
+          (string) ($result['run_reference'] ?? 'RUN'),
+          [
+            'status' => $result['status'] ?? '',
+            'total_amount' => $result['total_amount_settled'] ?? 0,
+            'schools_count' => $result['schools_count'] ?? 0,
+          ]
+        );
+      }
+      echo json_encode($result, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+      break;
+
     default:
       http_response_code(400);
       echo json_encode([

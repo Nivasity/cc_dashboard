@@ -1279,6 +1279,45 @@ CREATE TABLE `wallet_virtual_accounts` (
   `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `school_settlement_configs`
+--
+
+CREATE TABLE `school_settlement_configs` (
+  `id` int(11) NOT NULL,
+  `is_auto_settlement_enabled` tinyint(1) NOT NULL DEFAULT 1 COMMENT '1 = Active, 0 = PAUSED globally',
+  `min_settlement_amount` int(11) NOT NULL DEFAULT 1000 COMMENT 'Minimum balance required to trigger transfer (e.g. N1,000)',
+  `max_settlement_cap_per_school` int(11) NOT NULL DEFAULT 5000000 COMMENT 'Daily maximum cap per school (e.g. N5,000,000)',
+  `execution_time` varchar(10) NOT NULL DEFAULT '02:00' COMMENT 'Scheduled daily run time (2am cool-off after midnight)',
+  `notify_email` varchar(255) DEFAULT 'finance@nivasity.com' COMMENT 'Destination email for midnight stats',
+  `automation_cutoff_at` datetime DEFAULT NULL COMMENT 'Ledger rows created before this moment are excluded from automated runs and must be settled manually',
+  `updated_by` int(11) DEFAULT NULL,
+  `updated_at` datetime NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `settlement_cron_logs`
+--
+
+CREATE TABLE `settlement_cron_logs` (
+  `id` int(11) NOT NULL,
+  `run_reference` varchar(64) NOT NULL,
+  `started_at` datetime NOT NULL,
+  `completed_at` datetime DEFAULT NULL,
+  `status` enum('running','success','paused','partial_failure','failed') NOT NULL DEFAULT 'running',
+  `schools_count` int(11) NOT NULL DEFAULT 0,
+  `total_amount_settled` int(11) NOT NULL DEFAULT 0,
+  `total_students_count` int(11) NOT NULL DEFAULT 0,
+  `total_materials_count` int(11) NOT NULL DEFAULT 0,
+  `summary_json` longtext DEFAULT NULL COMMENT 'Detailed JSON breakdown of schools, faculties, materials, and errors',
+  `triggered_by` varchar(50) NOT NULL DEFAULT 'CRON_MIDNIGHT' COMMENT 'CRON_MIDNIGHT or MANUAL_DASHBOARD_TRIGGER',
+  `created_at` datetime NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 --
 -- Indexes for dumped tables
 --
@@ -1657,6 +1696,20 @@ ALTER TABLE `settlement_batch_items`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_settlement_batch_items_batch` (`settlement_batch_id`),
   ADD KEY `idx_settlement_batch_items_ledger` (`school_payable_ledger_id`);
+
+--
+-- Indexes for table `school_settlement_configs`
+--
+ALTER TABLE `school_settlement_configs`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Indexes for table `settlement_cron_logs`
+--
+ALTER TABLE `settlement_cron_logs`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `idx_settlement_cron_status` (`status`),
+  ADD KEY `idx_settlement_cron_date` (`created_at`);
 
 --
 -- Indexes for table `support_contacts`
@@ -2046,6 +2099,18 @@ ALTER TABLE `settlement_batches`
 -- AUTO_INCREMENT for table `settlement_batch_items`
 --
 ALTER TABLE `settlement_batch_items`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `school_settlement_configs`
+--
+ALTER TABLE `school_settlement_configs`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `settlement_cron_logs`
+--
+ALTER TABLE `settlement_cron_logs`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --

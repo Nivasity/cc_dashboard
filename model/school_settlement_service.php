@@ -39,9 +39,18 @@ if (!function_exists('ccSchoolSettlementTablesReady')) {
 }
 
 if (!function_exists('ccSchoolSettlementCapPerSchool')) {
-  function ccSchoolSettlementCapPerSchool(): int
+  function ccSchoolSettlementCapPerSchool(?mysqli $conn = null): int
   {
-    return 6000000;
+    $fallback = 6000000;
+
+    if ($conn === null) {
+      return $fallback;
+    }
+
+    $config = ccSchoolSettlementGetConfig($conn);
+    $configuredCap = (int) ($config['max_settlement_cap_per_school'] ?? 0);
+
+    return $configuredCap > 0 ? $configuredCap : $fallback;
   }
 }
 
@@ -305,9 +314,24 @@ if (!function_exists('ccSchoolSettlementGetActiveBatch')) {
   }
 }
 
-if (!function_exists('ccSchoolSettlementBuildEligibleLedgerSql')) {
-  function ccSchoolSettlementBuildEligibleLedgerSql(int $schoolId, bool $forUpdate = false): string
+if (!function_exists('ccSchoolSettlementSanitizeDateTimeToken')) {
+  function ccSchoolSettlementSanitizeDateTimeToken(string $value): string
   {
+    return preg_replace('/[^0-9:\- ]/', '', $value);
+  }
+}
+
+if (!function_exists('ccSchoolSettlementBuildEligibleLedgerSql')) {
+  function ccSchoolSettlementBuildEligibleLedgerSql(int $schoolId, bool $forUpdate = false, ?string $windowStart = null, ?string $windowEnd = null): string
+  {
+    $windowClause = '';
+    if ($windowStart !== null && $windowStart !== '') {
+      $windowClause .= " AND spl.created_at >= '" . ccSchoolSettlementSanitizeDateTimeToken($windowStart) . "'";
+    }
+    if ($windowEnd !== null && $windowEnd !== '') {
+      $windowClause .= " AND spl.created_at <= '" . ccSchoolSettlementSanitizeDateTimeToken($windowEnd) . "'";
+    }
+
     $sql = "SELECT spl.id,
                    spl.source_ref_id,
                    spl.payable_amount,
@@ -318,6 +342,7 @@ if (!function_exists('ccSchoolSettlementBuildEligibleLedgerSql')) {
             WHERE spl.school_id = $schoolId
               AND spl.status IN ('pending', 'partially_settled')
               AND spl.payable_amount > spl.settled_amount
+              $windowClause
               AND NOT EXISTS (
                 SELECT 1
                 FROM settlement_batch_items sbi
@@ -337,7 +362,7 @@ if (!function_exists('ccSchoolSettlementBuildEligibleLedgerSql')) {
 }
 
 if (!function_exists('ccSchoolSettlementBuildAllocations')) {
-  function ccSchoolSettlementBuildAllocations(mysqli $conn, int $schoolId, int $targetAmount, bool $forUpdate = false): array
+  function ccSchoolSettlementBuildAllocations(mysqli $conn, int $schoolId, int $targetAmount, bool $forUpdate = false, ?string $ledgerWindowStart = null, ?string $ledgerWindowEnd = null): array
   {
     $allocations = [];
     $allocatedAmount = 0;
@@ -351,7 +376,7 @@ if (!function_exists('ccSchoolSettlementBuildAllocations')) {
       ];
     }
 
-    $ledgerRs = mysqli_query($conn, ccSchoolSettlementBuildEligibleLedgerSql($schoolId, $forUpdate));
+    $ledgerRs = mysqli_query($conn, ccSchoolSettlementBuildEligibleLedgerSql($schoolId, $forUpdate, $ledgerWindowStart, $ledgerWindowEnd));
     if (!$ledgerRs) {
       throw new RuntimeException('Failed to load eligible school payable ledger rows: ' . mysqli_error($conn));
     }
@@ -538,7 +563,7 @@ if (!function_exists('ccSchoolSettlementGetSnapshot')) {
 
     $pendingBalance = (int) ($wallet['pending_payout_balance'] ?? 0);
     $stageableAmount = (int) ($stageable['outstanding_amount'] ?? 0);
-    $previewTarget = min($pendingBalance, ccSchoolSettlementCapPerSchool(), $stageableAmount);
+    $previewTarget = min($pendingBalance, ccSchoolSettlementCapPerSchool($conn), $stageableAmount);
 
     $activeBatch = ccSchoolSettlementGetActiveBatch($conn, $schoolId, false);
     $activeBatchDetails = $activeBatch ? ccSchoolSettlementGetBatchDetails($conn, (int) ($activeBatch['id'] ?? 0)) : null;
@@ -560,7 +585,7 @@ if (!function_exists('ccSchoolSettlementGetSnapshot')) {
         'stageable_records' => (int) ($stageable['record_count'] ?? 0),
         'stageable_amount' => $stageableAmount,
         'preview_target_amount' => $previewTarget,
-        'cap_per_school' => ccSchoolSettlementCapPerSchool(),
+        'cap_per_school' => ccSchoolSettlementCapPerSchool($conn),
         'has_active_batch' => $activeBatchDetails ? 1 : 0,
       ],
       'active_batch' => $activeBatchDetails,
@@ -571,7 +596,7 @@ if (!function_exists('ccSchoolSettlementGetSnapshot')) {
 }
 
 if (!function_exists('ccSchoolSettlementStageBatch')) {
-  function ccSchoolSettlementStageBatch(mysqli $conn, int $schoolId, string $scheduledFor, int $adminId, int $adminRole, string $notes = ''): array
+  function ccSchoolSettlementStageBatch(mysqli $conn, int $schoolId, string $scheduledFor, int $adminId, int $adminRole, string $notes = '', ?string $ledgerWindowStart = null, ?string $ledgerWindowEnd = null): array
   {
     if (!ccSchoolSettlementTablesReady($conn)) {
       return [
@@ -643,8 +668,8 @@ if (!function_exists('ccSchoolSettlementStageBatch')) {
         ];
       }
 
-      $allocationTarget = min($pendingBalance, ccSchoolSettlementCapPerSchool());
-      $allocations = ccSchoolSettlementBuildAllocations($conn, $schoolId, $allocationTarget, true);
+      $allocationTarget = min($pendingBalance, ccSchoolSettlementCapPerSchool($conn));
+      $allocations = ccSchoolSettlementBuildAllocations($conn, $schoolId, $allocationTarget, true, $ledgerWindowStart, $ledgerWindowEnd);
       if ((int) ($allocations['total_amount'] ?? 0) <= 0 || empty($allocations['items'])) {
         mysqli_commit($conn);
         return [
@@ -1128,3 +1153,507 @@ if (!function_exists('ccSchoolSettlementFailBatch')) {
     }
   }
 }
+
+if (!function_exists('ccSchoolSettlementGetConfig')) {
+  function ccSchoolSettlementGetConfig(mysqli $conn): array
+  {
+    $defaultConfig = [
+      'id' => 1,
+      'is_auto_settlement_enabled' => 1,
+      'min_settlement_amount' => 1000,
+      'max_settlement_cap_per_school' => 5000000,
+      'execution_time' => '02:00',
+      'notify_email' => 'finance@nivasity.com',
+      'automation_cutoff_at' => date('Y-m-d H:i:s'),
+      'updated_by' => null,
+      'updated_at' => date('Y-m-d H:i:s'),
+    ];
+
+    if (!ccSchoolSettlementTableExists($conn, 'school_settlement_configs')) {
+      return $defaultConfig;
+    }
+
+    $query = mysqli_query($conn, "SELECT * FROM school_settlement_configs WHERE id = 1 LIMIT 1");
+    if ($query && ($row = mysqli_fetch_assoc($query))) {
+      return [
+        'id' => (int) $row['id'],
+        'is_auto_settlement_enabled' => (int) ($row['is_auto_settlement_enabled'] ?? 1),
+        'min_settlement_amount' => (int) ($row['min_settlement_amount'] ?? 1000),
+        'max_settlement_cap_per_school' => (int) ($row['max_settlement_cap_per_school'] ?? 5000000),
+        'execution_time' => (string) ($row['execution_time'] ?? '02:00'),
+        'notify_email' => (string) ($row['notify_email'] ?? 'finance@nivasity.com'),
+        'automation_cutoff_at' => (string) ($row['automation_cutoff_at'] ?? date('Y-m-d H:i:s')),
+        'updated_by' => $row['updated_by'] ? (int) $row['updated_by'] : null,
+        'updated_at' => (string) ($row['updated_at'] ?? date('Y-m-d H:i:s')),
+      ];
+    }
+
+    return $defaultConfig;
+  }
+}
+
+if (!function_exists('ccSchoolSettlementUpdateConfig')) {
+  function ccSchoolSettlementUpdateConfig(mysqli $conn, array $settings, int $adminId): array
+  {
+    if (!ccSchoolSettlementTableExists($conn, 'school_settlement_configs')) {
+      throw new RuntimeException('school_settlement_configs table does not exist. Please run migration.');
+    }
+
+    $isEnabled = isset($settings['is_auto_settlement_enabled']) ? (int) $settings['is_auto_settlement_enabled'] : 1;
+    $minAmount = max(0, (int) ($settings['min_settlement_amount'] ?? 1000));
+    $maxCap = max(1000, (int) ($settings['max_settlement_cap_per_school'] ?? 5000000));
+    $notifyEmail = trim((string) ($settings['notify_email'] ?? 'finance@nivasity.com'));
+    if ($notifyEmail === '' || !filter_var($notifyEmail, FILTER_VALIDATE_EMAIL)) {
+      $notifyEmail = 'finance@nivasity.com';
+    }
+    $executionTime = trim((string) ($settings['execution_time'] ?? '02:00'));
+    if (!preg_match('/^\d{2}:\d{2}$/', $executionTime)) {
+      $executionTime = '02:00';
+    }
+
+    $notifyEmailSafe = mysqli_real_escape_string($conn, $notifyEmail);
+    $executionTimeSafe = mysqli_real_escape_string($conn, $executionTime);
+
+    $sql = "INSERT INTO school_settlement_configs (id, is_auto_settlement_enabled, min_settlement_amount, max_settlement_cap_per_school, execution_time, notify_email, updated_by, updated_at)
+            VALUES (1, $isEnabled, $minAmount, $maxCap, '$executionTimeSafe', '$notifyEmailSafe', $adminId, NOW())
+            ON DUPLICATE KEY UPDATE
+              is_auto_settlement_enabled = VALUES(is_auto_settlement_enabled),
+              min_settlement_amount = VALUES(min_settlement_amount),
+              max_settlement_cap_per_school = VALUES(max_settlement_cap_per_school),
+              execution_time = VALUES(execution_time),
+              notify_email = VALUES(notify_email),
+              updated_by = VALUES(updated_by),
+              updated_at = NOW()";
+
+    if (!mysqli_query($conn, $sql)) {
+      throw new RuntimeException('Failed to update settlement configs: ' . mysqli_error($conn));
+    }
+
+    return [
+      'status' => 'success',
+      'message' => 'Settlement configuration updated successfully.',
+      'config' => ccSchoolSettlementGetConfig($conn),
+    ];
+  }
+}
+
+if (!function_exists('ccSchoolSettlementListCronLogs')) {
+  function ccSchoolSettlementListCronLogs(mysqli $conn, int $limit = 20): array
+  {
+    if (!ccSchoolSettlementTableExists($conn, 'settlement_cron_logs')) {
+      return [];
+    }
+
+    $limit = max(1, min(100, $limit));
+    $sql = "SELECT * FROM settlement_cron_logs ORDER BY id DESC LIMIT $limit";
+    $query = mysqli_query($conn, $sql);
+    $logs = [];
+
+    if ($query) {
+      while ($row = mysqli_fetch_assoc($query)) {
+        $logs[] = [
+          'id' => (int) $row['id'],
+          'run_reference' => (string) $row['run_reference'],
+          'started_at' => (string) $row['started_at'],
+          'completed_at' => $row['completed_at'] ? (string) $row['completed_at'] : null,
+          'status' => (string) $row['status'],
+          'schools_count' => (int) $row['schools_count'],
+          'total_amount_settled' => (int) $row['total_amount_settled'],
+          'total_students_count' => (int) ($row['total_students_count'] ?? 0),
+          'total_materials_count' => (int) ($row['total_materials_count'] ?? 0),
+          'triggered_by' => (string) $row['triggered_by'],
+          'created_at' => (string) $row['created_at'],
+        ];
+      }
+    }
+
+    return $logs;
+  }
+}
+
+if (!function_exists('ccSchoolSettlementGetCronLogDetails')) {
+  function ccSchoolSettlementGetCronLogDetails(mysqli $conn, int $logId): ?array
+  {
+    if (!ccSchoolSettlementTableExists($conn, 'settlement_cron_logs')) {
+      return null;
+    }
+
+    $sql = "SELECT * FROM settlement_cron_logs WHERE id = $logId LIMIT 1";
+    $query = mysqli_query($conn, $sql);
+    if ($query && ($row = mysqli_fetch_assoc($query))) {
+      $summary = ccSchoolSettlementDecodeJson($row['summary_json'] ?? '');
+      return [
+        'id' => (int) $row['id'],
+        'run_reference' => (string) $row['run_reference'],
+        'started_at' => (string) $row['started_at'],
+        'completed_at' => $row['completed_at'] ? (string) $row['completed_at'] : null,
+        'status' => (string) $row['status'],
+        'schools_count' => (int) $row['schools_count'],
+        'total_amount_settled' => (int) $row['total_amount_settled'],
+        'total_students_count' => (int) ($row['total_students_count'] ?? 0),
+        'total_materials_count' => (int) ($row['total_materials_count'] ?? 0),
+        'triggered_by' => (string) $row['triggered_by'],
+        'created_at' => (string) $row['created_at'],
+        'summary' => $summary,
+      ];
+    }
+
+    return null;
+  }
+}
+
+if (!function_exists('ccSchoolSettlementGetBatchFacultyBreakdown')) {
+  function ccSchoolSettlementGetBatchFacultyBreakdown(mysqli $conn, int $batchId): array
+  {
+    $sql = "SELECT 
+              COALESCE(NULLIF(TRIM(f.faculty), ''), 'General / Department') AS faculty_name,
+              COUNT(DISTINCT mb.buyer) AS unique_students,
+              COUNT(mb.id) AS materials_count,
+              COALESCE(SUM(sbi.allocated_amount), 0) AS faculty_amount
+            FROM settlement_batch_items sbi
+            JOIN school_payable_ledger spl ON spl.id = sbi.school_payable_ledger_id
+            LEFT JOIN manuals_bought mb ON mb.ref_id = spl.source_ref_id
+            LEFT JOIN manuals m ON m.id = mb.manual_id
+            LEFT JOIN faculties f ON f.id = m.faculty
+            WHERE sbi.settlement_batch_id = $batchId
+            GROUP BY COALESCE(NULLIF(TRIM(f.faculty), ''), 'General / Department')
+            ORDER BY faculty_amount DESC";
+
+    $query = mysqli_query($conn, $sql);
+    $faculties = [];
+
+    if ($query) {
+      while ($row = mysqli_fetch_assoc($query)) {
+        $faculties[] = [
+          'faculty_name' => (string) $row['faculty_name'],
+          'unique_students' => (int) $row['unique_students'],
+          'materials_count' => (int) $row['materials_count'],
+          'faculty_amount' => (int) $row['faculty_amount'],
+        ];
+      }
+    }
+
+    return $faculties;
+  }
+}
+
+if (!function_exists('ccSchoolSettlementBuildSummaryEmailHtml')) {
+  function ccSchoolSettlementBuildSummaryEmailHtml(array $runResult): string
+  {
+    $runRef = htmlspecialchars($runResult['run_reference'] ?? 'RUN');
+    $status = strtoupper((string) ($runResult['status'] ?? 'SUCCESS'));
+    $totalAmount = number_format((float) ($runResult['total_amount_settled'] ?? 0), 2);
+    $totalStudents = number_format((int) ($runResult['total_students_count'] ?? 0));
+    $totalMaterials = number_format((int) ($runResult['total_materials_count'] ?? 0));
+    $schoolsCount = (int) ($runResult['schools_count'] ?? 0);
+    $triggeredBy = htmlspecialchars($runResult['triggered_by'] ?? 'CRON_MIDNIGHT');
+    $dateStr = date('l, d F Y - h:i A');
+
+    $statusColor = $status === 'SUCCESS' ? '#10b981' : ($status === 'PAUSED' ? '#f59e0b' : '#ef4444');
+
+    $html = '
+    <div style="font-family: Arial, sans-serif; background-color: #f8fafc; padding: 25px; color: #1e293b;">
+      <div style="max-width: 650px; margin: 0 auto; background: #ffffff; border-radius: 10px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+        
+        <div style="background: #1e1b4b; padding: 24px; color: #ffffff;">
+          <h2 style="margin: 0 0 6px 0; font-size: 20px; font-weight: 700; color: #ffffff;">Nivasity Daily Settlement Report</h2>
+          <p style="margin: 0; font-size: 13px; color: #cbd5e1;">Execution Reference: <strong>' . $runRef . '</strong> | ' . $dateStr . '</p>
+        </div>
+
+        <div style="padding: 20px 24px;">
+          <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 130px; background: #f1f5f9; padding: 14px; border-radius: 8px;">
+              <span style="display: block; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Status</span>
+              <strong style="font-size: 16px; color: ' . $statusColor . ';">' . $status . '</strong>
+            </div>
+            <div style="flex: 1; min-width: 130px; background: #f1f5f9; padding: 14px; border-radius: 8px;">
+              <span style="display: block; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Total Settled</span>
+              <strong style="font-size: 16px; color: #0f172a;">&#8358;' . $totalAmount . '</strong>
+            </div>
+            <div style="flex: 1; min-width: 130px; background: #f1f5f9; padding: 14px; border-radius: 8px;">
+              <span style="display: block; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Unique Students</span>
+              <strong style="font-size: 16px; color: #0f172a;">' . $totalStudents . '</strong>
+            </div>
+            <div style="flex: 1; min-width: 130px; background: #f1f5f9; padding: 14px; border-radius: 8px;">
+              <span style="display: block; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Materials Paid</span>
+              <strong style="font-size: 16px; color: #0f172a;">' . $totalMaterials . '</strong>
+            </div>
+          </div>';
+
+    if (!empty($runResult['schools'])) {
+      $html .= '<h3 style="font-size: 16px; color: #0f172a; margin-top: 25px; margin-bottom: 12px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">School & Faculty Breakdown</h3>';
+
+      foreach ($runResult['schools'] as $schoolData) {
+        $schoolName = htmlspecialchars($schoolData['school_name'] ?? 'School');
+        $schoolAmount = number_format((float) ($schoolData['amount_settled'] ?? 0), 2);
+        $schoolStudents = number_format((int) ($schoolData['unique_students'] ?? 0));
+        $schoolMaterials = number_format((int) ($schoolData['materials_count'] ?? 0));
+        $batchRef = htmlspecialchars($schoolData['batch_reference'] ?? '');
+
+        $html .= '
+        <div style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 8px; margin-bottom: 18px; overflow: hidden;">
+          <div style="background: #f8fafc; padding: 12px 16px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+              <strong style="font-size: 15px; color: #1e293b;">' . $schoolName . '</strong>
+              <div style="font-size: 12px; color: #64748b;">Batch: ' . $batchRef . '</div>
+            </div>
+            <div style="text-align: right;">
+              <span style="font-size: 15px; font-weight: 700; color: #10b981;">&#8358;' . $schoolAmount . '</span>
+              <div style="font-size: 12px; color: #64748b;">' . $schoolStudents . ' Students | ' . $schoolMaterials . ' Materials</div>
+            </div>
+          </div>';
+
+        if (!empty($schoolData['faculties'])) {
+          $html .= '
+          <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+            <thead>
+              <tr style="background: #f1f5f9; text-align: left; color: #475569;">
+                <th style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0;">Faculty</th>
+                <th style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; text-align: center;">Students</th>
+                <th style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; text-align: center;">Materials</th>
+                <th style="padding: 8px 12px; border-bottom: 1px solid #e2e8f0; text-align: right;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>';
+
+          foreach ($schoolData['faculties'] as $fac) {
+            $fName = htmlspecialchars($fac['faculty_name'] ?? 'General');
+            $fStudents = number_format((int) ($fac['unique_students'] ?? 0));
+            $fMats = number_format((int) ($fac['materials_count'] ?? 0));
+            $fAmt = number_format((float) ($fac['faculty_amount'] ?? 0), 2);
+
+            $html .= '
+              <tr>
+                <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; color: #334155;">' . $fName . '</td>
+                <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #64748b;">' . $fStudents . '</td>
+                <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; text-align: center; color: #64748b;">' . $fMats . '</td>
+                <td style="padding: 8px 12px; border-bottom: 1px solid #f1f5f9; text-align: right; font-weight: 600; color: #0f172a;">&#8358;' . $fAmt . '</td>
+              </tr>';
+          }
+
+          $html .= '
+            </tbody>
+          </table>';
+        }
+
+        $html .= '</div>';
+      }
+    }
+
+    if (!empty($runResult['skipped_schools'])) {
+      $html .= '<h4 style="font-size: 14px; color: #64748b; margin-top: 20px; margin-bottom: 8px;">Skipped Schools / Below Threshold</h4><ul style="font-size: 12px; color: #64748b; margin: 0; padding-left: 20px;">';
+      foreach ($runResult['skipped_schools'] as $skipped) {
+        $html .= '<li>' . htmlspecialchars($skipped['school_name'] ?? '') . ': ' . htmlspecialchars($skipped['reason'] ?? '') . ' (Pending: &#8358;' . number_format((float) ($skipped['pending_balance'] ?? 0), 2) . ')</li>';
+      }
+      $html .= '</ul>';
+    }
+
+    $html .= '
+          <div style="margin-top: 30px; font-size: 12px; color: #94a3b8; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 15px;">
+            This is an automated notification from the Nivasity Command Center.
+          </div>
+        </div>
+      </div>
+    </div>';
+
+    return $html;
+  }
+}
+
+if (!function_exists('ccSchoolSettlementExecuteMidnightRun')) {
+  function ccSchoolSettlementExecuteMidnightRun(
+    mysqli $conn,
+    string $triggeredBy = 'CRON_MIDNIGHT',
+    int $adminId = 0
+  ): array {
+    $startedAt = date('Y-m-d H:i:s');
+    $scheduledFor = date('Y-m-d');
+    $runRef = sprintf('run_%s_%s', date('Ymd_His'), substr(md5(uniqid('', true)), 0, 6));
+
+    // Automation only ever considers ledger rows from the automation cutoff (set when this
+    // feature went live) through the end of yesterday. Today's still-in-progress transactions
+    // and anything predating the cutoff are excluded and must be settled manually. Rows that
+    // roll over across nights (held back by the min/max settlement limits) keep their original
+    // created_at, so they remain eligible on every subsequent run until fully settled.
+    $ledgerWindowEnd = date('Y-m-d 23:59:59', strtotime('yesterday'));
+
+    $config = ccSchoolSettlementGetConfig($conn);
+    $ledgerWindowStart = (string) ($config['automation_cutoff_at'] ?? '');
+
+    if (empty($config['is_auto_settlement_enabled']) && $triggeredBy === 'CRON_MIDNIGHT') {
+      $logSql = "INSERT INTO settlement_cron_logs (run_reference, started_at, completed_at, status, schools_count, total_amount_settled, summary_json, triggered_by, created_at)
+                 VALUES ('$runRef', '$startedAt', NOW(), 'paused', 0, 0, '{\"message\":\"Automated settlements PAUSED by configuration\"}', '$triggeredBy', NOW())";
+      if (ccSchoolSettlementTableExists($conn, 'settlement_cron_logs')) {
+        mysqli_query($conn, $logSql);
+      }
+      return [
+        'status' => 'paused',
+        'run_reference' => $runRef,
+        'message' => 'Automated settlement is currently PAUSED.',
+      ];
+    }
+
+    $minThreshold = (int) ($config['min_settlement_amount'] ?? 1000);
+    $maxCap = (int) ($config['max_settlement_cap_per_school'] ?? 5000000);
+    $notifyEmail = (string) ($config['notify_email'] ?? 'finance@nivasity.com');
+
+    $schoolsQuery = mysqli_query($conn, "SELECT id, name AS school_name FROM schools ORDER BY id ASC");
+    $allSchools = [];
+    if ($schoolsQuery) {
+      while ($s = mysqli_fetch_assoc($schoolsQuery)) {
+        $allSchools[] = $s;
+      }
+    }
+
+    $processedSchools = [];
+    $skippedSchools = [];
+    $errors = [];
+    $totalSettledAmount = 0;
+    $totalStudentsCount = 0;
+    $totalMaterialsCount = 0;
+
+    foreach ($allSchools as $school) {
+      $schoolId = (int) $school['id'];
+      $schoolName = (string) $school['school_name'];
+
+      try {
+        $snapshot = ccSchoolSettlementGetSnapshot($conn, $schoolId);
+        if (($snapshot['status'] ?? '') !== 'success') {
+          continue;
+        }
+
+        $walletBalance = (int) ($snapshot['wallet']['pending_payout_balance'] ?? 0);
+        if ($walletBalance <= 0) {
+          continue;
+        }
+
+        $windowedTarget = min($walletBalance, $maxCap);
+        $windowedAllocations = ccSchoolSettlementBuildAllocations($conn, $schoolId, $windowedTarget, false, $ledgerWindowStart, $ledgerWindowEnd);
+        $pendingAmount = (int) ($windowedAllocations['total_amount'] ?? 0);
+
+        if ($pendingAmount <= 0) {
+          continue;
+        }
+
+        if ($pendingAmount < $minThreshold) {
+          $skippedSchools[] = [
+            'school_id' => $schoolId,
+            'school_name' => $schoolName,
+            'pending_balance' => $pendingAmount,
+            'reason' => "Pending balance (N$pendingAmount) is below minimum threshold (N$minThreshold)",
+          ];
+          continue;
+        }
+
+        $activeBatch = ccSchoolSettlementGetActiveBatch($conn, $schoolId);
+        if ($activeBatch) {
+          $skippedSchools[] = [
+            'school_id' => $schoolId,
+            'school_name' => $schoolName,
+            'pending_balance' => $pendingAmount,
+            'reason' => "School has an active staged batch #{$activeBatch['id']} ({$activeBatch['batch_reference']}) in progress.",
+          ];
+          continue;
+        }
+
+        $notes = sprintf('Automated midnight settlement run: %s', $runRef);
+        $stageResult = ccSchoolSettlementStageBatch(
+          $conn,
+          $schoolId,
+          $scheduledFor,
+          $adminId,
+          1,
+          $notes,
+          $ledgerWindowStart,
+          $ledgerWindowEnd
+        );
+
+        $batch = $stageResult['batch'] ?? null;
+        if (!$batch || empty($batch['id'])) {
+          throw new RuntimeException('Failed to stage settlement batch for school: ' . $schoolName);
+        }
+
+        $batchId = (int) $batch['id'];
+        $batchRef = (string) ($batch['batch_reference'] ?? '');
+        $batchAmount = (int) ($batch['total_amount'] ?? 0);
+
+        $facultyBreakdown = ccSchoolSettlementGetBatchFacultyBreakdown($conn, $batchId);
+
+        $schoolUniqueStudents = 0;
+        $schoolMaterials = 0;
+        foreach ($facultyBreakdown as $fb) {
+          $schoolUniqueStudents += $fb['unique_students'];
+          $schoolMaterials += $fb['materials_count'];
+        }
+
+        $totalSettledAmount += $batchAmount;
+        $totalStudentsCount += $schoolUniqueStudents;
+        $totalMaterialsCount += $schoolMaterials;
+
+        $processedSchools[] = [
+          'school_id' => $schoolId,
+          'school_name' => $schoolName,
+          'batch_id' => $batchId,
+          'batch_reference' => $batchRef,
+          'amount_settled' => $batchAmount,
+          'unique_students' => $schoolUniqueStudents,
+          'materials_count' => $schoolMaterials,
+          'faculties' => $facultyBreakdown,
+        ];
+      } catch (Throwable $e) {
+        $errors[] = [
+          'school_id' => $schoolId,
+          'school_name' => $schoolName,
+          'error' => $e->getMessage(),
+        ];
+      }
+    }
+
+    $finalStatus = empty($errors) ? 'success' : (!empty($processedSchools) ? 'partial_failure' : 'failed');
+    $completedAt = date('Y-m-d H:i:s');
+
+    $runPayload = [
+      'run_reference' => $runRef,
+      'started_at' => $startedAt,
+      'completed_at' => $completedAt,
+      'status' => $finalStatus,
+      'schools_count' => count($processedSchools),
+      'total_amount_settled' => $totalSettledAmount,
+      'total_students_count' => $totalStudentsCount,
+      'total_materials_count' => $totalMaterialsCount,
+      'triggered_by' => $triggeredBy,
+      'schools' => $processedSchools,
+      'skipped_schools' => $skippedSchools,
+      'errors' => $errors,
+    ];
+
+    if (ccSchoolSettlementTableExists($conn, 'settlement_cron_logs')) {
+      $summaryJsonSafe = ccSchoolSettlementEncodeJson($conn, $runPayload);
+      $logSql = "INSERT INTO settlement_cron_logs (
+                   run_reference, started_at, completed_at, status, schools_count, 
+                   total_amount_settled, total_students_count, total_materials_count, 
+                   summary_json, triggered_by, created_at
+                 ) VALUES (
+                   '$runRef', '$startedAt', '$completedAt', '$finalStatus', " . count($processedSchools) . ", 
+                   $totalSettledAmount, $totalStudentsCount, $totalMaterialsCount, 
+                   '$summaryJsonSafe', '$triggeredBy', NOW()
+                 )";
+      mysqli_query($conn, $logSql);
+    }
+
+    if (!empty($notifyEmail) && file_exists(__DIR__ . '/mail.php')) {
+      require_once(__DIR__ . '/mail.php');
+      if (function_exists('sendMail')) {
+        $emailSubject = sprintf('Daily Settlement Report - %s [N%s]', date('d M Y'), number_format($totalSettledAmount));
+        $emailHtml = ccSchoolSettlementBuildSummaryEmailHtml($runPayload);
+        try {
+          sendMail($notifyEmail, $emailSubject, $emailHtml);
+        } catch (Throwable $mailErr) {
+          error_log('Settlement email notification failed: ' . $mailErr->getMessage());
+        }
+      }
+    }
+
+    return $runPayload;
+  }
+}

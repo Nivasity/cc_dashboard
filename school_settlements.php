@@ -162,6 +162,85 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
                 </div>
               </div>
 
+              <div class="card mb-4 border-primary">
+                <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                  <div>
+                    <h5 class="mb-1 text-primary"><i class="bx bx-time-five me-1"></i> Automated Midnight School Settlements</h5>
+                    <small class="text-muted">Runs daily at 2:00 AM (a cool-off after midnight) and settles the previous day's transactions (12:00 AM-11:59 PM), with faculty-level email reporting.</small>
+                  </div>
+                  <div class="d-flex align-items-center gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="btnRefreshAutoConfig">
+                      <i class="bx bx-refresh me-1"></i> Refresh Settings
+                    </button>
+                    <button type="button" class="btn btn-sm btn-warning" id="btnTriggerManualMidnightRun">
+                      <i class="bx bx-play-circle me-1"></i> Trigger Settlement Now
+                    </button>
+                  </div>
+                </div>
+                <div class="card-body">
+                  <form id="autoSettlementConfigForm" class="row g-3">
+                    <div class="col-md-3">
+                      <label class="form-label d-block fw-semibold">Master Status</label>
+                      <div class="form-check form-switch mt-1">
+                        <input class="form-check-input" type="checkbox" id="autoSettlementEnabled" name="is_auto_settlement_enabled" value="1" />
+                        <label class="form-check-label fw-bold" for="autoSettlementEnabled" id="autoSettlementStatusLabel">Active</label>
+                      </div>
+                      <small class="text-muted">Pause to prevent midnight payouts globally.</small>
+                    </div>
+                    <div class="col-md-3">
+                      <label for="autoMinSettlementAmount" class="form-label fw-semibold">Min Payout Threshold (₦)</label>
+                      <input type="number" id="autoMinSettlementAmount" name="min_settlement_amount" class="form-control" min="0" step="500" placeholder="1000" />
+                      <small class="text-muted">Skips schools with balances below this.</small>
+                    </div>
+                    <div class="col-md-3">
+                      <label for="autoMaxSettlementCap" class="form-label fw-semibold">Max Daily Cap / School (₦)</label>
+                      <input type="number" id="autoMaxSettlementCap" name="max_settlement_cap_per_school" class="form-control" min="1000" step="10000" placeholder="5000000" />
+                      <small class="text-muted">Maximum single-day payout cap.</small>
+                    </div>
+                    <div class="col-md-3">
+                      <label for="autoNotifyEmail" class="form-label fw-semibold">Report Destination Email</label>
+                      <input type="email" id="autoNotifyEmail" name="notify_email" class="form-control" placeholder="finance@nivasity.com" />
+                      <small class="text-muted">Receives faculty-level settlement stats.</small>
+                    </div>
+                    <div class="col-12 text-end">
+                      <button type="submit" class="btn btn-primary" id="btnSaveAutoConfig">Save Settlement Settings</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+
+              <div class="card mb-4">
+                <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                  <div>
+                    <h5 class="mb-1">Midnight Settlement Execution Logs</h5>
+                    <small class="text-muted">History of automated cron runs, amounts settled, student totals, and faculty statistics.</small>
+                  </div>
+                  <button type="button" class="btn btn-sm btn-outline-secondary" id="btnRefreshCronLogs">
+                    <i class="bx bx-refresh me-1"></i> Refresh Logs
+                  </button>
+                </div>
+                <div class="card-body">
+                  <div class="table-responsive text-nowrap">
+                    <table class="table table-sm" id="settlementCronLogsDataTable">
+                      <thead class="table-light">
+                        <tr>
+                          <th>Run Ref</th>
+                          <th>Started</th>
+                          <th>Status</th>
+                          <th>Schools Paid</th>
+                          <th>Total Settled</th>
+                          <th>Students</th>
+                          <th>Materials</th>
+                          <th>Triggered By</th>
+                          <th>Action</th>
+                        </tr>
+                      </thead>
+                      <tbody id="settlementCronLogsTableBody"></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
               <div class="card mb-4">
                 <div class="card-header">
                   <h5 class="mb-0">Recent Settlement Batches</h5>
@@ -256,6 +335,23 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
       </div>
     </div>
 
+    <div class="modal fade" id="cronLogDetailsModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="cronLogDetailsModalTitle">Midnight Settlement Run Details</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body" id="cronLogDetailsModalBody">
+            <div class="text-center py-4 text-muted"><i class="bx bx-loader-alt bx-spin fs-4"></i> Loading run details...</div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <script src="assets/vendor/libs/jquery/jquery.min.js"></script>
     <script src="assets/vendor/js/bootstrap.min.js"></script>
   <script src="https://cdn.datatables.net/2.1.8/js/dataTables.js"></script>
@@ -271,6 +367,7 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
       var activeSettlementBatchDataTable = null;
       var settlementPreviewDataTable = null;
       var recentSettlementBatchesDataTable = null;
+      var settlementCronLogsDataTable = null;
 
       function settlementMoney(value) {
         return '₦ ' + Number(value || 0).toLocaleString();
@@ -284,11 +381,15 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
         switch ((status || '').toLowerCase()) {
           case 'completed':
           case 'settled':
+          case 'success':
             return 'success';
           case 'pending':
           case 'processing':
           case 'partially_settled':
+          case 'partial_failure':
             return 'warning';
+          case 'paused':
+            return 'info';
           case 'failed':
           case 'reversed':
             return 'danger';
@@ -298,6 +399,220 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
             return 'secondary';
         }
       }
+
+      function loadAutoSettlementConfig() {
+        $.ajax({
+          url: 'model/school_settlements.php',
+          method: 'GET',
+          dataType: 'json',
+          data: { action: 'get_auto_config' },
+          success: function (res) {
+            if (res && res.status === 'success' && res.config) {
+              var c = res.config;
+              var isEnabled = Number(c.is_auto_settlement_enabled || 0) === 1;
+              $('#autoSettlementEnabled').prop('checked', isEnabled);
+              $('#autoSettlementStatusLabel').text(isEnabled ? 'Active' : 'PAUSED').toggleClass('text-success', isEnabled).toggleClass('text-danger', !isEnabled);
+              $('#autoMinSettlementAmount').val(c.min_settlement_amount || 1000);
+              $('#autoMaxSettlementCap').val(c.max_settlement_cap_per_school || 5000000);
+              $('#autoNotifyEmail').val(c.notify_email || 'finance@nivasity.com');
+            }
+          }
+        });
+      }
+
+      $('#autoSettlementEnabled').on('change', function () {
+        var isChecked = $(this).is(':checked');
+        $('#autoSettlementStatusLabel').text(isChecked ? 'Active' : 'PAUSED').toggleClass('text-success', isChecked).toggleClass('text-danger', !isChecked);
+      });
+
+      $('#autoSettlementConfigForm').on('submit', function (e) {
+        e.preventDefault();
+        var $btn = $('#btnSaveAutoConfig');
+        var formData = {
+          action: 'update_auto_config',
+          is_auto_settlement_enabled: $('#autoSettlementEnabled').is(':checked') ? 1 : 0,
+          min_settlement_amount: $('#autoMinSettlementAmount').val(),
+          max_settlement_cap_per_school: $('#autoMaxSettlementCap').val(),
+          notify_email: $('#autoNotifyEmail').val()
+        };
+
+        $.ajax({
+          url: 'model/school_settlements.php',
+          method: 'POST',
+          dataType: 'json',
+          data: formData,
+          beforeSend: function () {
+            $btn.prop('disabled', true).text('Saving...');
+          },
+          success: function (res) {
+            if (res && res.status === 'success') {
+              settlementShowToast('success', res.message || 'Settlement configuration saved.');
+            } else {
+              settlementShowToast('error', (res && res.message) || 'Failed to save configuration.');
+            }
+          },
+          error: function () {
+            settlementShowToast('error', 'Network error while saving settlement settings.');
+          },
+          complete: function () {
+            $btn.prop('disabled', false).text('Save Settlement Settings');
+          }
+        });
+      });
+
+      $('#btnRefreshAutoConfig').on('click', function () {
+        loadAutoSettlementConfig();
+        settlementShowToast('info', 'Settings refreshed.');
+      });
+
+      $('#btnTriggerManualMidnightRun').on('click', function () {
+        if (!confirm('Are you sure you want to trigger the Automated Settlement Run now? This will stage batches for eligible schools and send the email report.')) {
+          return;
+        }
+
+        var $btn = $(this);
+        $.ajax({
+          url: 'model/school_settlements.php',
+          method: 'POST',
+          dataType: 'json',
+          data: { action: 'trigger_midnight_run' },
+          beforeSend: function () {
+            $btn.prop('disabled', true).html('<i class="bx bx-loader-alt bx-spin me-1"></i> Running...');
+          },
+          success: function (res) {
+            if (res && (res.status === 'success' || res.status === 'partial_failure')) {
+              settlementShowToast('success', 'Settlement run finished! Settled: ' + settlementMoney(res.total_amount_settled || 0) + ' across ' + (res.schools_count || 0) + ' schools.');
+            } else if (res && res.status === 'paused') {
+              settlementShowToast('warning', 'Settlement is currently PAUSED. Unpause in settings to run.');
+            } else {
+              settlementShowToast('error', (res && res.message) || 'Settlement run encountered issues.');
+            }
+            loadSettlementCronLogs();
+            loadSettlementSnapshot();
+          },
+          error: function () {
+            settlementShowToast('error', 'Failed to execute manual settlement run.');
+          },
+          complete: function () {
+            $btn.prop('disabled', false).html('<i class="bx bx-play-circle me-1"></i> Trigger Settlement Now');
+          }
+        });
+      });
+
+      function loadSettlementCronLogs() {
+        $.ajax({
+          url: 'model/school_settlements.php',
+          method: 'GET',
+          dataType: 'json',
+          data: { action: 'list_cron_logs', limit: 20 },
+          success: function (res) {
+            var logs = (res && res.logs) ? res.logs : [];
+            var rows = [];
+
+            if (logs.length === 0) {
+              rows.push('<tr><td colspan="9" class="text-center text-muted py-3">No settlement execution logs recorded yet.</td></tr>');
+            } else {
+              logs.forEach(function (log) {
+                var badge = '<span class="badge bg-' + settlementBadgeClass(log.status) + '">' + settlementEscapeHtml(log.status.toUpperCase()) + '</span>';
+                rows.push(
+                  '<tr>' +
+                    '<td><code>' + settlementEscapeHtml(log.run_reference) + '</code></td>' +
+                    '<td>' + settlementEscapeHtml(log.started_at) + '</td>' +
+                    '<td>' + badge + '</td>' +
+                    '<td><strong>' + Number(log.schools_count || 0) + '</strong></td>' +
+                    '<td><strong class="text-success">' + settlementMoney(log.total_amount_settled) + '</strong></td>' +
+                    '<td>' + Number(log.total_students_count || 0).toLocaleString() + '</td>' +
+                    '<td>' + Number(log.total_materials_count || 0).toLocaleString() + '</td>' +
+                    '<td><span class="badge bg-label-secondary">' + settlementEscapeHtml(log.triggered_by) + '</span></td>' +
+                    '<td><button type="button" class="btn btn-xs btn-outline-primary btn-view-cron-log" data-log-id="' + log.id + '"><i class="bx bx-show me-1"></i> Details</button></td>' +
+                  '</tr>'
+                );
+              });
+            }
+
+            $('#settlementCronLogsTableBody').html(rows.join(''));
+          }
+        });
+      }
+
+      $('#btnRefreshCronLogs').on('click', function () {
+        loadSettlementCronLogs();
+        settlementShowToast('info', 'Logs refreshed.');
+      });
+
+      $(document).on('click', '.btn-view-cron-log', function () {
+        var logId = $(this).data('log-id');
+        var modal = new bootstrap.Modal(document.getElementById('cronLogDetailsModal'));
+        $('#cronLogDetailsModalTitle').text('Settlement Run #' + logId + ' Details');
+        $('#cronLogDetailsModalBody').html('<div class="text-center py-4 text-muted"><i class="bx bx-loader-alt bx-spin fs-4"></i> Loading run details...</div>');
+        modal.show();
+
+        $.ajax({
+          url: 'model/school_settlements.php',
+          method: 'GET',
+          dataType: 'json',
+          data: { action: 'get_cron_log_details', log_id: logId },
+          success: function (res) {
+            if (!res || res.status !== 'success' || !res.log) {
+              $('#cronLogDetailsModalBody').html('<div class="alert alert-danger">Unable to load details for this log entry.</div>');
+              return;
+            }
+
+            var log = res.log;
+            var summary = log.summary || {};
+            var schools = summary.schools || [];
+            var skipped = summary.skipped_schools || [];
+
+            var html = '';
+            html += '<div class="row g-3 mb-4">';
+            html += '  <div class="col-md-3"><div class="p-3 bg-light rounded text-center"><small class="text-muted d-block">Status</small><span class="badge bg-' + settlementBadgeClass(log.status) + ' mt-1">' + settlementEscapeHtml(log.status.toUpperCase()) + '</span></div></div>';
+            html += '  <div class="col-md-3"><div class="p-3 bg-light rounded text-center"><small class="text-muted d-block">Total Settled</small><strong class="fs-5 text-success">' + settlementMoney(log.total_amount_settled) + '</strong></div></div>';
+            html += '  <div class="col-md-3"><div class="p-3 bg-light rounded text-center"><small class="text-muted d-block">Unique Students</small><strong class="fs-5">' + Number(log.total_students_count || 0).toLocaleString() + '</strong></div></div>';
+            html += '  <div class="col-md-3"><div class="p-3 bg-light rounded text-center"><small class="text-muted d-block">Materials Paid</small><strong class="fs-5">' + Number(log.total_materials_count || 0).toLocaleString() + '</strong></div></div>';
+            html += '</div>';
+
+            if (schools.length > 0) {
+              html += '<h6 class="fw-bold mb-3">School & Faculty Breakdown</h6>';
+              schools.forEach(function (s) {
+                html += '<div class="card border mb-3">';
+                html += '  <div class="card-header bg-light d-flex justify-content-between align-items-center py-2 px-3">';
+                html += '    <div><strong>' + settlementEscapeHtml(s.school_name) + '</strong> <small class="text-muted ms-2">(Batch: ' + settlementEscapeHtml(s.batch_reference) + ')</small></div>';
+                html += '    <div class="text-end"><strong class="text-success">' + settlementMoney(s.amount_settled) + '</strong> <span class="badge bg-secondary ms-2">' + Number(s.unique_students || 0) + ' students</span></div>';
+                html += '  </div>';
+                html += '  <div class="card-body p-0">';
+
+                if (s.faculties && s.faculties.length > 0) {
+                  html += '    <table class="table table-sm table-striped mb-0">';
+                  html += '      <thead><tr><th>Faculty</th><th class="text-center">Students</th><th class="text-center">Materials</th><th class="text-end">Amount</th></tr></thead>';
+                  html += '      <tbody>';
+                  s.faculties.forEach(function (f) {
+                    html += '<tr><td>' + settlementEscapeHtml(f.faculty_name) + '</td><td class="text-center">' + Number(f.unique_students || 0) + '</td><td class="text-center">' + Number(f.materials_count || 0) + '</td><td class="text-end fw-semibold">' + settlementMoney(f.faculty_amount) + '</td></tr>';
+                  });
+                  html += '      </tbody></table>';
+                } else {
+                  html += '    <div class="p-3 text-muted text-center small">No specific faculty records mapped for this batch.</div>';
+                }
+
+                html += '  </div></div>';
+              });
+            }
+
+            if (skipped.length > 0) {
+              html += '<h6 class="fw-bold text-muted mt-4 mb-2">Skipped Schools (Below Minimum Threshold)</h6>';
+              html += '<ul class="list-group list-group-flush mb-3">';
+              skipped.forEach(function (sk) {
+                html += '<li class="list-group-item d-flex justify-content-between align-items-center py-2 px-3 small"><div><strong>' + settlementEscapeHtml(sk.school_name) + '</strong>: <span class="text-muted">' + settlementEscapeHtml(sk.reason) + '</span></div><span class="badge bg-label-secondary">' + settlementMoney(sk.pending_balance) + '</span></li>';
+              });
+              html += '</ul>';
+            }
+
+            $('#cronLogDetailsModalBody').html(html);
+          },
+          error: function () {
+            $('#cronLogDetailsModalBody').html('<div class="alert alert-danger">Network error while fetching log details.</div>');
+          }
+        });
+      });
 
       function settlementShowToast(status, message) {
         if (typeof showToast === 'function') {
@@ -755,6 +1070,9 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
           }
         });
       });
+
+      loadAutoSettlementConfig();
+      loadSettlementCronLogs();
 
       if (initialSettlementSchoolId > 0) {
         loadSettlementSnapshot();
