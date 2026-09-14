@@ -57,6 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $status = trim((string) ($_POST['status'] ?? 'draft'));
       $expiryDate = trim((string) ($_POST['expiry_date'] ?? ''));
       $allowDuplicate = isset($_POST['allow_duplicate_email']) ? 1 : 0;
+      $showAsBanner = isset($_POST['show_as_banner']) ? 1 : 0;
 
       if ($title === '') throw new Exception('Survey title is required.');
       if ($questionsJson === '') throw new Exception('Survey JSON is required.');
@@ -67,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         throw new Exception('Invalid JSON: ' . json_last_error_msg());
       }
 
-      $surveyId = ccSurveysCreate($conn, $title, $description, $questionsJson, $status, $expiryDate ?: null, $allowDuplicate, (int) $admin_id);
+      $surveyId = ccSurveysCreate($conn, $title, $description, $questionsJson, $status, $expiryDate ?: null, $allowDuplicate, (int) $admin_id, $showAsBanner);
       if ($surveyId === 0) throw new Exception('Failed to create survey.');
 
       ccSurveysSetFlash('success', 'Survey created successfully.');
@@ -88,6 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       $status = trim((string) ($_POST['status'] ?? 'draft'));
       $expiryDate = trim((string) ($_POST['expiry_date'] ?? ''));
       $allowDuplicate = isset($_POST['allow_duplicate_email']) ? 1 : 0;
+      $showAsBanner = isset($_POST['show_as_banner']) ? 1 : 0;
 
       if ($surveyId <= 0) throw new Exception('Invalid survey ID.');
       if ($title === '') throw new Exception('Survey title is required.');
@@ -98,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         throw new Exception('Invalid JSON: ' . json_last_error_msg());
       }
 
-      $ok = ccSurveysUpdate($conn, $surveyId, $title, $description, $questionsJson, $status, $expiryDate ?: null, $allowDuplicate, (int) $admin_id);
+      $ok = ccSurveysUpdate($conn, $surveyId, $title, $description, $questionsJson, $status, $expiryDate ?: null, $allowDuplicate, (int) $admin_id, $showAsBanner);
       if (!$ok) throw new Exception('Failed to update survey.');
 
       ccSurveysSetFlash('success', 'Survey updated successfully.');
@@ -310,6 +312,7 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
                           <th>Title</th>
                           <th>Slug</th>
                           <th>Status</th>
+                          <th>Banner</th>
                           <th>Responses</th>
                           <th>Expiry</th>
                           <th>Created</th>
@@ -322,6 +325,7 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
                           <td class="fw-semibold"><?php echo htmlspecialchars($s['title']); ?></td>
                           <td><code><?php echo htmlspecialchars($s['slug']); ?></code></td>
                           <td><span class="badge bg-label-<?php echo ccSurveysStatusBadge($s['status']); ?>"><?php echo htmlspecialchars(ucfirst($s['status'])); ?></span></td>
+                          <td><?php echo !empty($s['show_as_banner']) ? '<span class="badge bg-label-primary"><i class="bx bx-bell me-1"></i>Active</span>' : '<span class="text-muted">—</span>'; ?></td>
                           <td><?php echo (int) ($s['response_count'] ?? 0); ?></td>
                           <td><?php echo !empty($s['expiry_date']) ? htmlspecialchars(date('d M Y', strtotime($s['expiry_date']))) : '—'; ?></td>
                           <td><?php echo !empty($s['created_at']) ? htmlspecialchars(date('d M Y', strtotime($s['created_at']))) : '-'; ?></td>
@@ -404,6 +408,14 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
                   <input class="form-check-input" type="checkbox" id="allowDuplicate" name="allow_duplicate_email" <?php echo (!empty($editSurvey['allow_duplicate_email'])) ? 'checked' : ''; ?> />
                   <label class="form-check-label" for="allowDuplicate">Allow duplicate email submissions</label>
                 </div>
+              </div>
+
+              <div class="mb-3">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="showAsBanner" name="show_as_banner" <?php echo (!empty($editSurvey['show_as_banner'])) ? 'checked' : ''; ?> />
+                  <label class="form-check-label" for="showAsBanner">Show as bottom-right banner in the student app</label>
+                </div>
+                <small class="text-muted d-block mt-1">Only one survey can be the active banner at a time. Checking this here will automatically unflag any other survey. The survey must also be <strong>Published</strong> to actually appear.</small>
               </div>
             </div>
             <div class="modal-footer d-flex justify-content-between">
@@ -510,6 +522,7 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
         document.getElementById('surveyDescription').value = '';
         document.getElementById('surveyJson').value = '';
         document.getElementById('allowDuplicate').checked = false;
+        document.getElementById('showAsBanner').checked = false;
         document.getElementById('modalSubmitBtn').textContent = 'Create Survey';
 
         // Remove hidden survey_id input if it exists
@@ -551,6 +564,7 @@ $bearerToken = defined('API_BEARER_TOKEN') ? (string) API_BEARER_TOKEN : '';
         document.getElementById('surveyDescription').value = survey.description || '';
         document.getElementById('surveyJson').value = survey.questions_json || '';
         document.getElementById('allowDuplicate').checked = !!survey.allow_duplicate_email;
+        document.getElementById('showAsBanner').checked = !!survey.show_as_banner;
         document.getElementById('modalSubmitBtn').textContent = 'Update Survey';
 
         let surveyIdInput = document.getElementById('modalSurveyId');

@@ -154,7 +154,7 @@ function ccSurveysEnsureUniqueSlug(mysqli $conn, string $slug, int $excludeId = 
 /**
  * Create a new survey.
  */
-function ccSurveysCreate(mysqli $conn, string $title, string $description, string $questionsJson, string $status, ?string $expiryDate, int $allowDuplicateEmail, int $adminId): int
+function ccSurveysCreate(mysqli $conn, string $title, string $description, string $questionsJson, string $status, ?string $expiryDate, int $allowDuplicateEmail, int $adminId, int $showAsBanner = 0): int
 {
     $slug = ccSurveysEnsureUniqueSlug($conn, ccSurveysGenerateSlug($title));
     $titleSafe = mysqli_real_escape_string($conn, $title);
@@ -164,9 +164,14 @@ function ccSurveysCreate(mysqli $conn, string $title, string $description, strin
     $slugSafe = mysqli_real_escape_string($conn, $slug);
     $expiryValue = ($expiryDate !== null && $expiryDate !== '') ? "'" . mysqli_real_escape_string($conn, $expiryDate) . "'" : 'NULL';
     $allowDup = $allowDuplicateEmail ? 1 : 0;
+    $showBanner = $showAsBanner ? 1 : 0;
 
-    $sql = "INSERT INTO surveys (slug, title, description, questions_json, status, expiry_date, allow_duplicate_email, created_by_admin_id, updated_by_admin_id, created_at, updated_at)
-            VALUES ('$slugSafe', '$titleSafe', '$descSafe', '$jsonSafe', '$statusSafe', $expiryValue, $allowDup, $adminId, $adminId, NOW(), NOW())";
+    if ($showBanner) {
+        ccSurveysClearBannerFlag($conn);
+    }
+
+    $sql = "INSERT INTO surveys (slug, title, description, questions_json, status, expiry_date, allow_duplicate_email, show_as_banner, created_by_admin_id, updated_by_admin_id, created_at, updated_at)
+            VALUES ('$slugSafe', '$titleSafe', '$descSafe', '$jsonSafe', '$statusSafe', $expiryValue, $allowDup, $showBanner, $adminId, $adminId, NOW(), NOW())";
 
     if (!mysqli_query($conn, $sql)) {
         return 0;
@@ -178,7 +183,7 @@ function ccSurveysCreate(mysqli $conn, string $title, string $description, strin
 /**
  * Update a survey.
  */
-function ccSurveysUpdate(mysqli $conn, int $id, string $title, string $description, string $questionsJson, string $status, ?string $expiryDate, int $allowDuplicateEmail, int $adminId): bool
+function ccSurveysUpdate(mysqli $conn, int $id, string $title, string $description, string $questionsJson, string $status, ?string $expiryDate, int $allowDuplicateEmail, int $adminId, int $showAsBanner = 0): bool
 {
     $titleSafe = mysqli_real_escape_string($conn, $title);
     $descSafe = mysqli_real_escape_string($conn, $description);
@@ -186,6 +191,11 @@ function ccSurveysUpdate(mysqli $conn, int $id, string $title, string $descripti
     $statusSafe = mysqli_real_escape_string($conn, ccSurveysNormalizeStatus($status));
     $expiryValue = ($expiryDate !== null && $expiryDate !== '') ? "'" . mysqli_real_escape_string($conn, $expiryDate) . "'" : 'NULL';
     $allowDup = $allowDuplicateEmail ? 1 : 0;
+    $showBanner = $showAsBanner ? 1 : 0;
+
+    if ($showBanner) {
+        ccSurveysClearBannerFlag($conn, $id);
+    }
 
     $sql = "UPDATE surveys SET
                 title = '$titleSafe',
@@ -194,11 +204,22 @@ function ccSurveysUpdate(mysqli $conn, int $id, string $title, string $descripti
                 status = '$statusSafe',
                 expiry_date = $expiryValue,
                 allow_duplicate_email = $allowDup,
+                show_as_banner = $showBanner,
                 updated_by_admin_id = $adminId,
                 updated_at = NOW()
             WHERE id = $id LIMIT 1";
 
     return (bool) mysqli_query($conn, $sql);
+}
+
+/**
+ * Unset show_as_banner on every survey (optionally excluding one id) so only
+ * one survey is ever flagged as the active student-app banner at a time.
+ */
+function ccSurveysClearBannerFlag(mysqli $conn, int $excludeId = 0): bool
+{
+    $excludeSql = $excludeId > 0 ? " WHERE id != $excludeId" : '';
+    return (bool) mysqli_query($conn, "UPDATE surveys SET show_as_banner = 0" . $excludeSql);
 }
 
 /**
