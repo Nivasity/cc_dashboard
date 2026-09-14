@@ -194,7 +194,7 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
                     </div>
                     <div class="col-md-3">
                       <label for="autoMaxSettlementCap" class="form-label fw-semibold">Max Daily Cap / School (₦)</label>
-                      <input type="number" id="autoMaxSettlementCap" name="max_settlement_cap_per_school" class="form-control" min="1000" step="10000" placeholder="5000000" />
+                      <input type="number" id="autoMaxSettlementCap" name="max_settlement_cap_per_school" class="form-control" min="1000" step="1000" placeholder="5000000" />
                       <small class="text-muted">Maximum single-day payout cap.</small>
                     </div>
                     <div class="col-md-3">
