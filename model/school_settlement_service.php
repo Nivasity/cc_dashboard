@@ -1685,8 +1685,8 @@ if (!function_exists('ccSchoolSettlementGetCronLogDetails')) {
 if (!function_exists('ccSchoolSettlementGetBatchFacultyBreakdown')) {
   function ccSchoolSettlementGetBatchFacultyBreakdown(mysqli $conn, int $batchId): array
   {
-    $sql = "SELECT 
-              COALESCE(NULLIF(TRIM(f.faculty), ''), 'General / Department') AS faculty_name,
+    $sql = "SELECT
+              COALESCE(NULLIF(TRIM(f.name), ''), 'General / Department') AS faculty_name,
               COUNT(DISTINCT mb.buyer) AS unique_students,
               COUNT(mb.id) AS materials_count,
               COALESCE(SUM(sbi.allocated_amount), 0) AS faculty_amount
@@ -1696,7 +1696,7 @@ if (!function_exists('ccSchoolSettlementGetBatchFacultyBreakdown')) {
             LEFT JOIN manuals m ON m.id = mb.manual_id
             LEFT JOIN faculties f ON f.id = m.faculty
             WHERE sbi.settlement_batch_id = $batchId
-            GROUP BY COALESCE(NULLIF(TRIM(f.faculty), ''), 'General / Department')
+            GROUP BY COALESCE(NULLIF(TRIM(f.name), ''), 'General / Department')
             ORDER BY faculty_amount DESC";
 
     $query = mysqli_query($conn, $sql);
@@ -1711,6 +1711,8 @@ if (!function_exists('ccSchoolSettlementGetBatchFacultyBreakdown')) {
           'faculty_amount' => (int) $row['faculty_amount'],
         ];
       }
+    } else {
+      error_log('ccSchoolSettlementGetBatchFacultyBreakdown query failed for batch ' . $batchId . ': ' . mysqli_error($conn));
     }
 
     return $faculties;
