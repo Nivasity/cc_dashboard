@@ -1717,11 +1717,24 @@ if (!function_exists('ccSchoolSettlementGetBatchFacultyBreakdown')) {
   }
 }
 
+if (!function_exists('ccSchoolSettlementHumanizeStatusLabel')) {
+  /**
+   * Turns a SCREAMING_SNAKE_CASE or lowercase status token into readable
+   * Title Case for display (e.g. "partial_failure" -> "Partial Failure").
+   */
+  function ccSchoolSettlementHumanizeStatusLabel(string $value): string
+  {
+    $spaced = str_replace(['_', '-'], ' ', trim($value));
+    return $spaced === '' ? '' : ucwords(strtolower($spaced));
+  }
+}
+
 if (!function_exists('ccSchoolSettlementBuildSummaryEmailHtml')) {
   function ccSchoolSettlementBuildSummaryEmailHtml(array $runResult): string
   {
     $runRef = htmlspecialchars($runResult['run_reference'] ?? 'RUN');
-    $status = strtoupper((string) ($runResult['status'] ?? 'SUCCESS'));
+    $statusRaw = strtoupper((string) ($runResult['status'] ?? 'SUCCESS'));
+    $status = ccSchoolSettlementHumanizeStatusLabel($statusRaw);
     $totalAmount = number_format((float) ($runResult['total_amount_settled'] ?? 0), 2);
     $totalStaged = 0;
     foreach (($runResult['schools'] ?? []) as $__schoolForTotal) {
@@ -1734,7 +1747,7 @@ if (!function_exists('ccSchoolSettlementBuildSummaryEmailHtml')) {
     $triggeredBy = htmlspecialchars($runResult['triggered_by'] ?? 'CRON_MIDNIGHT');
     $dateStr = date('l, d F Y - h:i A');
 
-    $statusColor = $status === 'SUCCESS' ? '#10b981' : ($status === 'PAUSED' ? '#f59e0b' : '#ef4444');
+    $statusColor = $statusRaw === 'SUCCESS' ? '#10b981' : ($statusRaw === 'PAUSED' ? '#f59e0b' : '#ef4444');
 
     $html = '
     <div style="font-family: Arial, sans-serif; background-color: #f8fafc; padding: 25px; color: #1e293b;">
@@ -1746,28 +1759,35 @@ if (!function_exists('ccSchoolSettlementBuildSummaryEmailHtml')) {
         </div>
 
         <div style="padding: 20px 24px;">
-          <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
-            <div style="flex: 1; min-width: 130px; background: #f1f5f9; padding: 14px; border-radius: 8px;">
-              <span style="display: block; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Status</span>
-              <strong style="font-size: 16px; color: ' . $statusColor . ';">' . $status . '</strong>
-            </div>
-            <div style="flex: 1; min-width: 130px; background: #f1f5f9; padding: 14px; border-radius: 8px;">
-              <span style="display: block; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Confirmed Settled</span>
-              <strong style="font-size: 16px; color: #0f172a;">&#8358;' . $totalAmount . '</strong>
-            </div>
-            <div style="flex: 1; min-width: 130px; background: #f1f5f9; padding: 14px; border-radius: 8px;">
-              <span style="display: block; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Total Staged / Dispatched</span>
-              <strong style="font-size: 16px; color: #0f172a;">&#8358;' . $totalStagedFormatted . '</strong>
-            </div>
-            <div style="flex: 1; min-width: 130px; background: #f1f5f9; padding: 14px; border-radius: 8px;">
-              <span style="display: block; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Unique Students</span>
-              <strong style="font-size: 16px; color: #0f172a;">' . $totalStudents . '</strong>
-            </div>
-            <div style="flex: 1; min-width: 130px; background: #f1f5f9; padding: 14px; border-radius: 8px;">
-              <span style="display: block; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Materials Paid</span>
-              <strong style="font-size: 16px; color: #0f172a;">' . $totalMaterials . '</strong>
-            </div>
-          </div>';
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-bottom: 20px; border-collapse: separate; border-spacing: 8px 8px;">
+            <tr>
+              <td width="50%" style="background: #f1f5f9; padding: 14px; border-radius: 8px; vertical-align: top;">
+                <span style="display: block; font-size: 11px; color: #64748b; font-weight: 600;">Status</span>
+                <strong style="font-size: 16px; color: ' . $statusColor . ';">' . $status . '</strong>
+              </td>
+              <td width="50%" style="background: #f1f5f9; padding: 14px; border-radius: 8px; vertical-align: top;">
+                <span style="display: block; font-size: 11px; color: #64748b; font-weight: 600;">Confirmed Settled</span>
+                <strong style="font-size: 16px; color: #0f172a;">&#8358;' . $totalAmount . '</strong>
+              </td>
+            </tr>
+            <tr>
+              <td width="50%" style="background: #f1f5f9; padding: 14px; border-radius: 8px; vertical-align: top;">
+                <span style="display: block; font-size: 11px; color: #64748b; font-weight: 600;">Total Staged / Dispatched</span>
+                <strong style="font-size: 16px; color: #0f172a;">&#8358;' . $totalStagedFormatted . '</strong>
+              </td>
+              <td width="50%" style="background: #f1f5f9; padding: 14px; border-radius: 8px; vertical-align: top;">
+                <span style="display: block; font-size: 11px; color: #64748b; font-weight: 600;">Unique Students</span>
+                <strong style="font-size: 16px; color: #0f172a;">' . $totalStudents . '</strong>
+              </td>
+            </tr>
+            <tr>
+              <td width="50%" style="background: #f1f5f9; padding: 14px; border-radius: 8px; vertical-align: top;">
+                <span style="display: block; font-size: 11px; color: #64748b; font-weight: 600;">Materials Paid</span>
+                <strong style="font-size: 16px; color: #0f172a;">' . $totalMaterials . '</strong>
+              </td>
+              <td width="50%"></td>
+            </tr>
+          </table>';
 
     if (!empty($runResult['schools'])) {
       $html .= '<h3 style="font-size: 16px; color: #0f172a; margin-top: 25px; margin-bottom: 12px; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px;">School & Faculty Breakdown</h3>';
@@ -1778,7 +1798,7 @@ if (!function_exists('ccSchoolSettlementBuildSummaryEmailHtml')) {
         $amountStaged = (int) ($schoolData['amount_staged'] ?? $amountSettled);
         $isConfirmed = $amountSettled > 0;
         $displayAmount = number_format((float) ($isConfirmed ? $amountSettled : $amountStaged), 2);
-        $statusLabel = $isConfirmed ? 'CONFIRMED' : 'AWAITING PAYSTACK CONFIRMATION';
+        $statusLabel = $isConfirmed ? 'Confirmed' : 'Awaiting Paystack Confirmation';
         $statusColor = $isConfirmed ? '#10b981' : '#f59e0b';
         $schoolStudents = number_format((int) ($schoolData['unique_students'] ?? 0));
         $schoolMaterials = number_format((int) ($schoolData['materials_count'] ?? 0));
