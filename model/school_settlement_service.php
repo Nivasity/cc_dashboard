@@ -134,6 +134,42 @@ if (!function_exists('ccSchoolSettlementNormalizeDate')) {
   }
 }
 
+if (!function_exists('ccSchoolSettlementGatewayPostJson')) {
+  function ccSchoolSettlementGatewayPostJson(string $url, array $headers, array $payload): array
+  {
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array_merge(['Content-Type: application/json'], $headers));
+
+    $response = curl_exec($ch);
+    $error = curl_error($ch);
+    $httpCode = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($error !== '') {
+      return [
+        'ok' => false,
+        'http_code' => $httpCode,
+        'error' => $error,
+        'data' => null,
+      ];
+    }
+
+    $decoded = json_decode((string) $response, true);
+    return [
+      'ok' => true,
+      'http_code' => $httpCode,
+      'error' => '',
+      'data' => is_array($decoded) ? $decoded : [],
+      'raw' => (string) $response,
+    ];
+  }
+}
+
 if (!function_exists('ccSchoolSettlementGatewayGetJson')) {
   function ccSchoolSettlementGatewayGetJson(string $url, array $headers): array
   {
@@ -248,6 +284,115 @@ if (!function_exists('ccSchoolSettlementLookupPaystackTransfer')) {
       'status' => 'lookup_failed',
       'message' => (string) ($firstAttempt['message'] ?? $firstAttempt['error'] ?? 'Paystack could not verify that transfer reference.'),
       'attempts' => $attempts,
+    ];
+  }
+}
+
+if (!function_exists('ccSchoolSettlementCreatePaystackRecipient')) {
+  function ccSchoolSettlementCreatePaystackRecipient(array $settlementAccount): array
+  {
+    $secret = defined('PAYSTACK_SECRET_KEY') ? trim((string) PAYSTACK_SECRET_KEY) : '';
+    if ($secret === '') {
+      return [
+        'status' => 'missing_secret',
+        'message' => 'Paystack secret key is not configured in command center.',
+      ];
+    }
+
+    $payload = [
+      'type' => 'nuban',
+      'name' => (string) ($settlementAccount['acct_name'] ?? ''),
+      'account_number' => (string) ($settlementAccount['acct_number'] ?? ''),
+      'bank_code' => (string) ($settlementAccount['bank'] ?? ''),
+      'currency' => 'NGN',
+    ];
+
+    if ($payload['name'] === '' || $payload['account_number'] === '' || $payload['bank_code'] === '') {
+      return [
+        'status' => 'invalid_account',
+        'message' => 'Settlement account is missing an account name, number, or bank code.',
+      ];
+    }
+
+    $response = ccSchoolSettlementGatewayPostJson(
+      'https://api.paystack.co/transferrecipient',
+      ['Authorization: Bearer ' . $secret],
+      $payload
+    );
+
+    $responseData = $response['data'] ?? [];
+    if (!$response['ok'] || empty($responseData['status']) || empty($responseData['data']['recipient_code'])) {
+      $message = (string) ($responseData['message'] ?? ($response['error'] !== '' ? $response['error'] : 'Unable to create Paystack transfer recipient.'));
+      return [
+        'status' => 'recipient_failed',
+        'message' => $message,
+        'raw_response' => $responseData,
+      ];
+    }
+
+    return [
+      'status' => 'success',
+      'recipient_code' => (string) $responseData['data']['recipient_code'],
+      'raw_response' => $responseData,
+    ];
+  }
+}
+
+if (!function_exists('ccSchoolSettlementInitiatePaystackTransfer')) {
+  function ccSchoolSettlementInitiatePaystackTransfer(array $settlementAccount, int $amount, string $reference, string $narration): array
+  {
+    $secret = defined('PAYSTACK_SECRET_KEY') ? trim((string) PAYSTACK_SECRET_KEY) : '';
+    if ($secret === '') {
+      return [
+        'status' => 'missing_secret',
+        'message' => 'Paystack secret key is not configured in command center.',
+      ];
+    }
+
+    if ($amount <= 0) {
+      return [
+        'status' => 'invalid_amount',
+        'message' => 'Transfer amount must be greater than zero.',
+      ];
+    }
+
+    $recipient = ccSchoolSettlementCreatePaystackRecipient($settlementAccount);
+    if (($recipient['status'] ?? '') !== 'success') {
+      return $recipient;
+    }
+
+    $payload = [
+      'source' => 'balance',
+      'amount' => $amount * 100,
+      'recipient' => $recipient['recipient_code'],
+      'reason' => $narration,
+      'reference' => $reference,
+    ];
+
+    $response = ccSchoolSettlementGatewayPostJson(
+      'https://api.paystack.co/transfer',
+      ['Authorization: Bearer ' . $secret],
+      $payload
+    );
+
+    $responseData = $response['data'] ?? [];
+    if (!$response['ok'] || empty($responseData['status'])) {
+      $message = (string) ($responseData['message'] ?? ($response['error'] !== '' ? $response['error'] : 'Unable to initiate Paystack transfer.'));
+      return [
+        'status' => 'transfer_failed',
+        'message' => $message,
+        'raw_response' => $responseData,
+      ];
+    }
+
+    $transferData = $responseData['data'] ?? [];
+
+    return [
+      'status' => 'success',
+      'provider_reference' => (string) ($transferData['reference'] ?? $reference),
+      'transfer_code' => (string) ($transferData['transfer_code'] ?? ''),
+      'provider_status' => strtolower(trim((string) ($transferData['status'] ?? 'pending'))),
+      'raw_response' => $responseData,
     ];
   }
 }
@@ -750,6 +895,223 @@ if (!function_exists('ccSchoolSettlementStageBatch')) {
       mysqli_rollback($conn);
       throw $error;
     }
+  }
+}
+
+if (!function_exists('ccSchoolSettlementDispatchBatchTransfer')) {
+  /**
+   * Sends a staged ('pending') batch to Paystack for a real transfer and
+   * moves it to 'processing'. Does NOT mark the batch completed or touch
+   * the wallet/ledger — that only happens once the transfer is confirmed
+   * successful via ccSchoolSettlementReconcileProcessingBatches(), which
+   * reuses ccSchoolSettlementCompleteBatch()'s existing verify-then-complete
+   * safety checks (status + amount match against Paystack).
+   */
+  function ccSchoolSettlementDispatchBatchTransfer(mysqli $conn, int $batchId): array
+  {
+    if (!ccSchoolSettlementTablesReady($conn)) {
+      return [
+        'status' => 'missing_tables',
+        'message' => 'Settlement tables are not available in command center.',
+      ];
+    }
+
+    $batchId = (int) $batchId;
+    if ($batchId <= 0) {
+      return [
+        'status' => 'invalid_batch',
+        'message' => 'Select a valid settlement batch.',
+      ];
+    }
+
+    mysqli_begin_transaction($conn);
+    try {
+      $batchSql = "SELECT * FROM settlement_batches WHERE id = $batchId LIMIT 1 FOR UPDATE";
+      $batchRs = mysqli_query($conn, $batchSql);
+      if (!$batchRs || mysqli_num_rows($batchRs) < 1) {
+        mysqli_rollback($conn);
+        return [
+          'status' => 'missing_batch',
+          'message' => 'Settlement batch not found.',
+        ];
+      }
+
+      $batch = mysqli_fetch_assoc($batchRs);
+      $currentStatus = (string) ($batch['status'] ?? '');
+      if ($currentStatus !== 'pending') {
+        mysqli_rollback($conn);
+        return [
+          'status' => 'invalid_state',
+          'message' => 'Only pending batches can be dispatched for transfer.',
+          'batch' => $batch,
+        ];
+      }
+
+      $transferProvider = strtolower(trim((string) ($batch['transfer_provider'] ?? 'paystack')));
+      if ($transferProvider !== 'paystack') {
+        mysqli_rollback($conn);
+        return [
+          'status' => 'unsupported_provider',
+          'message' => 'Automated dispatch currently only supports Paystack as the settlement transfer provider.',
+        ];
+      }
+
+      $schoolId = (int) ($batch['school_id'] ?? 0);
+      $batchReference = (string) ($batch['batch_reference'] ?? '');
+      $totalAmount = (int) ($batch['total_amount'] ?? 0);
+
+      $settlementAccount = ccSchoolSettlementGetAccount($conn, $schoolId);
+      if (!$settlementAccount) {
+        mysqli_rollback($conn);
+        return [
+          'status' => 'missing_account',
+          'school_id' => $schoolId,
+          'message' => 'School settlement account is missing.',
+        ];
+      }
+
+      $schoolName = trim((string) ($settlementAccount['school_name'] ?? ('School #' . $schoolId)));
+      $narration = sprintf('Nivasity school settlement for %s (%s)', $schoolName, $batchReference);
+
+      $transfer = ccSchoolSettlementInitiatePaystackTransfer($settlementAccount, $totalAmount, $batchReference, $narration);
+
+      if (($transfer['status'] ?? '') !== 'success') {
+        $errorMessage = (string) ($transfer['message'] ?? 'Failed to initiate Paystack transfer.');
+        $errorSafe = mysqli_real_escape_string($conn, $errorMessage);
+        $updateFailedAttemptSql = "UPDATE settlement_batches
+                                   SET last_error = '$errorSafe',
+                                       updated_at = NOW()
+                                   WHERE id = $batchId";
+        mysqli_query($conn, $updateFailedAttemptSql);
+        mysqli_commit($conn);
+
+        return [
+          'status' => 'dispatch_failed',
+          'message' => $errorMessage,
+          'batch' => ccSchoolSettlementGetBatchDetails($conn, $batchId),
+        ];
+      }
+
+      $providerReference = (string) ($transfer['provider_reference'] ?? $batchReference);
+      $providerReferenceSafe = mysqli_real_escape_string($conn, $providerReference);
+
+      $providerResponse = ccSchoolSettlementDecodeJson($batch['provider_response'] ?? '');
+      $providerResponse['dispatch'] = [
+        'transfer_code' => (string) ($transfer['transfer_code'] ?? ''),
+        'provider_status' => (string) ($transfer['provider_status'] ?? 'pending'),
+        'dispatched_at' => date('c'),
+        'raw_response' => $transfer['raw_response'] ?? [],
+      ];
+      $providerResponseSafe = ccSchoolSettlementEncodeJson($conn, $providerResponse);
+
+      $updateBatchSql = "UPDATE settlement_batches
+                         SET status = 'processing',
+                             provider_reference = '$providerReferenceSafe',
+                             provider_response = '$providerResponseSafe',
+                             started_at = IFNULL(started_at, NOW()),
+                             last_error = NULL,
+                             updated_at = NOW()
+                         WHERE id = $batchId";
+      if (!mysqli_query($conn, $updateBatchSql)) {
+        throw new RuntimeException('Failed to update settlement batch after dispatch: ' . mysqli_error($conn));
+      }
+
+      mysqli_commit($conn);
+
+      return [
+        'status' => 'success',
+        'message' => 'Transfer dispatched to Paystack and is awaiting confirmation.',
+        'batch' => ccSchoolSettlementGetBatchDetails($conn, $batchId),
+      ];
+    } catch (Throwable $error) {
+      mysqli_rollback($conn);
+      throw $error;
+    }
+  }
+}
+
+if (!function_exists('ccSchoolSettlementReconcileProcessingBatches')) {
+  /**
+   * Finds every batch currently 'processing' (dispatched to Paystack but
+   * not yet confirmed) and checks its real status. Successful transfers are
+   * completed via the existing verify-then-complete logic in
+   * ccSchoolSettlementCompleteBatch(); failed/reversed transfers are
+   * released via ccSchoolSettlementFailBatch(); anything still pending on
+   * Paystack's side is left as 'processing' to be checked again later.
+   */
+  function ccSchoolSettlementReconcileProcessingBatches(mysqli $conn, int $adminId = 0): array
+  {
+    $results = [
+      'checked' => 0,
+      'completed' => 0,
+      'failed' => 0,
+      'still_pending' => 0,
+      'errors' => [],
+    ];
+
+    if (!ccSchoolSettlementTablesReady($conn)) {
+      return $results;
+    }
+
+    $rs = mysqli_query($conn, "SELECT id, provider_reference FROM settlement_batches WHERE status = 'processing' ORDER BY id ASC");
+    if (!$rs) {
+      return $results;
+    }
+
+    $processingBatches = [];
+    while ($row = mysqli_fetch_assoc($rs)) {
+      $processingBatches[] = $row;
+    }
+
+    foreach ($processingBatches as $row) {
+      $batchId = (int) ($row['id'] ?? 0);
+      $providerReference = trim((string) ($row['provider_reference'] ?? ''));
+      $results['checked']++;
+
+      if ($batchId <= 0 || $providerReference === '') {
+        continue;
+      }
+
+      try {
+        $lookup = ccSchoolSettlementLookupPaystackTransfer($providerReference);
+        if (($lookup['status'] ?? '') !== 'success') {
+          $results['still_pending']++;
+          continue;
+        }
+
+        $transferStatus = strtolower(trim((string) ($lookup['summary']['status'] ?? '')));
+
+        if (in_array($transferStatus, ['success', 'successful'], true)) {
+          $completion = ccSchoolSettlementCompleteBatch($conn, $batchId, $providerReference, $adminId, 1, 'Auto-completed after Paystack confirmed the transfer.');
+          if (($completion['status'] ?? '') === 'success') {
+            $results['completed']++;
+          } else {
+            $results['still_pending']++;
+            $results['errors'][] = [
+              'batch_id' => $batchId,
+              'reason' => (string) ($completion['message'] ?? 'Unable to complete after confirmation.'),
+            ];
+          }
+          continue;
+        }
+
+        if (in_array($transferStatus, ['failed', 'reversed'], true)) {
+          ccSchoolSettlementFailBatch($conn, $batchId, $adminId, 1, 'Paystack reported transfer status: ' . $transferStatus);
+          $results['failed']++;
+          continue;
+        }
+
+        // otp, pending, or any other in-flight status: check again next run.
+        $results['still_pending']++;
+      } catch (Throwable $error) {
+        $results['errors'][] = [
+          'batch_id' => $batchId,
+          'reason' => $error->getMessage(),
+        ];
+      }
+    }
+
+    return $results;
   }
 }
 
@@ -1343,6 +1705,11 @@ if (!function_exists('ccSchoolSettlementBuildSummaryEmailHtml')) {
     $runRef = htmlspecialchars($runResult['run_reference'] ?? 'RUN');
     $status = strtoupper((string) ($runResult['status'] ?? 'SUCCESS'));
     $totalAmount = number_format((float) ($runResult['total_amount_settled'] ?? 0), 2);
+    $totalStaged = 0;
+    foreach (($runResult['schools'] ?? []) as $__schoolForTotal) {
+      $totalStaged += (int) ($__schoolForTotal['amount_staged'] ?? ($__schoolForTotal['amount_settled'] ?? 0));
+    }
+    $totalStagedFormatted = number_format((float) $totalStaged, 2);
     $totalStudents = number_format((int) ($runResult['total_students_count'] ?? 0));
     $totalMaterials = number_format((int) ($runResult['total_materials_count'] ?? 0));
     $schoolsCount = (int) ($runResult['schools_count'] ?? 0);
@@ -1367,8 +1734,12 @@ if (!function_exists('ccSchoolSettlementBuildSummaryEmailHtml')) {
               <strong style="font-size: 16px; color: ' . $statusColor . ';">' . $status . '</strong>
             </div>
             <div style="flex: 1; min-width: 130px; background: #f1f5f9; padding: 14px; border-radius: 8px;">
-              <span style="display: block; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Total Settled</span>
+              <span style="display: block; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Confirmed Settled</span>
               <strong style="font-size: 16px; color: #0f172a;">&#8358;' . $totalAmount . '</strong>
+            </div>
+            <div style="flex: 1; min-width: 130px; background: #f1f5f9; padding: 14px; border-radius: 8px;">
+              <span style="display: block; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Total Staged / Dispatched</span>
+              <strong style="font-size: 16px; color: #0f172a;">&#8358;' . $totalStagedFormatted . '</strong>
             </div>
             <div style="flex: 1; min-width: 130px; background: #f1f5f9; padding: 14px; border-radius: 8px;">
               <span style="display: block; font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 600;">Unique Students</span>
@@ -1385,7 +1756,12 @@ if (!function_exists('ccSchoolSettlementBuildSummaryEmailHtml')) {
 
       foreach ($runResult['schools'] as $schoolData) {
         $schoolName = htmlspecialchars($schoolData['school_name'] ?? 'School');
-        $schoolAmount = number_format((float) ($schoolData['amount_settled'] ?? 0), 2);
+        $amountSettled = (int) ($schoolData['amount_settled'] ?? 0);
+        $amountStaged = (int) ($schoolData['amount_staged'] ?? $amountSettled);
+        $isConfirmed = $amountSettled > 0;
+        $displayAmount = number_format((float) ($isConfirmed ? $amountSettled : $amountStaged), 2);
+        $statusLabel = $isConfirmed ? 'CONFIRMED' : 'AWAITING PAYSTACK CONFIRMATION';
+        $statusColor = $isConfirmed ? '#10b981' : '#f59e0b';
         $schoolStudents = number_format((int) ($schoolData['unique_students'] ?? 0));
         $schoolMaterials = number_format((int) ($schoolData['materials_count'] ?? 0));
         $batchRef = htmlspecialchars($schoolData['batch_reference'] ?? '');
@@ -1395,10 +1771,10 @@ if (!function_exists('ccSchoolSettlementBuildSummaryEmailHtml')) {
           <div style="background: #f8fafc; padding: 12px 16px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
             <div>
               <strong style="font-size: 15px; color: #1e293b;">' . $schoolName . '</strong>
-              <div style="font-size: 12px; color: #64748b;">Batch: ' . $batchRef . '</div>
+              <div style="font-size: 12px; color: #64748b;">Batch: ' . $batchRef . ' &middot; <span style="color: ' . $statusColor . '; font-weight: 700;">' . $statusLabel . '</span></div>
             </div>
             <div style="text-align: right;">
-              <span style="font-size: 15px; font-weight: 700; color: #10b981;">&#8358;' . $schoolAmount . '</span>
+              <span style="font-size: 15px; font-weight: 700; color: ' . $statusColor . ';">&#8358;' . $displayAmount . '</span>
               <div style="font-size: 12px; color: #64748b;">' . $schoolStudents . ' Students | ' . $schoolMaterials . ' Materials</div>
             </div>
           </div>';
@@ -1497,6 +1873,12 @@ if (!function_exists('ccSchoolSettlementExecuteMidnightRun')) {
     $maxCap = (int) ($config['max_settlement_cap_per_school'] ?? 5000000);
     $notifyEmail = (string) ($config['notify_email'] ?? 'finance@nivasity.com');
 
+    // Reconcile any batches left 'processing' from a previous run (Paystack
+    // transfer dispatched but not yet confirmed) before staging new work, so
+    // slow-to-confirm transfers get finalized and their wallet/ledger state
+    // is settled before tonight's numbers are computed.
+    $reconciliation = ccSchoolSettlementReconcileProcessingBatches($conn, $adminId);
+
     $schoolsQuery = mysqli_query($conn, "SELECT id, name AS school_name FROM schools ORDER BY id ASC");
     $allSchools = [];
     if ($schoolsQuery) {
@@ -1586,20 +1968,38 @@ if (!function_exists('ccSchoolSettlementExecuteMidnightRun')) {
           $schoolMaterials += $fb['materials_count'];
         }
 
-        $totalSettledAmount += $batchAmount;
         $totalStudentsCount += $schoolUniqueStudents;
         $totalMaterialsCount += $schoolMaterials;
+
+        // Send the staged batch to Paystack right away. This only moves it
+        // to 'processing' with a provider reference attached — it does NOT
+        // deduct the wallet or mark anything settled. Confirmation happens
+        // on this run's reconciliation pass (or the next run's, if Paystack
+        // hasn't confirmed yet by the time this run finishes).
+        $dispatch = ccSchoolSettlementDispatchBatchTransfer($conn, $batchId);
+        $dispatchStatus = (string) ($dispatch['status'] ?? 'unknown');
 
         $processedSchools[] = [
           'school_id' => $schoolId,
           'school_name' => $schoolName,
           'batch_id' => $batchId,
           'batch_reference' => $batchRef,
-          'amount_settled' => $batchAmount,
+          'amount_settled' => 0, // set once reconciliation confirms the transfer, not at staging/dispatch time
+          'amount_staged' => $batchAmount,
+          'dispatch_status' => $dispatchStatus,
+          'dispatch_message' => (string) ($dispatch['message'] ?? ''),
           'unique_students' => $schoolUniqueStudents,
           'materials_count' => $schoolMaterials,
           'faculties' => $facultyBreakdown,
         ];
+
+        if ($dispatchStatus !== 'success') {
+          $errors[] = [
+            'school_id' => $schoolId,
+            'school_name' => $schoolName,
+            'error' => 'Batch staged but Paystack dispatch failed: ' . (string) ($dispatch['message'] ?? 'Unknown error'),
+          ];
+        }
       } catch (Throwable $e) {
         $errors[] = [
           'school_id' => $schoolId,
@@ -1607,6 +2007,25 @@ if (!function_exists('ccSchoolSettlementExecuteMidnightRun')) {
           'error' => $e->getMessage(),
         ];
       }
+    }
+
+    // Give transfers dispatched moments ago a brief chance to confirm before
+    // this run's report is built, so same-run completions are reflected
+    // accurately instead of always deferring to the next run.
+    $postDispatchReconciliation = ccSchoolSettlementReconcileProcessingBatches($conn, $adminId);
+
+    if ($postDispatchReconciliation['completed'] > 0) {
+      foreach ($processedSchools as &$processedSchool) {
+        $refreshedBatch = ccSchoolSettlementGetBatchDetails($conn, (int) ($processedSchool['batch_id'] ?? 0));
+        if ($refreshedBatch && (string) ($refreshedBatch['status'] ?? '') === 'completed') {
+          $processedSchool['amount_settled'] = (int) ($refreshedBatch['total_amount'] ?? $processedSchool['amount_staged']);
+        }
+      }
+      unset($processedSchool);
+    }
+
+    foreach ($processedSchools as $processedSchool) {
+      $totalSettledAmount += (int) ($processedSchool['amount_settled'] ?? 0);
     }
 
     $finalStatus = empty($errors) ? 'success' : (!empty($processedSchools) ? 'partial_failure' : 'failed');
@@ -1625,6 +2044,10 @@ if (!function_exists('ccSchoolSettlementExecuteMidnightRun')) {
       'schools' => $processedSchools,
       'skipped_schools' => $skippedSchools,
       'errors' => $errors,
+      'reconciliation' => [
+        'before_run' => $reconciliation,
+        'after_dispatch' => $postDispatchReconciliation,
+      ],
     ];
 
     if (ccSchoolSettlementTableExists($conn, 'settlement_cron_logs')) {

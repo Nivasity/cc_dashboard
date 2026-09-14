@@ -566,7 +566,7 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
             var html = '';
             html += '<div class="row g-3 mb-4">';
             html += '  <div class="col-md-3"><div class="p-3 bg-light rounded text-center"><small class="text-muted d-block">Status</small><span class="badge bg-' + settlementBadgeClass(log.status) + ' mt-1">' + settlementEscapeHtml(log.status.toUpperCase()) + '</span></div></div>';
-            html += '  <div class="col-md-3"><div class="p-3 bg-light rounded text-center"><small class="text-muted d-block">Total Settled</small><strong class="fs-5 text-success">' + settlementMoney(log.total_amount_settled) + '</strong></div></div>';
+            html += '  <div class="col-md-3"><div class="p-3 bg-light rounded text-center"><small class="text-muted d-block">Confirmed Settled</small><strong class="fs-5 text-success">' + settlementMoney(log.total_amount_settled) + '</strong></div></div>';
             html += '  <div class="col-md-3"><div class="p-3 bg-light rounded text-center"><small class="text-muted d-block">Unique Students</small><strong class="fs-5">' + Number(log.total_students_count || 0).toLocaleString() + '</strong></div></div>';
             html += '  <div class="col-md-3"><div class="p-3 bg-light rounded text-center"><small class="text-muted d-block">Materials Paid</small><strong class="fs-5">' + Number(log.total_materials_count || 0).toLocaleString() + '</strong></div></div>';
             html += '</div>';
@@ -574,10 +574,15 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
             if (schools.length > 0) {
               html += '<h6 class="fw-bold mb-3">School & Faculty Breakdown</h6>';
               schools.forEach(function (s) {
+                var isConfirmed = Number(s.amount_settled || 0) > 0;
+                var displayAmount = isConfirmed ? s.amount_settled : (s.amount_staged || s.amount_settled || 0);
+                var dispatchBadge = isConfirmed
+                  ? '<span class="badge bg-success ms-2">Confirmed</span>'
+                  : '<span class="badge bg-warning text-dark ms-2">' + settlementEscapeHtml(s.dispatch_status === 'success' ? 'Awaiting Paystack Confirmation' : ('Dispatch: ' + (s.dispatch_status || 'unknown'))) + '</span>';
                 html += '<div class="card border mb-3">';
                 html += '  <div class="card-header bg-light d-flex justify-content-between align-items-center py-2 px-3">';
-                html += '    <div><strong>' + settlementEscapeHtml(s.school_name) + '</strong> <small class="text-muted ms-2">(Batch: ' + settlementEscapeHtml(s.batch_reference) + ')</small></div>';
-                html += '    <div class="text-end"><strong class="text-success">' + settlementMoney(s.amount_settled) + '</strong> <span class="badge bg-secondary ms-2">' + Number(s.unique_students || 0) + ' students</span></div>';
+                html += '    <div><strong>' + settlementEscapeHtml(s.school_name) + '</strong> <small class="text-muted ms-2">(Batch: ' + settlementEscapeHtml(s.batch_reference) + ')</small>' + dispatchBadge + '</div>';
+                html += '    <div class="text-end"><strong class="' + (isConfirmed ? 'text-success' : 'text-warning') + '">' + settlementMoney(displayAmount) + '</strong> <span class="badge bg-secondary ms-2">' + Number(s.unique_students || 0) + ' students</span></div>';
                 html += '  </div>';
                 html += '  <div class="card-body p-0">';
 
