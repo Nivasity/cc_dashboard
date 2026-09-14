@@ -198,9 +198,9 @@ $initial_school_id = isset($schools[0]['id']) ? (int) $schools[0]['id'] : 0;
                       <small class="text-muted">Maximum single-day payout cap.</small>
                     </div>
                     <div class="col-md-3">
-                      <label for="autoNotifyEmail" class="form-label fw-semibold">Report Destination Email</label>
-                      <input type="email" id="autoNotifyEmail" name="notify_email" class="form-control" placeholder="finance@nivasity.com" />
-                      <small class="text-muted">Receives faculty-level settlement stats.</small>
+                      <label for="autoNotifyEmail" class="form-label fw-semibold">Report Destination Email(s)</label>
+                      <input type="text" id="autoNotifyEmail" name="notify_email" class="form-control" placeholder="finance@nivasity.com, ops@nivasity.com" />
+                      <small class="text-muted">Receives faculty-level settlement stats. Separate multiple emails with commas.</small>
                     </div>
                     <div class="col-12 text-end">
                       <button type="submit" class="btn btn-primary" id="btnSaveAutoConfig">Save Settlement Settings</button>

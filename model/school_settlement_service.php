@@ -1516,6 +1516,25 @@ if (!function_exists('ccSchoolSettlementFailBatch')) {
   }
 }
 
+if (!function_exists('ccSchoolSettlementParseNotifyEmails')) {
+  /**
+   * Splits a comma-separated notify_email string into a de-duplicated list
+   * of valid, trimmed email addresses. Invalid entries are silently dropped.
+   */
+  function ccSchoolSettlementParseNotifyEmails(string $notifyEmail): array
+  {
+    $emails = [];
+    foreach (explode(',', $notifyEmail) as $candidate) {
+      $candidate = trim($candidate);
+      if ($candidate !== '' && filter_var($candidate, FILTER_VALIDATE_EMAIL)) {
+        $emails[] = $candidate;
+      }
+    }
+
+    return array_values(array_unique($emails));
+  }
+}
+
 if (!function_exists('ccSchoolSettlementGetConfig')) {
   function ccSchoolSettlementGetConfig(mysqli $conn): array
   {
@@ -1564,10 +1583,9 @@ if (!function_exists('ccSchoolSettlementUpdateConfig')) {
     $isEnabled = isset($settings['is_auto_settlement_enabled']) ? (int) $settings['is_auto_settlement_enabled'] : 1;
     $minAmount = max(0, (int) ($settings['min_settlement_amount'] ?? 1000));
     $maxCap = max(1000, (int) ($settings['max_settlement_cap_per_school'] ?? 5000000));
-    $notifyEmail = trim((string) ($settings['notify_email'] ?? 'finance@nivasity.com'));
-    if ($notifyEmail === '' || !filter_var($notifyEmail, FILTER_VALIDATE_EMAIL)) {
-      $notifyEmail = 'finance@nivasity.com';
-    }
+    $notifyEmailInput = trim((string) ($settings['notify_email'] ?? 'finance@nivasity.com'));
+    $validNotifyEmails = ccSchoolSettlementParseNotifyEmails($notifyEmailInput);
+    $notifyEmail = !empty($validNotifyEmails) ? implode(',', $validNotifyEmails) : 'finance@nivasity.com';
     $executionTime = trim((string) ($settings['execution_time'] ?? '02:00'));
     if (!preg_match('/^\d{2}:\d{2}$/', $executionTime)) {
       $executionTime = '02:00';
@@ -2064,13 +2082,14 @@ if (!function_exists('ccSchoolSettlementExecuteMidnightRun')) {
       mysqli_query($conn, $logSql);
     }
 
-    if (!empty($notifyEmail) && file_exists(__DIR__ . '/mail.php')) {
+    $notifyEmailRecipients = ccSchoolSettlementParseNotifyEmails($notifyEmail);
+    if (!empty($notifyEmailRecipients) && file_exists(__DIR__ . '/mail.php')) {
       require_once(__DIR__ . '/mail.php');
-      if (function_exists('sendMail')) {
+      if (function_exists('sendMailBatch')) {
         $emailSubject = sprintf('Daily Settlement Report - %s [N%s]', date('d M Y'), number_format($totalSettledAmount));
         $emailHtml = ccSchoolSettlementBuildSummaryEmailHtml($runPayload);
         try {
-          sendMail($notifyEmail, $emailSubject, $emailHtml);
+          sendMailBatch($emailSubject, $emailHtml, $notifyEmailRecipients);
         } catch (Throwable $mailErr) {
           error_log('Settlement email notification failed: ' . $mailErr->getMessage());
         }
