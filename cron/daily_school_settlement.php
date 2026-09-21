@@ -1,5 +1,9 @@
 <?php
 
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+error_reporting(E_ALL);
+
 // CLI Cron Worker: Daily Automated School Settlement
 // Runs every night at 2:00 AM via server crontab (e.g. 0 2 * * * php /path/to/daily_school_settlement.php)
 // The 2am run time is a deliberate cool-off after midnight; it settles the PREVIOUS
