@@ -9,8 +9,10 @@ error_reporting(E_ALL);
 // The 2am run time is a deliberate cool-off after midnight; it settles the PREVIOUS
 // calendar day's transactions (00:00:00-23:59:59), not "the last 24 hours from now".
 
-require_once(__DIR__ . '/../config/db.php');
-require_once(__DIR__ . '/../config/fw.php');
+require_once(__DIR__ . '/../model/config.php');
+if (file_exists(__DIR__ . '/../config/fw.php')) {
+  require_once(__DIR__ . '/../config/fw.php');
+}
 require_once(__DIR__ . '/../model/school_settlement_service.php');
 
 if (php_sapi_name() !== 'cli') {
@@ -25,11 +27,18 @@ if (php_sapi_name() !== 'cli') {
   }
 }
 
-$conn = mysqli_connect(DB_HOST, DB_USERNAME, DB_PASSWORD, DB_NAME);
+if (!isset($conn) || !$conn) {
+  $dbHost = defined('DB_HOST') ? DB_HOST : 'localhost';
+  $dbName = defined('DB_NAME') ? DB_NAME : 'niverpay_db';
+  $dbUser = defined('DB_USERNAME') ? DB_USERNAME : 'root';
+  $dbPass = defined('DB_PASSWORD') ? DB_PASSWORD : '';
+  $conn = @mysqli_connect($dbHost, $dbUser, $dbPass, $dbName);
+}
+
 if (!$conn) {
   error_log('Daily Settlement Cron Error: Database connection failed - ' . mysqli_connect_error());
   if (php_sapi_name() === 'cli') {
-    fwrite(STDERR, "Database connection failed\n");
+    fwrite(STDERR, "Database connection failed: " . mysqli_connect_error() . "\n");
     exit(1);
   }
   die(json_encode(['status' => 'error', 'message' => 'Database connection failed']));
