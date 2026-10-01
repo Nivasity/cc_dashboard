@@ -387,6 +387,18 @@ if ($admin_id > 0) {
   mysqli_stmt_close($stmt);
 }
 
+// Every request (lists, CSV export, lookups and changes) needs a signed-in admin.
+// Without this, material lists with revenue and the CSV (names, matric numbers) were public.
+if (!$admin_exists) {
+  http_response_code(401);
+  header('Content-Type: application/json');
+  echo json_encode([
+    'status' => 'error',
+    'message' => 'Your admin session has expired. Sign in again and retry.',
+  ]);
+  exit;
+}
+
 function ensureValidMaterialAdminSession($admin_id, $admin_exists, &$statusRes, &$messageRes) {
   if (intval($admin_id) > 0 && $admin_exists) {
     return true;

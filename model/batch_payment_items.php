@@ -2,6 +2,14 @@
 session_start();
 require_once(__DIR__ . '/config.php');
 
+// Signed-in admins only: returns student names, emails and matric numbers.
+if (empty($_SESSION['nivas_adminId'])) {
+  http_response_code(401);
+  header('Content-Type: application/json');
+  echo json_encode(['status' => 'error', 'message' => 'Your admin session has expired. Sign in again and retry.']);
+  exit;
+}
+
 function bp_item_column_exists(mysqli $conn, $table, $column) {
   $table_safe = mysqli_real_escape_string($conn, (string)$table);
   $column_safe = mysqli_real_escape_string($conn, (string)$column);

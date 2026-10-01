@@ -36,8 +36,14 @@ function get_transaction_user_details($conn, $email)
   ];
 }
 
-// If accessed directly, respond with JSON
+// If accessed directly, respond with JSON (signed-in admins only: returns student contact details)
 if (isset($_GET['email'])) {
+  header('Content-Type: application/json');
+  if (empty($_SESSION['nivas_adminId'])) {
+    http_response_code(401);
+    echo json_encode(['status' => 'error', 'message' => 'Your admin session has expired. Sign in again and retry.']);
+    exit;
+  }
   $res = get_transaction_user_details($conn, $_GET['email']);
   header('Content-Type: application/json');
   echo json_encode($res);
