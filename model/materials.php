@@ -397,6 +397,89 @@ function ensureValidMaterialAdminSession($admin_id, $admin_exists, &$statusRes, 
   return false;
 }
 
+// Semester tagging (nivasity docs/WHITE_LABEL_TRANSITION_PLAN.md, section 4).
+// Every material belongs to one semester; students only see the school's current semester.
+// Untagged (NULL) materials are legacy rows and cannot be (re)opened until a semester is set.
+define('MATERIAL_STATUS_AWAITING', 'awaiting_confirmation');
+
+function materialSemesterReady($conn) {
+  static $ready = null;
+  if ($ready !== null) {
+    return $ready;
+  }
+  $manualsCol = mysqli_query($conn, "SHOW COLUMNS FROM manuals LIKE 'semester'");
+  $schoolsCol = mysqli_query($conn, "SHOW COLUMNS FROM schools LIKE 'current_semester'");
+  $confirmedCol = mysqli_query($conn, "SHOW COLUMNS FROM manuals LIKE 'confirmed_by'");
+  $ready = $manualsCol && mysqli_num_rows($manualsCol) > 0
+    && $schoolsCol && mysqli_num_rows($schoolsCol) > 0
+    && $confirmedCol && mysqli_num_rows($confirmedCol) > 0;
+  return $ready;
+}
+
+function normalizeMaterialSemester($value) {
+  $semester = intval($value);
+  return ($semester === 1 || $semester === 2) ? $semester : 0;
+}
+
+function materialSemesterLabel($semester) {
+  $semester = normalizeMaterialSemester($semester);
+  if ($semester === 1) return 'First Semester';
+  if ($semester === 2) return 'Second Semester';
+  return 'No semester set';
+}
+
+function materialSchoolCurrentSemester($conn, $school_id) {
+  $school_id = intval($school_id);
+  if ($school_id <= 0 || !materialSemesterReady($conn)) {
+    return 0;
+  }
+  $res = mysqli_query($conn, "SELECT current_semester FROM schools WHERE id = $school_id LIMIT 1");
+  $row = $res ? mysqli_fetch_assoc($res) : null;
+  return $row ? (normalizeMaterialSemester($row['current_semester']) ?: 1) : 0;
+}
+
+// Faculty-scoped school admins cannot switch the whole school's semester.
+function adminCanSwitchSchoolSemester($admin_role, $admin_school, $admin_faculty, $school_id) {
+  if (intval($admin_role) != 5) {
+    return true;
+  }
+  return intval($admin_school) === intval($school_id) && intval($admin_faculty) == 0;
+}
+
+// Same scope rule as the open/close toggle.
+function adminCanManageMaterial($admin_role, $admin_school, $admin_faculty, $manual) {
+  if (intval($admin_role) != 5) {
+    return true;
+  }
+  if (intval($manual['school_id']) !== intval($admin_school)) {
+    return false;
+  }
+  return intval($admin_faculty) == 0 || intval($manual['faculty']) === intval($admin_faculty);
+}
+
+function buildMaterialSemesterFilterClause($conn, $semester_state) {
+  if (!materialSemesterReady($conn)) {
+    return '';
+  }
+  switch ($semester_state) {
+    case '1':
+    case '2':
+      return ' AND m.semester = ' . intval($semester_state);
+    case 'awaiting':
+      return " AND m.status = '" . MATERIAL_STATUS_AWAITING . "'";
+    case 'untagged':
+      return ' AND m.semester IS NULL';
+    default:
+      return '';
+  }
+}
+
+$semester_select_sql = materialSemesterReady($conn)
+  ? 'm.semester, m.confirmed_at, sch.current_semester AS school_current_semester,'
+  : 'NULL AS semester, NULL AS confirmed_at, NULL AS school_current_semester,';
+$semester_join_sql = materialSemesterReady($conn) ? ' LEFT JOIN schools sch ON sch.id = m.school_id' : '';
+$semester_state = (string) ($_GET['semester_state'] ?? '');
+
 // Handle CSV download for filtered materials
 if (isset($_GET['download']) && $_GET['download'] === 'csv') {
   $school = intval($_GET['school'] ?? 0);
@@ -416,7 +499,7 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
     if ($admin_faculty != 0) { $faculty = $admin_faculty; }
   }
 
-  $material_sql = "SELECT m.id, m.code, m.title, m.course_code, m.price, m.level, m.user_id, m.admin_id, m.school_id, m.faculty, m.host_faculty, m.dept, m.depts, m.coverage, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, COUNT(DISTINCT b.ref_id) AS purchase_count, m.status AS status, m.status AS db_status, u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name, d.name AS dept_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
+  $material_sql = "SELECT m.id, m.code, m.title, m.course_code, m.price, m.level, m.user_id, m.admin_id, m.school_id, m.faculty, m.host_faculty, m.dept, m.depts, m.coverage, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, COUNT(DISTINCT b.ref_id) AS purchase_count, m.status AS status, m.status AS db_status, $semester_select_sql u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name, d.name AS dept_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id$semester_join_sql WHERE 1=1";
   if ($admin_role == 5) {
     $material_sql .= " AND m.school_id = $admin_school";
     if ($admin_faculty != 0) {
@@ -434,6 +517,7 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
     $material_sql .= buildMaterialDeptFilterClause($conn, $dept, $dept_filter_type);
   }
   $material_sql .= buildMaterialCreatorFilterClause($creator_type);
+  $material_sql .= buildMaterialSemesterFilterClause($conn, $semester_state);
   if ($creator_type === 'users') {
     $material_sql .= buildMaterialDateFilter($conn, $date_range, $start_date, $end_date);
   }
@@ -443,7 +527,7 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
   header('Content-Type: text/csv; charset=utf-8');
   header('Content-Disposition: attachment; filename="materials_' . date('Ymd_His') . '.csv"');
   $out = fopen('php://output', 'w');
-  fputcsv($out, ['Title (Course Code)', 'Posted By', 'Role/Matric No', 'Unit Price', 'Revenue', 'Qty Sold', 'Coverage', 'Availability']);
+  fputcsv($out, ['Title (Course Code)', 'Posted By', 'Role/Matric No', 'Unit Price', 'Revenue', 'Qty Sold', 'Coverage', 'Semester', 'Availability']);
   while ($row = mysqli_fetch_assoc($mat_query)) {
     $coverage_info = resolveMaterialCoverage($conn, $row);
     // Use admin data if admin_id exists and is not 0, otherwise use user data
@@ -462,6 +546,7 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
       $row['revenue'],
       $row['qty_sold'],
       $coverage_info['coverage_label'],
+      materialSemesterLabel($row['semester'] ?? 0),
       $row['status']
     ]);
   }
@@ -555,7 +640,7 @@ if(isset($_GET['fetch'])){
     $start_date = $_GET['start_date'] ?? '';
     $end_date = $_GET['end_date'] ?? '';
     
-    $material_sql = "SELECT m.id, m.code, m.title, m.course_code, m.price, m.level, m.user_id, m.admin_id, m.school_id, m.faculty, m.host_faculty, m.dept, m.depts, m.coverage, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, COUNT(DISTINCT b.ref_id) AS purchase_count, m.status AS status, m.status AS db_status, u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name, d.name AS dept_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id WHERE 1=1";
+    $material_sql = "SELECT m.id, m.code, m.title, m.course_code, m.price, m.level, m.user_id, m.admin_id, m.school_id, m.faculty, m.host_faculty, m.dept, m.depts, m.coverage, IFNULL(SUM(b.price),0) AS revenue, COUNT(b.manual_id) AS qty_sold, COUNT(DISTINCT b.ref_id) AS purchase_count, m.status AS status, m.status AS db_status, $semester_select_sql u.first_name AS user_first_name, u.last_name AS user_last_name, u.matric_no, a.first_name AS admin_first_name, a.last_name AS admin_last_name, ar.name AS admin_role, f.name AS faculty_name, d.name AS dept_name FROM manuals m LEFT JOIN manuals_bought b ON b.manual_id = m.id AND b.status='successful' LEFT JOIN users u ON m.user_id = u.id LEFT JOIN admins a ON m.admin_id = a.id LEFT JOIN admin_roles ar ON a.role = ar.id LEFT JOIN faculties f ON m.faculty = f.id LEFT JOIN depts d ON m.dept = d.id$semester_join_sql WHERE 1=1";
     if($admin_role == 5){
       $material_sql .= " AND m.school_id = $admin_school";
       if($admin_faculty != 0){
@@ -573,6 +658,7 @@ if(isset($_GET['fetch'])){
       $material_sql .= buildMaterialDeptFilterClause($conn, $dept, $dept_filter_type);
     }
     $material_sql .= buildMaterialCreatorFilterClause($creator_type);
+    $material_sql .= buildMaterialSemesterFilterClause($conn, $semester_state);
     if ($creator_type === 'users') {
       $material_sql .= buildMaterialDateFilter($conn, $date_range, $start_date, $end_date);
     }
@@ -641,7 +727,11 @@ if(isset($_GET['fetch'])){
           'depts_csv' => toDeptCsv($coverage_info['dept_ids']),
           'coverage' => $coverage_info['coverage'],
           'coverage_label' => $coverage_info['coverage_label'],
-          'dept_count' => $coverage_info['dept_count']
+          'dept_count' => $coverage_info['dept_count'],
+          'semester' => normalizeMaterialSemester($row['semester'] ?? 0),
+          'semester_label' => materialSemesterLabel($row['semester'] ?? 0),
+          'school_current_semester' => normalizeMaterialSemester($row['school_current_semester'] ?? 0),
+          'confirmed_at' => $row['confirmed_at'] ?? null
         );
       }
 
@@ -656,6 +746,49 @@ if(isset($_GET['fetch'])){
     }
   }
   
+  // Current semester of a school plus what a switch would do
+  if($fetch == 'school_semester'){
+    if (!materialSemesterReady($conn)) {
+      echo json_encode(['status' => 'success', 'semester_ready' => false]);
+      exit;
+    }
+    if ($school <= 0) {
+      echo json_encode(['status' => 'error', 'message' => 'Select a school']);
+      exit;
+    }
+
+    $current = materialSchoolCurrentSemester($conn, $school);
+    $next = $current === 1 ? 2 : 1;
+    $awaiting = MATERIAL_STATUS_AWAITING;
+    $counts_res = mysqli_query($conn, "SELECT
+        SUM(status = 'open' AND (semester = $current OR semester IS NULL)) AS to_awaiting,
+        SUM(status = 'open' AND semester = $next) AS going_live,
+        SUM(status = '$awaiting') AS awaiting,
+        SUM(status = '$awaiting' AND semester = $next) AS awaiting_next,
+        SUM(status <> 'closed' AND semester IS NULL) AS untagged
+      FROM manuals WHERE school_id = $school");
+    $counts = $counts_res ? mysqli_fetch_assoc($counts_res) : [];
+
+    echo json_encode([
+      'status' => 'success',
+      'semester_ready' => true,
+      'school_id' => $school,
+      'current_semester' => $current,
+      'current_label' => materialSemesterLabel($current),
+      'next_semester' => $next,
+      'next_label' => materialSemesterLabel($next),
+      'can_switch' => adminCanSwitchSchoolSemester($admin_role, $admin_school, $admin_faculty, $school),
+      'counts' => [
+        'to_awaiting' => intval($counts['to_awaiting'] ?? 0),
+        'going_live' => intval($counts['going_live'] ?? 0),
+        'awaiting' => intval($counts['awaiting'] ?? 0),
+        'awaiting_next' => intval($counts['awaiting_next'] ?? 0),
+        'untagged' => intval($counts['untagged'] ?? 0)
+      ]
+    ]);
+    exit;
+  }
+
   // Fetch human-readable names for edit mode (school, faculties, dept, level)
   if($fetch == 'material_names'){
     $school_id = intval($_GET['school_id'] ?? 0);
@@ -731,28 +864,38 @@ if(isset($_POST['toggle_id'])){
       $statusRes = 'error';
       $messageRes = 'Unauthorized';
     } else {
-      $new_status = ($manual_res['status'] == 'open') ? 'closed' : 'open';
+      $current_status = (string) $manual_res['status'];
+      $reopen_blocked = materialSemesterReady($conn) && $current_status !== 'open' && $current_status !== MATERIAL_STATUS_AWAITING;
+      if ($reopen_blocked) {
+        // Reopening must go through Confirm so the price and semester are checked.
+        $statusRes = 'error';
+        $messageRes = 'Use "Confirm & Open" to reopen this material after checking its price and semester.';
+        goto materials_response;
+      }
+      $new_status = ($current_status === 'open' || $current_status === MATERIAL_STATUS_AWAITING) ? 'closed' : 'open';
       mysqli_query($conn, "UPDATE manuals SET status = '$new_status' WHERE id = $id");
       if(mysqli_affected_rows($conn) > 0){
         $statusRes = 'success';
         $messageRes = 'Material status updated';
         
-        // Send notification when material is closed
+        // Send notification when material is closed (awaiting materials were already hidden)
         if ($new_status === 'closed' && $admin_id) {
-          $coverage_info = resolveMaterialCoverage($conn, $manual_res);
-          require_once __DIR__ . '/notification_helpers.php';
-          notifyCourseMaterialClosed(
-            $conn, 
-            $admin_id, 
-            $id, 
-            $manual_res['title'], 
-            $manual_res['course_code'], 
-            $coverage_info['dept_ids'], 
-            $manual_res['school_id']
-          );
-          
+          if ($current_status === 'open') {
+            $coverage_info = resolveMaterialCoverage($conn, $manual_res);
+            require_once __DIR__ . '/notification_helpers.php';
+            notifyCourseMaterialClosed(
+              $conn,
+              $admin_id,
+              $id,
+              $manual_res['title'],
+              $manual_res['course_code'],
+              $coverage_info['dept_ids'],
+              $manual_res['school_id']
+            );
+          }
+
           // Log the action
-          log_audit_event($conn, $admin_id, 'close', 'course_material', $id, [
+          log_audit_event($conn, $admin_id, $current_status === MATERIAL_STATUS_AWAITING ? 'retire' : 'close', 'course_material', $id, [
             'title' => $manual_res['title'],
             'course_code' => $manual_res['course_code']
           ]);
@@ -790,12 +933,17 @@ if(isset($_POST['create_material'])){
   $title = trim($_POST['title'] ?? '');
   $course_code = trim($_POST['course_code'] ?? '');
   $price_input = trim($_POST['price'] ?? '');
-  
+  $semester = normalizeMaterialSemester($_POST['semester'] ?? 0);
+
   // Validate required fields first
   // Note: Don't use empty() for price_input as '0' is a valid value for free materials
   if(empty($title) || empty($course_code) || $price_input === ''){
     $statusRes = 'error';
     $messageRes = 'All required fields must be filled';
+  }
+  elseif(materialSemesterReady($conn) && $semester === 0){
+    $statusRes = 'error';
+    $messageRes = 'Select the semester this material is sold in';
   }
   // Then validate price is a non-negative integer (no decimals, no leading zeros except '0' itself)
   // ctype_digit() returns true for strings containing only digits 0-9
@@ -899,6 +1047,16 @@ if(isset($_POST['create_material'])){
             $material_id = mysqli_insert_id($conn);
             $statusRes = 'success';
             $messageRes = 'Course material created successfully with code: ' . $code;
+
+            $school_semester = materialSchoolCurrentSemester($conn, $school);
+            $visible_now = true;
+            if (materialSemesterReady($conn)) {
+              mysqli_query($conn, "UPDATE manuals SET semester = $semester WHERE id = " . intval($material_id));
+              $visible_now = ($semester === $school_semester);
+              if (!$visible_now) {
+                $messageRes .= '. It will go live when ' . materialSemesterLabel($semester) . ' starts.';
+              }
+            }
             
             // Log the action
             if(function_exists('log_audit_event')){
@@ -909,18 +1067,20 @@ if(isset($_POST['create_material'])){
               ]);
             }
             
-            // Send notification to students
-            require_once __DIR__ . '/notification_helpers.php';
-            notifyCourseMaterialCreated(
-              $conn,
-              $admin_id,
-              $material_id,
-              $title,
-              $course_code,
-              $dept_ids,
-              $faculty,
-              $school
-            );
+            // Send notification to students (only when they can see it now)
+            if ($visible_now) {
+              require_once __DIR__ . '/notification_helpers.php';
+              notifyCourseMaterialCreated(
+                $conn,
+                $admin_id,
+                $material_id,
+                $title,
+                $course_code,
+                $dept_ids,
+                $faculty,
+                $school
+              );
+            }
           } else {
             $statusRes = 'error';
             $messageRes = 'Failed to create material. Please try again.';
@@ -955,11 +1115,16 @@ if(isset($_POST['update_material'])){
   $title = trim($_POST['title'] ?? '');
   $course_code = trim($_POST['course_code'] ?? '');
   $price_input = trim($_POST['price'] ?? '');
-  
+  $semester = normalizeMaterialSemester($_POST['semester'] ?? 0);
+
   // Validate material ID
   if($material_id <= 0){
     $statusRes = 'error';
     $messageRes = 'Invalid material ID';
+  }
+  elseif(materialSemesterReady($conn) && $semester === 0){
+    $statusRes = 'error';
+    $messageRes = 'Select the semester this material is sold in';
   }
   // Validate required fields first
   elseif(empty($title) || empty($course_code) || $price_input === ''){
@@ -1074,6 +1239,9 @@ if(isset($_POST['update_material'])){
           if(mysqli_stmt_execute($update_stmt)){
             $statusRes = 'success';
             $messageRes = 'Course material updated successfully';
+            if (materialSemesterReady($conn)) {
+              mysqli_query($conn, "UPDATE manuals SET semester = $semester WHERE id = " . intval($material_id));
+            }
             
             // Log the action
             if(function_exists('log_audit_event')){
@@ -1088,6 +1256,144 @@ if(isset($_POST['update_material'])){
           }
           mysqli_stmt_close($update_stmt);
         }
+      }
+    }
+  }
+}
+
+// Confirm a material for sale (awaiting confirmation or closed -> open) after checking price and semester
+if(isset($_POST['confirm_material'])){
+  if (!ensureValidMaterialAdminSession($admin_id, $admin_exists, $statusRes, $messageRes)) {
+    goto materials_response;
+  }
+  if (!materialSemesterReady($conn)) {
+    $statusRes = 'error';
+    $messageRes = 'Semester tagging is not set up yet. Run nivasity/sql/add_semester_tagging.sql first.';
+    goto materials_response;
+  }
+
+  $material_id = intval($_POST['material_id'] ?? 0);
+  $semester = normalizeMaterialSemester($_POST['semester'] ?? 0);
+  $price_input = trim((string) ($_POST['price'] ?? ''));
+
+  $manual_res = $material_id > 0
+    ? mysqli_fetch_assoc(mysqli_query($conn, "SELECT id, status, price, semester, school_id, faculty, dept, depts, coverage, title, course_code FROM manuals WHERE id = $material_id"))
+    : null;
+
+  if (!$manual_res) {
+    $statusRes = 'error';
+    $messageRes = 'Material not found';
+  } elseif (!adminCanManageMaterial($admin_role, $admin_school, $admin_faculty, $manual_res)) {
+    $statusRes = 'error';
+    $messageRes = 'Unauthorized';
+  } elseif ($manual_res['status'] === 'open') {
+    $statusRes = 'error';
+    $messageRes = 'This material is already open';
+  } elseif ($semester === 0) {
+    $statusRes = 'error';
+    $messageRes = 'Select the semester this material is sold in';
+  } elseif ($price_input === '' || !ctype_digit($price_input)) {
+    $statusRes = 'error';
+    $messageRes = 'Price must be a valid non-negative integer';
+  } else {
+    $price = intval($price_input);
+    $confirm_stmt = mysqli_prepare($conn, "UPDATE manuals SET price = ?, semester = ?, status = 'open', confirmed_at = NOW(), confirmed_by = ? WHERE id = ?");
+    mysqli_stmt_bind_param($confirm_stmt, 'iiii', $price, $semester, $admin_id, $material_id);
+    if (mysqli_stmt_execute($confirm_stmt)) {
+      $school_id = intval($manual_res['school_id']);
+      $visible_now = ($semester === materialSchoolCurrentSemester($conn, $school_id));
+      $statusRes = 'success';
+      $messageRes = $visible_now
+        ? 'Material confirmed and open for sale'
+        : 'Material confirmed. It will go live when ' . materialSemesterLabel($semester) . ' starts.';
+
+      log_audit_event($conn, $admin_id, 'confirm', 'course_material', $material_id, [
+        'title' => $manual_res['title'],
+        'course_code' => $manual_res['course_code'],
+        'previous_status' => $manual_res['status'],
+        'old_price' => intval($manual_res['price']),
+        'new_price' => $price,
+        'old_semester' => normalizeMaterialSemester($manual_res['semester']),
+        'new_semester' => $semester
+      ]);
+
+      if ($visible_now) {
+        $coverage_info = resolveMaterialCoverage($conn, $manual_res);
+        require_once __DIR__ . '/notification_helpers.php';
+        notifyCourseMaterialCreated(
+          $conn,
+          $admin_id,
+          $material_id,
+          $manual_res['title'],
+          $manual_res['course_code'],
+          $coverage_info['dept_ids'],
+          intval($manual_res['faculty']),
+          $school_id
+        );
+      }
+    } else {
+      $statusRes = 'error';
+      $messageRes = 'Failed to confirm material. Please try again.';
+    }
+    mysqli_stmt_close($confirm_stmt);
+  }
+}
+
+// Switch a school's current semester. Open materials of the outgoing semester (and legacy
+// untagged ones) move to awaiting confirmation; open materials of the new semester go live.
+if(isset($_POST['switch_semester'])){
+  if (!ensureValidMaterialAdminSession($admin_id, $admin_exists, $statusRes, $messageRes)) {
+    goto materials_response;
+  }
+  if (!materialSemesterReady($conn)) {
+    $statusRes = 'error';
+    $messageRes = 'Semester tagging is not set up yet. Run nivasity/sql/add_semester_tagging.sql first.';
+    goto materials_response;
+  }
+
+  $school_id = intval($_POST['school'] ?? 0);
+  $target = normalizeMaterialSemester($_POST['target_semester'] ?? 0);
+  $current = materialSchoolCurrentSemester($conn, $school_id);
+
+  if ($school_id <= 0 || $current === 0) {
+    $statusRes = 'error';
+    $messageRes = 'Select a school';
+  } elseif (!adminCanSwitchSchoolSemester($admin_role, $admin_school, $admin_faculty, $school_id)) {
+    $statusRes = 'error';
+    $messageRes = 'Unauthorized: only school-wide admins can switch the semester';
+  } elseif ($target === 0 || $target === $current) {
+    $statusRes = 'error';
+    $messageRes = 'The semester has already been switched. Refresh the page.';
+  } else {
+    // Guarded on the current value so a double submit cannot switch twice.
+    mysqli_query($conn, "UPDATE schools SET current_semester = $target, current_semester_updated_at = NOW() WHERE id = $school_id AND current_semester = $current");
+    if (mysqli_affected_rows($conn) !== 1) {
+      $statusRes = 'error';
+      $messageRes = 'The semester has already been switched. Refresh the page.';
+    } else {
+      $awaiting = MATERIAL_STATUS_AWAITING;
+      $moved = mysqli_query($conn, "UPDATE manuals SET status = '$awaiting' WHERE school_id = $school_id AND status = 'open' AND (semester = $current OR semester IS NULL)");
+      if (!$moved) {
+        error_log('[cc_dashboard semester switch] ' . mysqli_error($conn));
+        mysqli_query($conn, "UPDATE schools SET current_semester = $current WHERE id = $school_id AND current_semester = $target");
+        $statusRes = 'error';
+        $messageRes = 'Failed to move materials to awaiting confirmation. The semester was not switched.';
+      } else {
+        $moved_count = mysqli_affected_rows($conn);
+        $live_res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM manuals WHERE school_id = $school_id AND status = 'open' AND semester = $target");
+        $live_count = $live_res ? intval(mysqli_fetch_assoc($live_res)['c'] ?? 0) : 0;
+
+        $statusRes = 'success';
+        $messageRes = materialSemesterLabel($target) . ' is now active. '
+          . $moved_count . ' material(s) moved to awaiting confirmation; '
+          . $live_count . ' material(s) are now live.';
+
+        log_audit_event($conn, $admin_id, 'semester_switch', 'school', $school_id, [
+          'from_semester' => $current,
+          'to_semester' => $target,
+          'moved_to_awaiting' => $moved_count,
+          'now_live' => $live_count
+        ]);
       }
     }
   }
@@ -1164,7 +1470,8 @@ $responseData = array(
   'departments' => $departments,
   'materials' => $materials,
   'stats' => $stats ?? null,
-  'restrict_faculty' => $restrict_faculty
+  'restrict_faculty' => $restrict_faculty,
+  'semester_ready' => materialSemesterReady($conn)
 );
 
 header('Content-Type: application/json');

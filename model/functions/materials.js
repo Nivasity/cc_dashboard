@@ -10,6 +10,77 @@ $(document).ready(function () {
   var adminFaculty = window.adminFaculty || 0;
   var DEPT_ALL_SCHOOL = '__all_school__';
   var DEPT_ALL_FACULTY = '__all_faculty__';
+  var STATUS_AWAITING = 'awaiting_confirmation';
+
+  // Semester tagging: hidden until the backend reports the migration has run.
+  var semesterReady = false;
+  var schoolSemesterInfo = null;
+
+  function semesterLabel(semester) {
+    semester = Number(semester);
+    if (semester === 1) return 'First Semester';
+    if (semester === 2) return 'Second Semester';
+    return 'No semester set';
+  }
+
+  function getSelectedSchoolId() {
+    return adminRole == 5 ? adminSchool : $('#school').val();
+  }
+
+  function applySemesterReady(ready) {
+    semesterReady = !!ready;
+    $('#semesterFilterGroup, #materialSemesterGroup, #semesterPanel').toggleClass('d-none', !semesterReady);
+    $('#materialSemester').prop('required', semesterReady);
+  }
+
+  function renderSemesterPanel(info) {
+    schoolSemesterInfo = info;
+    var $awaitingBtn = $('#semesterAwaitingBtn');
+    var $untaggedBtn = $('#semesterUntaggedBtn');
+    var $switchBtn = $('#switchSemesterBtn');
+
+    if (!info) {
+      $('#semesterCurrentLabel').text('Select a school');
+      $('#semesterPanelHint').text('Pick one school in the filter to see and switch its current semester.');
+      $awaitingBtn.add($untaggedBtn).add($switchBtn).addClass('d-none');
+      return;
+    }
+
+    $('#semesterCurrentLabel').text(info.current_label);
+    $('#semesterPanelHint').text('Students only see open materials tagged for the current semester.');
+
+    var counts = info.counts || {};
+    $awaitingBtn.toggleClass('d-none', !counts.awaiting).text((counts.awaiting || 0) + ' awaiting confirmation');
+    $untaggedBtn.toggleClass('d-none', !counts.untagged).text((counts.untagged || 0) + ' with no semester set');
+    $switchBtn.toggleClass('d-none', !info.can_switch).text('Switch to ' + info.next_label);
+  }
+
+  function loadSchoolSemester() {
+    var schoolId = getSelectedSchoolId();
+    if (!semesterReady) {
+      return;
+    }
+    if (!schoolId || Number(schoolId) <= 0) {
+      renderSemesterPanel(null);
+      return;
+    }
+    $.ajax({
+      url: 'model/materials.php',
+      method: 'GET',
+      data: { fetch: 'school_semester', school: schoolId },
+      dataType: 'json',
+      success: function (res) {
+        if (res.status === 'success' && res.semester_ready) {
+          renderSemesterPanel(res);
+        } else {
+          renderSemesterPanel(null);
+        }
+      },
+      error: function () {
+        renderSemesterPanel(null);
+      }
+    });
+  }
 
   function normalizeDepartmentSelection(selectedValues) {
     var values = Array.isArray(selectedValues) ? selectedValues.slice() : [];
@@ -145,10 +216,16 @@ $(document).ready(function () {
         creator_type: creatorType,
         date_range: dateRange,
         start_date: startDate,
-        end_date: endDate
+        end_date: endDate,
+        semester_state: $('#semesterState').val() || ''
       },
       dataType: 'json',
       success: function (res) {
+        var wasSemesterReady = semesterReady;
+        applySemesterReady(res.semester_ready);
+        if (semesterReady && !wasSemesterReady) {
+          loadSchoolSemester();
+        }
         if ($.fn.dataTable.isDataTable('.table')) {
           var table = $('.table').DataTable();
           table.clear().draw().destroy();
@@ -190,11 +267,22 @@ $(document).ready(function () {
               actionHtml += '<a href="javascript:void(0);" class="dropdown-item text-danger deleteMaterial" data-id="' + mat.id + '" data-title="' + mat.title + '"><i class="bx bx-trash me-1"></i> Delete</a>';
             }
 
-            // Include toggle for materials that are open or closed
+            // Open -> close. Reopening (closed or awaiting confirmation) goes through Confirm & Open
+            // once semester tagging is set up, so the price and semester get checked.
             if (mat.db_status === 'open') {
               actionHtml += '<a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="' + mat.id + '" data-status="' + mat.db_status + '"><i class="bx bx-lock me-1"></i> Close Material</a>';
+            } else if (semesterReady && (mat.db_status === STATUS_AWAITING || mat.db_status === 'closed')) {
+              actionHtml += '<a href="javascript:void(0);" class="dropdown-item text-success confirmMaterial" data-material=\'' + JSON.stringify(mat).replace(/'/g, '&#39;') + '\'><i class="bx bx-check-circle me-1"></i> Confirm &amp; Open</a>';
+              if (mat.db_status === STATUS_AWAITING) {
+                actionHtml += '<a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="' + mat.id + '" data-status="' + mat.db_status + '"><i class="bx bx-archive me-1"></i> Retire (Close)</a>';
+              }
             } else if (mat.db_status === 'closed') {
               actionHtml += '<a href="javascript:void(0);" class="dropdown-item toggleMaterial" data-id="' + mat.id + '" data-status="' + mat.db_status + '"><i class="bx bx-lock-open me-1"></i> Open Material</a>';
+            }
+
+            // One semester per material: offer a copy for the other semester
+            if (semesterReady && mat.is_admin && (Number(mat.semester) === 1 || Number(mat.semester) === 2)) {
+              actionHtml += '<a href="javascript:void(0);" class="dropdown-item duplicateMaterial" data-material=\'' + JSON.stringify(mat).replace(/'/g, '&#39;') + '\'><i class="bx bx-copy me-1"></i> Duplicate for ' + semesterLabel(Number(mat.semester) === 1 ? 2 : 1) + '</a>';
             }
 
             actionHtml += '<a href="javascript:void(0);" class="dropdown-item downloadMaterialTransactions" data-id="' + mat.id + '" data-code="' + (mat.code || '') + '"><i class="bx bx-download me-1"></i> Download transactions list</a>' +
@@ -223,6 +311,10 @@ $(document).ready(function () {
             if (mat.level) {
               metaInfo.push('<small><span class="badge bg-label-info">Level: ' + mat.level + '</span></small>');
             }
+            if (semesterReady) {
+              var semesterBadgeClass = Number(mat.semester) > 0 ? 'bg-label-dark' : 'bg-label-secondary';
+              metaInfo.push('<small><span class="badge ' + semesterBadgeClass + '">' + semesterLabel(mat.semester) + '</span></small>');
+            }
             if (metaInfo.length > 0) {
               titleHtml += '<br>' + metaInfo.join(' | ');
             }
@@ -238,6 +330,15 @@ $(document).ready(function () {
               coverageHtml = '<span class="badge bg-label-primary">' + (mat.coverage_label || 'Custom') + '</span>';
             }
 
+            var statusBadgeClass = mat.status === 'open' ? 'success' : (mat.status === STATUS_AWAITING ? 'warning' : 'danger');
+            var statusText = mat.status === STATUS_AWAITING
+              ? 'Awaiting confirmation'
+              : mat.status.charAt(0).toUpperCase() + mat.status.slice(1);
+            if (semesterReady && mat.status === 'open' && Number(mat.semester) > 0 && Number(mat.school_current_semester) > 0 && Number(mat.semester) !== Number(mat.school_current_semester)) {
+              statusText = 'Open, live in ' + semesterLabel(mat.semester);
+              statusBadgeClass = 'info';
+            }
+
             var row = '<tr>' +
               '<td class="text-uppercase">' + (mat.code || '') + '</td>' +
               '<td class="text-uppercase">' + titleHtml + '</td>' +
@@ -246,7 +347,7 @@ $(document).ready(function () {
               '<td>₦ ' + Number(mat.price).toLocaleString() + '</td>' +
               '<td>₦ ' + Number(mat.revenue).toLocaleString() + '</td>' +
               '<td>' + mat.qty_sold + '</td>' +
-              '<td><span class="fw-bold badge bg-label-' + (mat.status === 'open' ? 'success' : 'danger') + '">' + mat.status.charAt(0).toUpperCase() + mat.status.slice(1) + '</span></td>' +
+              '<td><span class="fw-bold badge bg-label-' + statusBadgeClass + '">' + statusText + '</span></td>' +
               '<td>' + actionHtml + '</td>' +
               '</tr>';
             tbody.append(row);
@@ -300,6 +401,16 @@ $(document).ready(function () {
     $('#dept').val('0').trigger('change.select2');
     fetchFaculties(schoolId);
     fetchDepts(schoolId, 0);
+    fetchMaterials();
+    loadSchoolSemester();
+  });
+
+  $('#semesterState').on('change', function () {
+    fetchMaterials();
+  });
+
+  $('#semesterAwaitingBtn, #semesterUntaggedBtn').on('click', function () {
+    $('#semesterState').val($(this).data('state'));
     fetchMaterials();
   });
 
@@ -455,7 +566,8 @@ $(document).ready(function () {
         creator_type: creatorType,
         date_range: dateRange,
         start_date: startDate,
-        end_date: endDate
+        end_date: endDate,
+        semester_state: $('#semesterState').val() || ''
       },
       xhrFields: { responseType: 'blob' },
       beforeSend: function () {
@@ -505,9 +617,158 @@ $(document).ready(function () {
       success: function (res) {
         showToast(res.status === 'success' ? 'bg-success' : 'bg-danger', res.message);
         fetchMaterials();
+        loadSchoolSemester();
       },
       error: function () {
         showToast('bg-danger', 'Network error');
+      }
+    });
+  });
+
+  // Confirm & Open: check price and semester before a material goes back on sale
+  function updateConfirmSemesterHint() {
+    var chosen = Number($('#confirmMaterialSemester').val());
+    var current = schoolSemesterInfo ? Number(schoolSemesterInfo.current_semester) : 0;
+    var material = $('#confirmMaterialModal').data('material') || {};
+    if (!current) {
+      current = Number(material.school_current_semester) || 0;
+    }
+    var hint = '';
+    if (chosen && current && chosen !== current) {
+      hint = 'It will stay hidden until ' + semesterLabel(chosen) + ' starts.';
+    } else if (chosen && current) {
+      hint = 'Students will see it immediately.';
+    }
+    $('#confirmMaterialSemesterHint').text(hint);
+  }
+
+  $(document).on('click', '.confirmMaterial', function (e) {
+    e.preventDefault();
+    var material = $(this).data('material');
+    if (!material) {
+      return;
+    }
+    $('#confirmMaterialModal').data('material', material);
+    $('#confirmMaterialId').val(material.id);
+    $('#confirmMaterialTitle').text(material.title + ' (' + material.course_code + ')');
+    var meta = ['Code: ' + (material.code || '')];
+    meta.push('Current price: ₦ ' + Number(material.price).toLocaleString());
+    meta.push('Sold so far: ' + (material.qty_sold || 0));
+    if (material.confirmed_at) {
+      meta.push('Last confirmed: ' + material.confirmed_at);
+    }
+    $('#confirmMaterialMeta').text(meta.join(' · '));
+    $('#confirmMaterialPrice').val(material.price);
+    $('#confirmMaterialSemester').val(Number(material.semester) > 0 ? String(material.semester) : '');
+    $('#confirmMaterialAlert').addClass('d-none').text('');
+    updateConfirmSemesterHint();
+    $('#confirmMaterialModal').modal('show');
+  });
+
+  $('#confirmMaterialSemester').on('change', updateConfirmSemesterHint);
+
+  $('#confirmMaterialForm').on('submit', function (e) {
+    e.preventDefault();
+    var $alert = $('#confirmMaterialAlert');
+    var $btn = $('#confirmMaterialSubmit');
+    var price = String($('#confirmMaterialPrice').val() || '').trim();
+    var semester = $('#confirmMaterialSemester').val();
+
+    if (!/^\d+$/.test(price)) {
+      $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Enter a valid price (whole naira, 0 or more).');
+      return;
+    }
+    if (!semester) {
+      $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Select the semester this material is sold in.');
+      return;
+    }
+
+    $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Confirming...');
+    $.ajax({
+      url: 'model/materials.php',
+      method: 'POST',
+      data: {
+        confirm_material: 1,
+        material_id: $('#confirmMaterialId').val(),
+        price: price,
+        semester: semester
+      },
+      dataType: 'json',
+      success: function (res) {
+        if (res.status === 'success') {
+          showToast('bg-success', res.message);
+          $('#confirmMaterialModal').modal('hide');
+          fetchMaterials();
+          loadSchoolSemester();
+        } else {
+          $alert.removeClass('d-none alert-success').addClass('alert-danger').text(res.message || 'Failed to confirm material');
+        }
+      },
+      error: function () {
+        $alert.removeClass('d-none alert-success').addClass('alert-danger').text('Network error. Please try again.');
+      },
+      complete: function () {
+        $btn.prop('disabled', false).html('Confirm &amp; Open');
+      }
+    });
+  });
+
+  // Duplicate a material for the other semester (opens the create form pre-filled)
+  $(document).on('click', '.duplicateMaterial', function (e) {
+    e.preventDefault();
+    var material = $(this).data('material');
+    if (material) {
+      openEditModal(material, 'duplicate');
+    }
+  });
+
+  // Semester switch for the selected school
+  $('#switchSemesterBtn').on('click', function () {
+    var info = schoolSemesterInfo;
+    if (!info) {
+      return;
+    }
+    var counts = info.counts || {};
+    $('#switchSemesterTitle').text('Switch to ' + info.next_label);
+    var items = [
+      '<li><strong>' + (counts.to_awaiting || 0) + '</strong> open material(s) from ' + info.current_label + ' or with no semester set will move to <strong>Awaiting Confirmation</strong> and be hidden.</li>',
+      '<li><strong>' + (counts.going_live || 0) + '</strong> open material(s) tagged ' + info.next_label + ' will go live for students.</li>'
+    ];
+    if (counts.awaiting_next) {
+      items.push('<li><strong>' + counts.awaiting_next + '</strong> ' + info.next_label + ' material(s) from last session are still awaiting confirmation. Confirm them after switching.</li>');
+    }
+    $('#switchSemesterSummary').html(items.join(''));
+    $('#switchSemesterAlert').addClass('d-none').text('');
+    $('#switchSemesterModal').modal('show');
+  });
+
+  $('#switchSemesterSubmit').on('click', function () {
+    var info = schoolSemesterInfo;
+    var $btn = $(this);
+    if (!info) {
+      return;
+    }
+    $btn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm me-1"></span>Switching...');
+    $.ajax({
+      url: 'model/materials.php',
+      method: 'POST',
+      data: { switch_semester: 1, school: info.school_id, target_semester: info.next_semester },
+      dataType: 'json',
+      success: function (res) {
+        if (res.status === 'success') {
+          showToast('bg-success', res.message);
+          $('#switchSemesterModal').modal('hide');
+          fetchMaterials();
+          loadSchoolSemester();
+        } else {
+          $('#switchSemesterAlert').removeClass('d-none').addClass('alert-danger').text(res.message || 'Failed to switch semester');
+        }
+      },
+      error: function () {
+        $('#switchSemesterAlert').removeClass('d-none').addClass('alert-danger').text('Network error. Please try again.');
+      },
+      complete: function () {
+        $btn.prop('disabled', false).text('Switch Semester');
       }
     });
   });
@@ -605,13 +866,19 @@ $(document).ready(function () {
   }
 
   // Function to open modal in edit mode
-  function openEditModal(material) {
-    // Change modal title and button text
-    $('#materialModalTitle').text('Edit Course Material');
-    $('#newMaterialSubmit').text('Update Material');
+  // mode 'duplicate' pre-fills the form from an existing material but creates a new one
+  // (new code) for the other semester.
+  function openEditModal(material, mode) {
+    var isDuplicate = mode === 'duplicate';
+    var otherSemester = Number(material.semester) === 1 ? 2 : 1;
 
-    // Set material ID in hidden field
-    $('#materialId').val(material.id);
+    // Change modal title and button text
+    $('#materialModalTitle').text(isDuplicate ? 'Duplicate for ' + semesterLabel(otherSemester) : 'Edit Course Material');
+    $('#newMaterialSubmit').text(isDuplicate ? 'Create Copy' : 'Update Material');
+
+    // Set material ID in hidden field (empty = create)
+    $('#materialId').val(isDuplicate ? '' : material.id);
+    $('#materialSemester').val(isDuplicate ? String(otherSemester) : (Number(material.semester) > 0 ? String(material.semester) : ''));
 
     // Set a flag to prevent the shown.bs.modal event from overwriting our values
     $('#newMaterialModal').data('isEditMode', true);
@@ -920,6 +1187,8 @@ $(document).ready(function () {
     var schoolId = adminRole == 5 ? adminSchool : $(this).val();
     fetchModalFaculties(schoolId);
     fetchModalDepts(schoolId, 0, []);
+    $('#materialSemester').val('');
+    defaultMaterialSemester(schoolId);
   });
 
   $('#materialFaculty').on('change', function () {
@@ -1036,6 +1305,7 @@ $(document).ready(function () {
     $('#materialModalTitle').text('Add New Course Material');
     $('#newMaterialSubmit').text('Create Material');
     $('#materialId').val('');
+    $('#materialSemester').val('');
 
     // Clear edit mode flag
     $(this).removeData('isEditMode');
@@ -1106,5 +1376,31 @@ $(document).ready(function () {
       fetchModalFaculties(schoolId);
       fetchModalDepts(schoolId, (adminRole == 5 && adminFaculty !== 0) ? adminFaculty : 0, []);
     }
+    defaultMaterialSemester(schoolId);
   });
+
+  // New materials default to the school's current semester
+  function defaultMaterialSemester(schoolId) {
+    if (!semesterReady || $('#materialSemester').val()) {
+      return;
+    }
+    if (schoolSemesterInfo && Number(schoolSemesterInfo.school_id) === Number(schoolId)) {
+      $('#materialSemester').val(String(schoolSemesterInfo.current_semester));
+      return;
+    }
+    if (!schoolId || Number(schoolId) <= 0) {
+      return;
+    }
+    $.ajax({
+      url: 'model/materials.php',
+      method: 'GET',
+      data: { fetch: 'school_semester', school: schoolId },
+      dataType: 'json',
+      success: function (res) {
+        if (res.status === 'success' && res.semester_ready && !$('#materialSemester').val()) {
+          $('#materialSemester').val(String(res.current_semester));
+        }
+      }
+    });
+  }
 });

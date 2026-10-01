@@ -108,6 +108,22 @@ if ($admin_role == 5) {
               </div>
             </div>
 
+            <!-- Semester panel (hidden until semester tagging is set up) -->
+            <div class="card mb-4 d-none" id="semesterPanel">
+              <div class="card-body d-flex flex-wrap align-items-center justify-content-between gap-3">
+                <div>
+                  <span class="fw-semibold d-block mb-1">Current semester</span>
+                  <h5 class="mb-1" id="semesterCurrentLabel">Select a school</h5>
+                  <small class="text-muted" id="semesterPanelHint">Students only see open materials tagged for the current semester.</small>
+                </div>
+                <div class="d-flex flex-wrap gap-2 align-items-center">
+                  <button type="button" class="btn btn-sm btn-outline-warning d-none" id="semesterAwaitingBtn" data-state="awaiting"></button>
+                  <button type="button" class="btn btn-sm btn-outline-secondary d-none" id="semesterUntaggedBtn" data-state="untagged"></button>
+                  <button type="button" class="btn btn-sm btn-primary d-none" id="switchSemesterBtn"></button>
+                </div>
+              </div>
+            </div>
+
             <div class="card mb-4" id="materialsCard">
               <div class="card-body">
                 <form id="filterForm" class="row g-3 mb-4">
@@ -143,6 +159,15 @@ if ($admin_role == 5) {
                     <select name="creator_type" id="creatorType" class="form-select">
                       <option value="admins" selected>Admin Materials</option>
                       <option value="users">User Materials</option>
+                    </select>
+                  </div>
+                  <div class="col-md-3 d-none" id="semesterFilterGroup">
+                    <select name="semester_state" id="semesterState" class="form-select">
+                      <option value="" selected>All Semesters</option>
+                      <option value="1">First Semester</option>
+                      <option value="2">Second Semester</option>
+                      <option value="awaiting">Awaiting Confirmation</option>
+                      <option value="untagged">No Semester Set</option>
                     </select>
                   </div>
                   <div class="col-md-3 d-none" id="deptFilterGroup">
@@ -349,11 +374,22 @@ if ($admin_role == 5) {
               </div>
             </div>
 
-            <!-- Price -->
-            <div class="mb-3">
-              <label for="materialPrice" class="form-label">Price (₦) <span class="text-danger">*</span></label>
-              <!-- Client-side validation: min='0' - Backend validates price is a non-negative integer -->
-              <input type="number" class="form-control" id="materialPrice" name="price" required min="0" step="1" placeholder="0">
+            <!-- Price and Semester (2-column grid on desktop) -->
+            <div class="row g-3 mb-3">
+              <div class="col-md-6">
+                <label for="materialPrice" class="form-label">Price (₦) <span class="text-danger">*</span></label>
+                <!-- Client-side validation: min='0' - Backend validates price is a non-negative integer -->
+                <input type="number" class="form-control" id="materialPrice" name="price" required min="0" step="1" placeholder="0">
+              </div>
+              <div class="col-md-6 d-none" id="materialSemesterGroup">
+                <label for="materialSemester" class="form-label">Semester <span class="text-danger">*</span></label>
+                <select id="materialSemester" name="semester" class="form-select">
+                  <option value="">Select semester</option>
+                  <option value="1">First Semester</option>
+                  <option value="2">Second Semester</option>
+                </select>
+                <div class="form-text" id="materialSemesterHint">Needed in both semesters? Create a separate copy for the other one.</div>
+              </div>
             </div>
           </div>
           <div class="modal-footer">
@@ -361,6 +397,65 @@ if ($admin_role == 5) {
             <button type="submit" class="btn btn-primary" id="newMaterialSubmit">Create Material</button>
           </div>
         </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Confirm & Open Material Modal -->
+  <div class="modal fade" id="confirmMaterialModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Confirm &amp; Open Material</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <form id="confirmMaterialForm" novalidate>
+          <div class="modal-body">
+            <div id="confirmMaterialAlert" class="alert d-none" role="alert"></div>
+            <input type="hidden" id="confirmMaterialId" name="material_id" value="">
+            <p class="mb-1 fw-semibold text-uppercase" id="confirmMaterialTitle"></p>
+            <p class="text-muted small mb-3" id="confirmMaterialMeta"></p>
+            <p class="small mb-3">Check that this material is still being sold and that the price is still correct. Students who already bought it keep their original price.</p>
+            <div class="mb-3">
+              <label for="confirmMaterialPrice" class="form-label">Price (₦) <span class="text-danger">*</span></label>
+              <input type="number" class="form-control" id="confirmMaterialPrice" name="price" required min="0" step="1">
+            </div>
+            <div class="mb-0">
+              <label for="confirmMaterialSemester" class="form-label">Semester <span class="text-danger">*</span></label>
+              <select id="confirmMaterialSemester" name="semester" class="form-select" required>
+                <option value="">Select semester</option>
+                <option value="1">First Semester</option>
+                <option value="2">Second Semester</option>
+              </select>
+              <div class="form-text" id="confirmMaterialSemesterHint"></div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" class="btn btn-success" id="confirmMaterialSubmit">Confirm &amp; Open</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Switch Semester Modal -->
+  <div class="modal fade" id="switchSemesterModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="switchSemesterTitle">Switch Semester</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <div id="switchSemesterAlert" class="alert d-none" role="alert"></div>
+          <ul class="mb-3" id="switchSemesterSummary"></ul>
+          <p class="small text-muted mb-0">Materials moved to <strong>Awaiting Confirmation</strong> are hidden from students. When their semester comes round again, an admin must check the price and use <strong>Confirm &amp; Open</strong>.</p>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+          <button type="button" class="btn btn-primary" id="switchSemesterSubmit">Switch Semester</button>
+        </div>
       </div>
     </div>
   </div>
