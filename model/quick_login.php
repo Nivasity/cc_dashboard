@@ -164,8 +164,10 @@ function createQuickLoginLink($conn, $admin_id) {
     mysqli_stmt_close($stmt);
     
     // Use different domain based on school ID
-    $domain = ($school_id === 1) ? "https://funaab.nivasity.com/" : "https://nivasity.com/";
-    $link = $domain . "demo.php?code=$code";
+    // FUNAAB uses the new student portal (/quick-login); other schools still use the PHP site.
+    $link = ($school_id === 1)
+      ? "https://funaab.nivasity.com/quick-login?code=$code"
+      : "https://nivasity.com/demo.php?code=$code";
     
     echo json_encode([
       'success' => true,
@@ -225,8 +227,9 @@ function listQuickLoginCodes($conn) {
   while ($row = mysqli_fetch_assoc($result)) {
     // Use different domain based on school ID
     $school_id = (int)$row['school_id'];
-    $domain = ($school_id === 1) ? "https://funaab.nivasity.com/" : "https://nivasity.com/";
-    $row['link'] = $domain . "demo.php?code=" . $row['code'];
+    $row['link'] = ($school_id === 1)
+      ? "https://funaab.nivasity.com/quick-login?code=" . $row['code']
+      : "https://nivasity.com/demo.php?code=" . $row['code'];
     $codes[] = $row;
   }
   
