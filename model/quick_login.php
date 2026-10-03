@@ -106,6 +106,16 @@ function searchStudent($conn) {
   }
 }
 
+// Student web portal for a school: its own domain when set, FUNAAB's portal for FUNAAB.
+// Other schools have no student web portal yet (nivasity.com is the marketing site), so null.
+function quickLoginPortalBase(int $school_id, ?string $domain): ?string {
+  $domain = trim((string) $domain);
+  if ($domain !== '') {
+    return 'https://' . preg_replace('#^https?://#i', '', rtrim($domain, '/'));
+  }
+  return $school_id === 1 ? 'https://funaab.nivasity.com' : null;
+}
+
 // Create a new quick login link
 function createQuickLoginLink($conn, $admin_id) {
   $student_id = (int)($_POST['student_id'] ?? 0);
@@ -122,7 +132,7 @@ function createQuickLoginLink($conn, $admin_id) {
   }
   
   // Verify student exists and get school ID using prepared statement
-  $stmt = mysqli_prepare($conn, "SELECT id, school FROM users WHERE id = ?");
+  $stmt = mysqli_prepare($conn, "SELECT u.id, u.school, s.domain FROM users u LEFT JOIN schools s ON s.id = u.school WHERE u.id = ?");
   if (!$stmt) {
     echo json_encode(['success' => false, 'message' => 'Database error']);
     return;
@@ -141,6 +151,12 @@ function createQuickLoginLink($conn, $admin_id) {
   $student = mysqli_fetch_assoc($result);
   $school_id = (int)$student['school'];
   mysqli_stmt_close($stmt);
+
+  $portal = quickLoginPortalBase($school_id, $student['domain'] ?? null);
+  if ($portal === null) {
+    echo json_encode(['success' => false, 'message' => "This student's school has no web portal yet, so a quick login link can't be used. Ask them to sign in on the Nivasity app."]);
+    return;
+  }
   
   // Generate unique code
   $code = bin2hex(random_bytes(32));
@@ -163,11 +179,7 @@ function createQuickLoginLink($conn, $admin_id) {
   if (mysqli_stmt_execute($stmt)) {
     mysqli_stmt_close($stmt);
     
-    // Use different domain based on school ID
-    // FUNAAB uses the new student portal (/quick-login); other schools still use the PHP site.
-    $link = ($school_id === 1)
-      ? "https://funaab.nivasity.com/quick-login?code=$code"
-      : "https://nivasity.com/demo.php?code=$code";
+    $link = "$portal/quick-login?code=$code";
     
     echo json_encode([
       'success' => true,
@@ -209,6 +221,7 @@ function listQuickLoginCodes($conn) {
               u.matric_no,
               u.school as school_id,
               s.name as school_name,
+              s.domain as school_domain,
               d.name as dept_name
             FROM quick_login_codes qlc
             JOIN users u ON qlc.student_id = u.id
@@ -225,11 +238,9 @@ function listQuickLoginCodes($conn) {
   
   $codes = [];
   while ($row = mysqli_fetch_assoc($result)) {
-    // Use different domain based on school ID
-    $school_id = (int)$row['school_id'];
-    $row['link'] = ($school_id === 1)
-      ? "https://funaab.nivasity.com/quick-login?code=" . $row['code']
-      : "https://nivasity.com/demo.php?code=" . $row['code'];
+    $portal = quickLoginPortalBase((int)$row['school_id'], $row['school_domain'] ?? null);
+    $row['link'] = $portal === null ? '' : "$portal/quick-login?code=" . $row['code'];
+    unset($row['school_domain']);
     $codes[] = $row;
   }
   

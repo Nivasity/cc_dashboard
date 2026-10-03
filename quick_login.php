@@ -390,8 +390,8 @@ if (!in_array((int)$admin_role, [1, 2, 3], true)) {
             <td>${code.dept_name || 'N/A'}</td>
             <td>
               <div class="input-group input-group-sm" style="max-width: 250px;">
-                <input type="text" class="form-control form-control-sm" value="${code.link}" readonly>
-                <button class="btn btn-outline-secondary btn-sm copy-btn" data-link="${code.link}" title="Copy link">
+                <input type="text" class="form-control form-control-sm" value="${code.link || 'No web portal for this school'}" readonly>
+                <button class="btn btn-outline-secondary btn-sm copy-btn" data-link="${code.link}" title="Copy link"${code.link ? '' : ' disabled'}>
                   <i class="bx bx-copy"></i>
                 </button>
               </div>

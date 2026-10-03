@@ -568,7 +568,7 @@ function buildEmailTemplate($body) {
     <body>
         <div class="container">
             <div class="header">
-                <img src="https://nivasity.com/nivasity.png" alt="Nivasity">
+                <img src="https://www.nivasity.com/nivasity.png" alt="Nivasity">
             </div>
             <div class="content">
                 '.$body.'
