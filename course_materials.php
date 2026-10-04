@@ -390,6 +390,16 @@ if ($admin_role == 5) {
                 </select>
                 <div class="form-text" id="materialSemesterHint">Needed in both semesters? Create a separate copy for the other one.</div>
               </div>
+              <div class="col-md-6 d-none" id="materialSessionGroup">
+                <label for="materialSession" class="form-label">Session <span class="text-danger">*</span></label>
+                <select id="materialSession" name="session" class="form-select">
+                  <option value="">Select session</option>
+                  <?php for ($sy = 2024; $sy <= intval(date('Y')) + 1; $sy++): $sv = $sy . '/' . ($sy + 1); ?>
+                  <option value="<?php echo $sv; ?>"><?php echo $sv; ?></option>
+                  <?php endfor; ?>
+                </select>
+                <div class="form-text">Students only see materials of the school's current session and semester.</div>
+              </div>
             </div>
           </div>
           <div class="modal-footer">
@@ -428,6 +438,15 @@ if ($admin_role == 5) {
                 <option value="2">Second Semester</option>
               </select>
               <div class="form-text" id="confirmMaterialSemesterHint"></div>
+            </div>
+            <div class="mt-3 mb-0">
+              <label for="confirmMaterialSession" class="form-label">Session <span class="text-danger">*</span></label>
+              <select id="confirmMaterialSession" name="session" class="form-select" required>
+                <option value="">Select session</option>
+                <?php for ($sy = 2024; $sy <= intval(date('Y')) + 1; $sy++): $sv = $sy . '/' . ($sy + 1); ?>
+                  <option value="<?php echo $sv; ?>"><?php echo $sv; ?></option>
+                  <?php endfor; ?>
+              </select>
             </div>
           </div>
           <div class="modal-footer">

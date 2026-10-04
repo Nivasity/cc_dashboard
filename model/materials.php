@@ -440,6 +440,61 @@ function materialSemesterLabel($semester) {
   return 'No semester set';
 }
 
+// Academic session (year) on top of the semester: a material's period is session + semester
+// (nivasity sql/add_academic_session.sql). Students only see the school's current period.
+function materialSessionReady($conn) {
+  static $ready = null;
+  if ($ready !== null) {
+    return $ready;
+  }
+  $a = mysqli_query($conn, "SHOW COLUMNS FROM manuals LIKE 'session'");
+  $b = mysqli_query($conn, "SHOW COLUMNS FROM schools LIKE 'current_session'");
+  $c = mysqli_query($conn, "SHOW TABLES LIKE 'academic_periods'");
+  $ready = materialSemesterReady($conn) && $a && mysqli_num_rows($a) > 0 && $b && mysqli_num_rows($b) > 0 && $c && mysqli_num_rows($c) > 0;
+  return $ready;
+}
+
+function normalizeMaterialSession($value) {
+  $value = trim((string) $value);
+  if (!preg_match('#^(\d{4})/(\d{4})$#', $value, $m) || intval($m[2]) !== intval($m[1]) + 1) {
+    return '';
+  }
+  return $value;
+}
+
+function materialSchoolCurrentSession($conn, $school_id) {
+  $school_id = intval($school_id);
+  if ($school_id <= 0 || !materialSessionReady($conn)) {
+    return '';
+  }
+  $res = mysqli_query($conn, "SELECT current_session FROM schools WHERE id = $school_id LIMIT 1");
+  $row = $res ? mysqli_fetch_assoc($res) : null;
+  return $row ? normalizeMaterialSession($row['current_session'] ?? '') : '';
+}
+
+// First -> Second of the same session; Second -> First of the next session.
+function materialNextPeriod($session, $semester) {
+  if (intval($semester) === 1) {
+    return [$session, 2];
+  }
+  if (preg_match('#^(\d{4})/(\d{4})$#', (string) $session, $m)) {
+    return [(intval($m[1]) + 1) . '/' . (intval($m[2]) + 1), 1];
+  }
+  return [$session, 1];
+}
+
+function materialPeriodLabel($semester, $session) {
+  $label = materialSemesterLabel($semester);
+  $session = normalizeMaterialSession($session);
+  return ($session !== '' && normalizeMaterialSemester($semester) > 0) ? $label . ' ' . $session : $label;
+}
+
+// Session posted with a material, or the school's current session when none was chosen.
+function materialPostedSession($conn, $school_id) {
+  $posted = normalizeMaterialSession($_POST['session'] ?? '');
+  return $posted !== '' ? $posted : materialSchoolCurrentSession($conn, $school_id);
+}
+
 function materialSchoolCurrentSemester($conn, $school_id) {
   $school_id = intval($school_id);
   if ($school_id <= 0 || !materialSemesterReady($conn)) {
@@ -488,7 +543,8 @@ function buildMaterialSemesterFilterClause($conn, $semester_state) {
 
 $semester_select_sql = materialSemesterReady($conn)
   ? 'm.semester, m.confirmed_at, sch.current_semester AS school_current_semester,'
-  : 'NULL AS semester, NULL AS confirmed_at, NULL AS school_current_semester,';
+    . (materialSessionReady($conn) ? ' m.session, sch.current_session AS school_current_session,' : ' NULL AS session, NULL AS school_current_session,')
+  : 'NULL AS semester, NULL AS confirmed_at, NULL AS school_current_semester, NULL AS session, NULL AS school_current_session,';
 $semester_join_sql = materialSemesterReady($conn) ? ' LEFT JOIN schools sch ON sch.id = m.school_id' : '';
 $semester_state = (string) ($_GET['semester_state'] ?? '');
 
@@ -558,7 +614,7 @@ if (isset($_GET['download']) && $_GET['download'] === 'csv') {
       $row['revenue'],
       $row['qty_sold'],
       $coverage_info['coverage_label'],
-      materialSemesterLabel($row['semester'] ?? 0),
+      materialPeriodLabel($row['semester'] ?? 0, $row['session'] ?? ''),
       $row['status']
     ]);
   }
@@ -741,8 +797,10 @@ if(isset($_GET['fetch'])){
           'coverage_label' => $coverage_info['coverage_label'],
           'dept_count' => $coverage_info['dept_count'],
           'semester' => normalizeMaterialSemester($row['semester'] ?? 0),
-          'semester_label' => materialSemesterLabel($row['semester'] ?? 0),
+          'semester_label' => materialPeriodLabel($row['semester'] ?? 0, $row['session'] ?? ''),
           'school_current_semester' => normalizeMaterialSemester($row['school_current_semester'] ?? 0),
+          'session' => normalizeMaterialSession($row['session'] ?? ''),
+          'school_current_session' => normalizeMaterialSession($row['school_current_session'] ?? ''),
           'confirmed_at' => $row['confirmed_at'] ?? null
         );
       }
@@ -770,15 +828,42 @@ if(isset($_GET['fetch'])){
     }
 
     $current = materialSchoolCurrentSemester($conn, $school);
-    $next = $current === 1 ? 2 : 1;
+    $current_session = materialSchoolCurrentSession($conn, $school);
+    list($next_session, $next) = materialNextPeriod($current_session, $current);
     $awaiting = MATERIAL_STATUS_AWAITING;
-    $counts_res = mysqli_query($conn, "SELECT
-        SUM(status = 'open' AND (semester = $current OR semester IS NULL)) AS to_awaiting,
-        SUM(status = 'open' AND semester = $next) AS going_live,
-        SUM(status = '$awaiting') AS awaiting,
-        SUM(status = '$awaiting' AND semester = $next) AS awaiting_next,
-        SUM(status <> 'closed' AND semester IS NULL) AS untagged
-      FROM manuals WHERE school_id = $school");
+    if (materialSessionReady($conn)) {
+      $ns = mysqli_real_escape_string($conn, $next_session);
+      $in_next = "(semester = $next AND session = '$ns')";
+      $counts_res = mysqli_query($conn, "SELECT
+          SUM(status = 'open' AND NOT $in_next) AS to_awaiting,
+          SUM(status = 'open' AND $in_next) AS going_live,
+          SUM(status = '$awaiting') AS awaiting,
+          SUM(status = '$awaiting' AND $in_next) AS awaiting_next,
+          SUM(status <> 'closed' AND (semester IS NULL OR session IS NULL)) AS untagged
+        FROM manuals WHERE school_id = $school");
+    } else {
+      $counts_res = mysqli_query($conn, "SELECT
+          SUM(status = 'open' AND (semester = $current OR semester IS NULL)) AS to_awaiting,
+          SUM(status = 'open' AND semester = $next) AS going_live,
+          SUM(status = '$awaiting') AS awaiting,
+          SUM(status = '$awaiting' AND semester = $next) AS awaiting_next,
+          SUM(status <> 'closed' AND semester IS NULL) AS untagged
+        FROM manuals WHERE school_id = $school");
+    }
+    $history = [];
+    if (materialSessionReady($conn)) {
+      $hist_res = mysqli_query($conn, "SELECT p.session, p.semester, p.started_at,
+          TRIM(CONCAT(COALESCE(a.first_name, ''), ' ', COALESCE(a.last_name, ''))) AS started_by
+        FROM academic_periods p LEFT JOIN admins a ON a.id = p.started_by
+        WHERE p.school_id = $school ORDER BY p.started_at DESC, p.id DESC LIMIT 20");
+      while ($hist_res && ($h = mysqli_fetch_assoc($hist_res))) {
+        $history[] = [
+          'label' => materialPeriodLabel($h['semester'], $h['session']),
+          'started_at' => $h['started_at'],
+          'started_by' => $h['started_by'] !== '' ? $h['started_by'] : 'Initial setup',
+        ];
+      }
+    }
     $counts = $counts_res ? mysqli_fetch_assoc($counts_res) : [];
 
     echo json_encode([
@@ -786,9 +871,13 @@ if(isset($_GET['fetch'])){
       'semester_ready' => true,
       'school_id' => $school,
       'current_semester' => $current,
-      'current_label' => materialSemesterLabel($current),
+      'current_session' => $current_session,
+      'current_label' => materialPeriodLabel($current, $current_session),
       'next_semester' => $next,
-      'next_label' => materialSemesterLabel($next),
+      'next_session' => $next_session,
+      'next_label' => materialPeriodLabel($next, $next_session),
+      'session_ready' => materialSessionReady($conn),
+      'history' => $history,
       'can_switch' => adminCanSwitchSchoolSemester($admin_role, $admin_school, $admin_faculty, $school),
       'counts' => [
         'to_awaiting' => intval($counts['to_awaiting'] ?? 0),
@@ -1063,10 +1152,12 @@ if(isset($_POST['create_material'])){
             $school_semester = materialSchoolCurrentSemester($conn, $school);
             $visible_now = true;
             if (materialSemesterReady($conn)) {
-              mysqli_query($conn, "UPDATE manuals SET semester = $semester WHERE id = " . intval($material_id));
-              $visible_now = ($semester === $school_semester);
+              $session = materialPostedSession($conn, $school);
+              $session_sql = materialSessionReady($conn) ? ", session = '" . mysqli_real_escape_string($conn, $session) . "'" : '';
+              mysqli_query($conn, "UPDATE manuals SET semester = $semester$session_sql WHERE id = " . intval($material_id));
+              $visible_now = ($semester === $school_semester) && (!materialSessionReady($conn) || $session === materialSchoolCurrentSession($conn, $school));
               if (!$visible_now) {
-                $messageRes .= '. It will go live when ' . materialSemesterLabel($semester) . ' starts.';
+                $messageRes .= '. It will go live when ' . materialPeriodLabel($semester, $session) . ' starts.';
               }
             }
             
@@ -1252,7 +1343,9 @@ if(isset($_POST['update_material'])){
             $statusRes = 'success';
             $messageRes = 'Course material updated successfully';
             if (materialSemesterReady($conn)) {
-              mysqli_query($conn, "UPDATE manuals SET semester = $semester WHERE id = " . intval($material_id));
+              $session = materialPostedSession($conn, $school);
+              $session_sql = materialSessionReady($conn) ? ", session = '" . mysqli_real_escape_string($conn, $session) . "'" : '';
+              mysqli_query($conn, "UPDATE manuals SET semester = $semester$session_sql WHERE id = " . intval($material_id));
             }
             
             // Log the action
@@ -1313,11 +1406,16 @@ if(isset($_POST['confirm_material'])){
     mysqli_stmt_bind_param($confirm_stmt, 'iiii', $price, $semester, $admin_id, $material_id);
     if (mysqli_stmt_execute($confirm_stmt)) {
       $school_id = intval($manual_res['school_id']);
-      $visible_now = ($semester === materialSchoolCurrentSemester($conn, $school_id));
+      $session = materialPostedSession($conn, $school_id);
+      if (materialSessionReady($conn)) {
+        mysqli_query($conn, "UPDATE manuals SET session = '" . mysqli_real_escape_string($conn, $session) . "' WHERE id = $material_id");
+      }
+      $visible_now = ($semester === materialSchoolCurrentSemester($conn, $school_id))
+        && (!materialSessionReady($conn) || $session === materialSchoolCurrentSession($conn, $school_id));
       $statusRes = 'success';
       $messageRes = $visible_now
         ? 'Material confirmed and open for sale'
-        : 'Material confirmed. It will go live when ' . materialSemesterLabel($semester) . ' starts.';
+        : 'Material confirmed. It will go live when ' . materialPeriodLabel($semester, $session) . ' starts.';
 
       log_audit_event($conn, $admin_id, 'confirm', 'course_material', $material_id, [
         'title' => $manual_res['title'],
@@ -1366,6 +1464,11 @@ if(isset($_POST['switch_semester'])){
   $school_id = intval($_POST['school'] ?? 0);
   $target = normalizeMaterialSemester($_POST['target_semester'] ?? 0);
   $current = materialSchoolCurrentSemester($conn, $school_id);
+  $current_session = materialSchoolCurrentSession($conn, $school_id);
+  list($target_session, $expected_target) = materialNextPeriod($current_session, $current);
+  if (materialSessionReady($conn) && $target !== $expected_target) {
+    $target = 0; // stale page: the period already moved on
+  }
 
   if ($school_id <= 0 || $current === 0) {
     $statusRes = 'error';
@@ -1378,31 +1481,46 @@ if(isset($_POST['switch_semester'])){
     $messageRes = 'The semester has already been switched. Refresh the page.';
   } else {
     // Guarded on the current value so a double submit cannot switch twice.
-    mysqli_query($conn, "UPDATE schools SET current_semester = $target, current_semester_updated_at = NOW() WHERE id = $school_id AND current_semester = $current");
+    $cs = mysqli_real_escape_string($conn, $current_session);
+    $ts = mysqli_real_escape_string($conn, $target_session);
+    if (materialSessionReady($conn)) {
+      mysqli_query($conn, "UPDATE schools SET current_semester = $target, current_session = '$ts', current_semester_updated_at = NOW() WHERE id = $school_id AND current_semester = $current AND current_session = '$cs'");
+    } else {
+      mysqli_query($conn, "UPDATE schools SET current_semester = $target, current_semester_updated_at = NOW() WHERE id = $school_id AND current_semester = $current");
+    }
     if (mysqli_affected_rows($conn) !== 1) {
       $statusRes = 'error';
       $messageRes = 'The semester has already been switched. Refresh the page.';
     } else {
       $awaiting = MATERIAL_STATUS_AWAITING;
-      $moved = mysqli_query($conn, "UPDATE manuals SET status = '$awaiting' WHERE school_id = $school_id AND status = 'open' AND (semester = $current OR semester IS NULL)");
+      $not_target = materialSessionReady($conn)
+        ? "NOT (semester <=> $target AND session <=> '$ts')"
+        : "(semester = $current OR semester IS NULL)";
+      $moved = mysqli_query($conn, "UPDATE manuals SET status = '$awaiting' WHERE school_id = $school_id AND status = 'open' AND $not_target");
       if (!$moved) {
         error_log('[cc_dashboard semester switch] ' . mysqli_error($conn));
-        mysqli_query($conn, "UPDATE schools SET current_semester = $current WHERE id = $school_id AND current_semester = $target");
+        mysqli_query($conn, "UPDATE schools SET current_semester = $current" . (materialSessionReady($conn) ? ", current_session = '$cs'" : '') . " WHERE id = $school_id AND current_semester = $target");
         $statusRes = 'error';
         $messageRes = 'Failed to move materials to awaiting confirmation. The semester was not switched.';
       } else {
         $moved_count = mysqli_affected_rows($conn);
-        $live_res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM manuals WHERE school_id = $school_id AND status = 'open' AND semester = $target");
+        $live_res = mysqli_query($conn, "SELECT COUNT(*) AS c FROM manuals WHERE school_id = $school_id AND status = 'open' AND semester = $target"
+          . (materialSessionReady($conn) ? " AND session = '$ts'" : ''));
+        if (materialSessionReady($conn)) {
+          mysqli_query($conn, "INSERT INTO academic_periods (school_id, session, semester, started_at, started_by) VALUES ($school_id, '$ts', $target, NOW(), " . intval($admin_id) . ")");
+        }
         $live_count = $live_res ? intval(mysqli_fetch_assoc($live_res)['c'] ?? 0) : 0;
 
         $statusRes = 'success';
-        $messageRes = materialSemesterLabel($target) . ' is now active. '
+        $messageRes = materialPeriodLabel($target, $target_session) . ' is now active. '
           . $moved_count . ' material(s) moved to awaiting confirmation; '
           . $live_count . ' material(s) are now live.';
 
         log_audit_event($conn, $admin_id, 'semester_switch', 'school', $school_id, [
           'from_semester' => $current,
           'to_semester' => $target,
+          'from_session' => $current_session,
+          'to_session' => $target_session,
           'moved_to_awaiting' => $moved_count,
           'now_live' => $live_count
         ]);

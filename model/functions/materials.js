@@ -16,11 +16,11 @@ $(document).ready(function () {
   var semesterReady = false;
   var schoolSemesterInfo = null;
 
-  function semesterLabel(semester) {
+  function semesterLabel(semester, session) {
     semester = Number(semester);
-    if (semester === 1) return 'First Semester';
-    if (semester === 2) return 'Second Semester';
-    return 'No semester set';
+    var label = semester === 1 ? 'First Semester' : (semester === 2 ? 'Second Semester' : '');
+    if (!label) return 'No semester set';
+    return session ? label + ' ' + session : label;
   }
 
   function getSelectedSchoolId() {
@@ -29,8 +29,8 @@ $(document).ready(function () {
 
   function applySemesterReady(ready) {
     semesterReady = !!ready;
-    $('#semesterFilterGroup, #materialSemesterGroup, #semesterPanel').toggleClass('d-none', !semesterReady);
-    $('#materialSemester').prop('required', semesterReady);
+    $('#semesterFilterGroup, #materialSemesterGroup, #materialSessionGroup, #semesterPanel').toggleClass('d-none', !semesterReady);
+    $('#materialSemester, #materialSession').prop('required', semesterReady);
   }
 
   function renderSemesterPanel(info) {
@@ -47,12 +47,12 @@ $(document).ready(function () {
     }
 
     $('#semesterCurrentLabel').text(info.current_label);
-    $('#semesterPanelHint').text('Students only see open materials tagged for the current semester.');
+    $('#semesterPanelHint').text('Students only see open materials of the current session and semester.');
 
     var counts = info.counts || {};
     $awaitingBtn.toggleClass('d-none', !counts.awaiting).text((counts.awaiting || 0) + ' awaiting confirmation');
-    $untaggedBtn.toggleClass('d-none', !counts.untagged).text((counts.untagged || 0) + ' with no semester set');
-    $switchBtn.toggleClass('d-none', !info.can_switch).text('Switch to ' + info.next_label);
+    $untaggedBtn.toggleClass('d-none', !counts.untagged).text((counts.untagged || 0) + ' with no session/semester');
+    $switchBtn.toggleClass('d-none', !info.can_switch).text('Academic calendar');
   }
 
   function loadSchoolSemester() {
@@ -313,7 +313,7 @@ $(document).ready(function () {
             }
             if (semesterReady) {
               var semesterBadgeClass = Number(mat.semester) > 0 ? 'bg-label-dark' : 'bg-label-secondary';
-              metaInfo.push('<small><span class="badge ' + semesterBadgeClass + '">' + semesterLabel(mat.semester) + '</span></small>');
+              metaInfo.push('<small><span class="badge ' + semesterBadgeClass + '">' + semesterLabel(mat.semester, mat.session) + '</span></small>');
             }
             if (metaInfo.length > 0) {
               titleHtml += '<br>' + metaInfo.join(' | ');
@@ -660,6 +660,7 @@ $(document).ready(function () {
     $('#confirmMaterialMeta').text(meta.join(' · '));
     $('#confirmMaterialPrice').val(material.price);
     $('#confirmMaterialSemester').val(Number(material.semester) > 0 ? String(material.semester) : '');
+    $('#confirmMaterialSession').val((schoolSemesterInfo && schoolSemesterInfo.current_session) || material.school_current_session || material.session || '');
     $('#confirmMaterialAlert').addClass('d-none').text('');
     updateConfirmSemesterHint();
     $('#confirmMaterialModal').modal('show');
@@ -691,7 +692,8 @@ $(document).ready(function () {
         confirm_material: 1,
         material_id: $('#confirmMaterialId').val(),
         price: price,
-        semester: semester
+        semester: semester,
+        session: $('#confirmMaterialSession').val() || ''
       },
       dataType: 'json',
       success: function (res) {
@@ -725,6 +727,9 @@ $(document).ready(function () {
   // Semester switch for the selected school
   $('#switchSemesterBtn').on('click', function () {
     var info = schoolSemesterInfo;
+    // Periods are switched on the dedicated Academic calendar page
+    window.location.href = 'academic_calendar.php' + (info && info.school_id ? '?school=' + info.school_id : '');
+    return;
     if (!info) {
       return;
     }
@@ -879,6 +884,7 @@ $(document).ready(function () {
     // Set material ID in hidden field (empty = create)
     $('#materialId').val(isDuplicate ? '' : material.id);
     $('#materialSemester').val(isDuplicate ? String(otherSemester) : (Number(material.semester) > 0 ? String(material.semester) : ''));
+    $('#materialSession').val(material.session || (schoolSemesterInfo && schoolSemesterInfo.current_session) || '');
 
     // Set a flag to prevent the shown.bs.modal event from overwriting our values
     $('#newMaterialModal').data('isEditMode', true);
@@ -1188,6 +1194,7 @@ $(document).ready(function () {
     fetchModalFaculties(schoolId);
     fetchModalDepts(schoolId, 0, []);
     $('#materialSemester').val('');
+    $('#materialSession').val('');
     defaultMaterialSemester(schoolId);
   });
 
@@ -1306,6 +1313,7 @@ $(document).ready(function () {
     $('#newMaterialSubmit').text('Create Material');
     $('#materialId').val('');
     $('#materialSemester').val('');
+    $('#materialSession').val('');
 
     // Clear edit mode flag
     $(this).removeData('isEditMode');
@@ -1386,6 +1394,7 @@ $(document).ready(function () {
     }
     if (schoolSemesterInfo && Number(schoolSemesterInfo.school_id) === Number(schoolId)) {
       $('#materialSemester').val(String(schoolSemesterInfo.current_semester));
+      if (!$('#materialSession').val()) $('#materialSession').val(schoolSemesterInfo.current_session || '');
       return;
     }
     if (!schoolId || Number(schoolId) <= 0) {
@@ -1399,6 +1408,7 @@ $(document).ready(function () {
       success: function (res) {
         if (res.status === 'success' && res.semester_ready && !$('#materialSemester').val()) {
           $('#materialSemester').val(String(res.current_semester));
+          if (!$('#materialSession').val()) $('#materialSession').val(res.current_session || '');
         }
       }
     });

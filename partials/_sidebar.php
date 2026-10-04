@@ -193,6 +193,12 @@ $admin_faculty = $admin_['faculty'] ?? 0;
           <div data-i18n="Course Materials">Course Materials</div>
         </a>
       </li>
+      <li class="menu-item <?php echo $current_page == 'academic_calendar.php' ? 'active' : ''; ?>">
+        <a href="academic_calendar.php" class="menu-link">
+          <i class="menu-icon tf-icons bx bx-calendar"></i>
+          <div data-i18n="Academic Calendar">Academic Calendar</div>
+        </a>
+      </li>
       <li class="menu-item <?php echo $current_page == 'material_requests.php' ? 'active' : ''; ?>">
         <a href="material_requests.php" class="menu-link">
           <i class="menu-icon tf-icons bx bx-message-square-detail"></i>
