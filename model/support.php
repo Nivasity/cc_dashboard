@@ -247,25 +247,27 @@ if (isset($_POST['respond_ticket'])) {
 
       $sql = "UPDATE support_tickets_v2 st $authJoin SET " . implode(', ', $updateFields) . " WHERE st.code = '$code' $authWhere";
       mysqli_query($conn, $sql);
-      if (mysqli_affected_rows($conn) > 0) {
-        // Send email notification to the user
+
+      if ($messageId > 0) {
+        // Send email notification to the user with proper RE: threading
         $userEmail = $row['email'];
         $firstName = trim($row['first_name'] ?? '');
         $ticketTitle = $row['subject'];
-        $userSubject = "Re: Support Ticket (#$code) - $ticketTitle";
-        $userBody = "Hi $firstName,<br><br>" . nl2br($response) . "<br><br>Best regards,<br>Support Team<br>Nivasity";
+        $cleanTitle = preg_replace('/^(re:\s*)+/i', '', trim($ticketTitle));
+        $userSubject = "RE: Support Ticket (#$code) - $cleanTitle";
+        $userBody = "Hi " . htmlspecialchars($firstName) . ",<br><br>" . nl2br(htmlspecialchars($response)) . "<br><br><hr style='border:none;border-top:1px solid #e5e7eb;margin:20px 0;'><p style='font-size:12px;color:#6b7280;'>This is in response to your support ticket <strong>#$code: $cleanTitle</strong>.<br>You can view or reply to this ticket anytime directly from your Nivasity App or Web Portal.</p><br>Best regards,<br><strong>Nivasity Support Team</strong>";
         $mailStatus = sendMail($userSubject, $userBody, $userEmail);
 
-        // Send push notification to the user
+        // Send push notification to user's active devices
         require_once __DIR__ . '/notification_helpers.php';
         if ($new_status === 'closed' || $new_status === 'resolved') {
-          notifySupportTicketClosed($conn, $admin_id, $userId, $ticketId, $code, $ticketTitle);
+          notifySupportTicketClosed($conn, $admin_id, $userId, $ticketId, $code, $cleanTitle);
         } else {
-          notifySupportTicketResponse($conn, $admin_id, $userId, $ticketId, $code, $ticketTitle);
+          notifySupportTicketResponse($conn, $admin_id, $userId, $ticketId, $code, $cleanTitle);
         }
 
         $statusRes = 'success';
-        $messageRes = ($mailStatus === 'success') ? 'Response sent and user notified by email' : 'Response saved, but email notification failed';
+        $messageRes = ($mailStatus === 'success') ? 'Response sent and user notified by email and push notification' : 'Response saved and push notification dispatched';
         if (!empty($admin_id)) {
           $ticket_id = isset($row['id']) ? (int) $row['id'] : 0;
           log_audit_event($conn, $admin_id, 'respond', 'support_ticket', $ticket_id ?: null, [
@@ -277,7 +279,7 @@ if (isset($_POST['respond_ticket'])) {
         }
       } else {
         $statusRes = 'error';
-        $messageRes = 'Update failed or unauthorized';
+        $messageRes = 'Failed to record response';
       }
     } else {
       $statusRes = 'error';
