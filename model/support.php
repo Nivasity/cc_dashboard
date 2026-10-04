@@ -118,13 +118,10 @@ if (isset($_GET['fetch'])) {
           $attQ = mysqli_query($conn, $attSql);
           while ($arow = mysqli_fetch_assoc($attQ)) {
             $filePath = $arow['file_path'];
-            // Add domain prefix for all user incoming messages (regardless of school)
+            // Route user attachments to the API attachment endpoint (school domains host SPA, not files)
             if ($mrow['sender_type'] === 'user') {
-              $domain = "https://funaab.nivasity.com/";
-              // Only prepend if the path doesn't already start with http
-              if (!preg_match('/^https?:\/\//i', $filePath)) {
-                $filePath = $domain . $filePath;
-              }
+              $fileName = basename(parse_url($filePath, PHP_URL_PATH) ?: $filePath);
+              $filePath = "https://api.nivasity.com/support/attachment.php?file=" . rawurlencode($fileName);
             }
             $attachments[] = array(
               'id' => (int) $arow['id'],
