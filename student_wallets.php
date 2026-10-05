@@ -218,6 +218,58 @@ $initialDateTo = trim((string) ($_GET['date_to'] ?? ''));
                   </div>
                 </div>
               </div>
+
+              <!-- Bank deposits and refunds to the student's bank (model/wallet_deposit_refunds.php) -->
+              <div class="row mt-4 d-none" id="walletDepositsRow">
+                <div class="col-12">
+                  <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+                      <div>
+                        <h5 class="mb-0">Deposits &amp; refunds</h5>
+                        <small class="text-muted">Refund a bank deposit back to the student's bank through Paystack. The amount leaves the wallet immediately and returns if the refund fails.</small>
+                      </div>
+                    </div>
+                    <div class="table-responsive">
+                      <table class="table table-sm mb-0">
+                        <thead>
+                          <tr><th>Date</th><th>Amount</th><th>Reference</th><th>Refunds</th><th class="text-end">Action</th></tr>
+                        </thead>
+                        <tbody id="walletDepositsBody"></tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Refund deposit -->
+            <div class="modal fade" id="refundDepositModal" tabindex="-1" aria-hidden="true">
+              <div class="modal-dialog modal-dialog-centered" role="document">
+                <form class="modal-content" id="refundDepositForm">
+                  <div class="modal-header">
+                    <h5 class="modal-title">Refund deposit to bank</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                  </div>
+                  <div class="modal-body">
+                    <div id="refundDepositAlert" class="alert d-none" role="alert"></div>
+                    <p class="mb-3 small" id="refundDepositInfo"></p>
+                    <input type="hidden" id="refundFundingId" />
+                    <div class="mb-3">
+                      <label for="refundAmount" class="form-label">Amount (&#8358;)</label>
+                      <input type="number" class="form-control" id="refundAmount" min="1" step="1" required />
+                      <div class="form-text" id="refundAmountHint"></div>
+                    </div>
+                    <div class="mb-0">
+                      <label for="refundReason" class="form-label">Reason</label>
+                      <input type="text" class="form-control" id="refundReason" maxlength="250" required placeholder="e.g. School fees sent to wallet by mistake" />
+                    </div>
+                  </div>
+                  <div class="modal-footer">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger" id="refundDepositSubmit">Refund to bank</button>
+                  </div>
+                </form>
+              </div>
             </div>
 
             <?php include('partials/_footer.php') ?>
@@ -308,6 +360,7 @@ $initialDateTo = trim((string) ($_GET['date_to'] ?? ''));
         }
 
         function resetResults(message) {
+          $('#walletDepositsRow').addClass('d-none');
           $summaryRow.addClass('d-none');
           $contentRow.addClass('d-none');
           setFilterEnabled(false);
@@ -425,6 +478,7 @@ $initialDateTo = trim((string) ($_GET['date_to'] ?? ''));
           renderStudent(response.student || {});
 
           if (!response.has_wallet) {
+            $('#walletDepositsRow').addClass('d-none');
             $summaryRow.addClass('d-none');
             $ledgerMeta.addClass('d-none').text('');
             renderWallet(null);
@@ -434,6 +488,7 @@ $initialDateTo = trim((string) ($_GET['date_to'] ?? ''));
           }
 
           renderWallet(response.wallet || {});
+          loadDeposits((response.wallet || {}).id);
           renderOverview(response.wallet || {}, response.overview || {});
           renderEntries(response.entries || [], true, response.filters || {});
           setFilterEnabled(true);
@@ -548,6 +603,74 @@ $initialDateTo = trim((string) ($_GET['date_to'] ?? ''));
           $filterDateTo.val('');
           clearAlert();
           resetResults('Search for a student to see wallet ledger entries.');
+        });
+
+        // ── Deposits & refunds ──
+        var depositsWalletId = 0;
+        var refundBadge = { processing: 'warning', refunded: 'success', failed: 'danger', needs_attention: 'info' };
+        var refundLabel = { processing: 'Processing', refunded: 'Refunded', failed: 'Failed', needs_attention: 'Needs attention in Paystack' };
+
+        function loadDeposits(walletId) {
+          depositsWalletId = Number(walletId) || 0;
+          if (!depositsWalletId) { $('#walletDepositsRow').addClass('d-none'); return; }
+          $.post('model/wallet_deposit_refunds.php', { action: 'deposits', wallet_id: depositsWalletId }, null, 'json').done(function (res) {
+            if (!res.success) {
+              $('#walletDepositsRow').removeClass('d-none');
+              $('#walletDepositsBody').html('<tr><td colspan="5" class="text-muted py-3">' + escapeHtml(res.message || 'Deposits unavailable') + '</td></tr>');
+              return;
+            }
+            var rows = (res.deposits || []).map(function (d) {
+              var refunds = (d.refunds || []).map(function (r) {
+                var extra = r.status === 'failed' && r.failure_reason ? ' (' + escapeHtml(r.failure_reason) + ')' : '';
+                var check = (r.status === 'processing' || r.status === 'needs_attention') && res.can_refund
+                  ? ' <a href="javascript:void(0)" class="refund-check small" data-id="' + r.id + '">Check status</a>' : '';
+                return '<div class="small"><span class="badge bg-label-' + (refundBadge[r.status] || 'secondary') + '">' + escapeHtml(refundLabel[r.status] || r.status) + '</span> '
+                  + formatCurrency(r.amount) + extra + ' <span class="text-muted">· ' + escapeHtml(r.created_at) + (r.created_by ? ' by ' + escapeHtml(r.created_by) : '') + '</span>' + check + '</div>';
+              }).join('');
+              var action = res.can_refund && d.refundable > 0
+                ? '<button type="button" class="btn btn-sm btn-outline-danger refund-open" data-id="' + d.id + '" data-amount="' + d.amount + '" data-refundable="' + d.refundable + '" data-ref="' + escapeHtml(d.reference) + '">Refund</button>'
+                : '<span class="text-muted small">' + (d.status !== 'posted' ? escapeHtml(d.status) : (d.refundable > 0 ? '' : 'Nothing refundable')) + '</span>';
+              return '<tr><td>' + escapeHtml(d.date) + '</td><td>' + formatCurrency(d.amount) + '</td><td class="small">' + escapeHtml(d.reference) + '</td><td>' + (refunds || '<span class="text-muted small">None</span>') + '</td><td class="text-end">' + action + '</td></tr>';
+            });
+            $('#walletDepositsBody').html(rows.length ? rows.join('') : '<tr><td colspan="5" class="text-muted py-3">No bank deposits on this wallet.</td></tr>');
+            $('#walletDepositsRow').removeClass('d-none');
+          });
+        }
+
+        $(document).on('click', '.refund-open', function () {
+          var $b = $(this);
+          var refundable = Number($b.data('refundable'));
+          $('#refundFundingId').val($b.data('id'));
+          $('#refundAmount').val(refundable).attr('max', refundable);
+          $('#refundAmountHint').text('Up to ' + formatCurrency(refundable) + ' (deposit ' + formatCurrency($b.data('amount')) + ').');
+          $('#refundReason').val('');
+          $('#refundDepositInfo').text('Deposit ' + $b.data('ref') + '. Paystack sends the money back to the account it came from.');
+          $('#refundDepositAlert').addClass('d-none');
+          $('#refundDepositModal').modal('show');
+        });
+
+        $('#refundDepositForm').on('submit', function (e) {
+          e.preventDefault();
+          var amount = Number($('#refundAmount').val());
+          if (!window.confirm('Refund ' + formatCurrency(amount) + ' to the student\'s bank? It leaves the wallet now.')) return;
+          var $btn = $('#refundDepositSubmit').prop('disabled', true).text('Refunding...');
+          $.post('model/wallet_deposit_refunds.php', {
+            action: 'create', funding_id: $('#refundFundingId').val(), amount: amount, reason: $('#refundReason').val()
+          }, null, 'json').done(function (res) {
+            $('#refundDepositModal').modal('hide');
+            showAlert('success', res.message || 'Refund started.');
+            runLookup('filter');
+          }).fail(function (xhr) {
+            var msg = (xhr.responseJSON && xhr.responseJSON.message) || 'Refund failed.';
+            $('#refundDepositAlert').removeClass('d-none alert-success').addClass('alert-danger').text(msg);
+            if (depositsWalletId) loadDeposits(depositsWalletId);
+          }).always(function () { $btn.prop('disabled', false).text('Refund to bank'); });
+        });
+
+        $(document).on('click', '.refund-check', function () {
+          $.post('model/wallet_deposit_refunds.php', { action: 'check', refund_id: $(this).data('id') }, null, 'json')
+            .done(function (res) { showAlert('info', res.message || 'Status updated.'); runLookup('filter'); })
+            .fail(function (xhr) { showAlert('danger', (xhr.responseJSON && xhr.responseJSON.message) || 'Could not check the refund.'); });
         });
 
         resetResults('Search for a student to see wallet ledger entries.');
