@@ -1685,35 +1685,100 @@ if (!function_exists('ccSchoolSettlementGetCronLogDetails')) {
 if (!function_exists('ccSchoolSettlementGetBatchFacultyBreakdown')) {
   function ccSchoolSettlementGetBatchFacultyBreakdown(mysqli $conn, int $batchId): array
   {
+    // One settled payment (ledger row) can cover several materials from different faculties.
+    // Each batch item's allocated amount is split across the payment's materials in proportion
+    // to their prices, so every naira lands in exactly one faculty and the rows add up to the
+    // batch total. (Joining payments to materials and summing allocated_amount counted a cart
+    // payment once per material, inflating faculty amounts.)
     $sql = "SELECT
-              COALESCE(NULLIF(TRIM(f.name), ''), 'General / Department') AS faculty_name,
-              COUNT(DISTINCT mb.buyer) AS unique_students,
-              COUNT(mb.id) AS materials_count,
-              COALESCE(SUM(sbi.allocated_amount), 0) AS faculty_amount
+              sbi.id AS item_id,
+              sbi.allocated_amount,
+              mb.id AS bought_id,
+              mb.buyer,
+              mb.price,
+              COALESCE(NULLIF(TRIM(f.name), ''), 'General / Department') AS faculty_name
             FROM settlement_batch_items sbi
             JOIN school_payable_ledger spl ON spl.id = sbi.school_payable_ledger_id
             LEFT JOIN manuals_bought mb ON mb.ref_id = spl.source_ref_id
             LEFT JOIN manuals m ON m.id = mb.manual_id
             LEFT JOIN faculties f ON f.id = m.faculty
             WHERE sbi.settlement_batch_id = $batchId
-            GROUP BY COALESCE(NULLIF(TRIM(f.name), ''), 'General / Department')
-            ORDER BY faculty_amount DESC";
+            ORDER BY sbi.id ASC, mb.id ASC";
 
     $query = mysqli_query($conn, $sql);
-    $faculties = [];
-
-    if ($query) {
-      while ($row = mysqli_fetch_assoc($query)) {
-        $faculties[] = [
-          'faculty_name' => (string) $row['faculty_name'],
-          'unique_students' => (int) $row['unique_students'],
-          'materials_count' => (int) $row['materials_count'],
-          'faculty_amount' => (int) $row['faculty_amount'],
-        ];
-      }
-    } else {
+    if (!$query) {
       error_log('ccSchoolSettlementGetBatchFacultyBreakdown query failed for batch ' . $batchId . ': ' . mysqli_error($conn));
+      return [];
     }
+
+    // Group the materials of each batch item
+    $items = [];
+    while ($row = mysqli_fetch_assoc($query)) {
+      $itemId = (int) $row['item_id'];
+      if (!isset($items[$itemId])) {
+        $items[$itemId] = ['amount' => (int) $row['allocated_amount'], 'lines' => []];
+      }
+      $items[$itemId]['lines'][] = [
+        'bought_id' => $row['bought_id'] !== null ? (int) $row['bought_id'] : 0,
+        'buyer' => $row['buyer'] !== null ? (int) $row['buyer'] : 0,
+        'price' => max(0, (int) ($row['price'] ?? 0)),
+        'faculty' => (string) $row['faculty_name'],
+      ];
+    }
+
+    $totals = [];
+    foreach ($items as $item) {
+      $lines = $item['lines'];
+      $priceSum = array_sum(array_column($lines, 'price'));
+      $count = count($lines);
+
+      // Proportional split; whole naira, remainder to the largest fractions (exact total)
+      $shares = [];
+      $assigned = 0;
+      foreach ($lines as $i => $line) {
+        $exact = $priceSum > 0 ? $item['amount'] * $line['price'] / $priceSum : $item['amount'] / $count;
+        $shares[$i] = ['whole' => (int) floor($exact), 'frac' => $exact - floor($exact)];
+        $assigned += $shares[$i]['whole'];
+      }
+      $left = $item['amount'] - $assigned;
+      uasort($shares, function ($a, $b) {
+        return $b['frac'] <=> $a['frac'];
+      });
+      foreach (array_keys($shares) as $i) {
+        if ($left <= 0) {
+          break;
+        }
+        $shares[$i]['whole']++;
+        $left--;
+      }
+
+      foreach ($lines as $i => $line) {
+        $name = $line['faculty'];
+        if (!isset($totals[$name])) {
+          $totals[$name] = ['faculty_name' => $name, 'students' => [], 'materials' => 0, 'faculty_amount' => 0];
+        }
+        $totals[$name]['faculty_amount'] += $shares[$i]['whole'];
+        if ($line['bought_id'] > 0) {
+          $totals[$name]['materials']++;
+        }
+        if ($line['buyer'] > 0) {
+          $totals[$name]['students'][$line['buyer']] = true;
+        }
+      }
+    }
+
+    $faculties = [];
+    foreach ($totals as $t) {
+      $faculties[] = [
+        'faculty_name' => $t['faculty_name'],
+        'unique_students' => count($t['students']),
+        'materials_count' => $t['materials'],
+        'faculty_amount' => $t['faculty_amount'],
+      ];
+    }
+    usort($faculties, function ($a, $b) {
+      return $b['faculty_amount'] <=> $a['faculty_amount'];
+    });
 
     return $faculties;
   }
