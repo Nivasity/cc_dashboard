@@ -23,10 +23,10 @@ if (!$support_mgt_menu) {
     .bella-list { max-height: 68vh; overflow-y: auto; }
     .bella-list .list-group-item { cursor: pointer; }
     .bella-list .list-group-item.active-conv { background: rgba(105, 108, 255, .08); }
-    .bella-thread { height: 52vh; overflow-y: auto; background: #f5f5f9; }
+    .bella-thread { height: 52vh; overflow-y: auto; background: rgba(133, 146, 163, .08); }
     .bella-msg { max-width: 80%; white-space: pre-wrap; word-break: break-word; }
     .bella-msg.student { background: #696cff; color: #fff; margin-left: auto; }
-    .bella-msg.bella, .bella-msg.agent { background: #fff; border: 1px solid #e4e6e8; }
+    .bella-msg.bella, .bella-msg.agent { background: rgba(133, 146, 163, .14); border: 1px solid rgba(133, 146, 163, .3); color: inherit; }
     .bella-msg.agent { border-color: #71dd37; }
     .bella-meta { font-size: 11px; color: #8592a3; }
   </style>
