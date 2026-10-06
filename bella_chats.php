@@ -2,6 +2,8 @@
 session_start();
 include('model/config.php');
 include('model/page_config.php');
+// Material change (swap) override: super admin, admin, support
+$can_change_material = in_array((int) ($_SESSION['nivas_adminRole'] ?? 0), [1, 2, 3], true);
 
 // Bella conversations: monitor Nivasity's support assistant, answer chats she handed over
 // (Waiting), and hand them back or resolve them. Data lives in the Bella Worker (D1), read
@@ -82,6 +84,9 @@ if (!$support_mgt_menu) {
                       </div>
                       <div class="d-flex gap-2 flex-wrap">
                         <span class="badge align-self-center" id="convStatus"></span>
+                        <?php if ($can_change_material) { ?>
+                          <button class="btn btn-sm btn-outline-warning" id="swapOpen"><i class="bx bx-transfer"></i> Change material</button>
+                        <?php } ?>
                         <button class="btn btn-sm btn-outline-primary conv-status" data-status="bella">Hand back to Bella</button>
                         <button class="btn btn-sm btn-success conv-status" data-status="resolved">Resolve</button>
                       </div>
@@ -103,6 +108,45 @@ if (!$support_mgt_menu) {
               </div>
             </div>
           </div>
+          <!-- Change material (admin override of the 72-hour / once-per-purchase limits) -->
+          <div class="modal fade" id="swapModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+              <form class="modal-content" id="swapForm">
+                <div class="modal-header">
+                  <h5 class="modal-title">Change material</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  <div id="swapAlert" class="alert d-none" role="alert"></div>
+                  <p class="small text-muted">
+                    Students can swap within 72 hours of purchase, once. Here you can go past those two limits.
+                    Lost or collected copies can't be changed, and the new material must cost the same.
+                  </p>
+                  <div class="alert alert-info py-2 small d-none" id="swapRequest"></div>
+                  <label class="form-label">Purchase</label>
+                  <div class="table-responsive border rounded mb-3" style="max-height: 260px; overflow-y: auto;">
+                    <table class="table table-sm table-hover mb-0">
+                      <thead><tr><th></th><th>Material</th><th>Bought</th><th>Price</th><th>Status</th></tr></thead>
+                      <tbody id="swapPurchases"><tr><td colspan="5" class="text-muted">Loading…</td></tr></tbody>
+                    </table>
+                  </div>
+                  <div class="mb-3">
+                    <label class="form-label" for="swapTarget">Change to</label>
+                    <select class="form-select" id="swapTarget" disabled><option value="">Choose a purchase first</option></select>
+                  </div>
+                  <div class="mb-0">
+                    <label class="form-label" for="swapReason">Reason</label>
+                    <input class="form-control" id="swapReason" maxlength="250" required placeholder="e.g. Bought the wrong course; asked within the week" />
+                  </div>
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                  <button type="submit" class="btn btn-warning" id="swapSubmit">Change material</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
           <?php include('partials/_footer.php') ?>
           <div class="content-backdrop fade"></div>
         </div>
@@ -125,7 +169,7 @@ if (!$support_mgt_menu) {
         bella: ['Bella', 'primary'],
         resolved: ['Resolved', 'success']
       };
-      var filter = '', page = 1, total = 0, current = 0, searchTimer = null;
+      var filter = '', page = 1, total = 0, current = 0, searchTimer = null, currentConv = null, currentSwap = null;
 
       function esc(s) { return $('<div>').text(s == null ? '' : String(s)).html(); }
       function when(s) { return s ? new Date(s.replace(' ', 'T') + 'Z').toLocaleString() : ''; }
@@ -186,6 +230,8 @@ if (!$support_mgt_menu) {
         call({ action: 'get', id: id }).done(function (r) {
           if (r.error) { showAlert(r.error); return; }
           var c = r.conversation, st = STATUS[c.status] || [c.status, 'secondary'];
+          currentConv = c;
+          currentSwap = r.escalation && r.escalation.swap_request ? r.escalation.swap_request : null;
           $('#bellaEmpty').addClass('d-none');
           $('#bellaConvBody').removeClass('d-none');
           $('#convName').text(c.user_name || ('User ' + c.user_id));
@@ -259,6 +305,79 @@ if (!$support_mgt_menu) {
           showAlert(r.status === 'bella' ? 'Bella is back in the chat.' : 'Conversation resolved. If it teaches something general, Bella will suggest a help article in Bella Knowledge.', 'success');
           loadConv(current); loadList(); loadStats();
         });
+      });
+
+      // ── Change material (override) ──
+      var swapSel = null;
+      function swapAlert(msg, type) {
+        $('#swapAlert').removeClass('d-none alert-danger alert-success').addClass('alert-' + (type || 'danger')).text(msg);
+      }
+      function swapCall(data) {
+        return $.post('model/material_change_admin.php', $.extend({ user_id: currentConv.user_id }, data), null, 'json').fail(function (xhr) {
+          swapAlert((xhr.responseJSON && xhr.responseJSON.error) || 'Request failed');
+        });
+      }
+      function loadSwapTargets(manualId, refId, preferId) {
+        swapSel = { manual_id: manualId, ref_id: refId };
+        $('#swapTarget').prop('disabled', true).html('<option>Loading…</option>');
+        swapCall({ action: 'candidates', manual_id: manualId, ref_id: refId }).done(function (r) {
+          var opts = (r.candidates || []).map(function (m) {
+            return '<option value="' + m.id + '"' + (Number(preferId) === m.id ? ' selected' : '') + '>' + esc(m.course_code + ' · ' + m.title + ' (' + m.dept_name + ')') + '</option>';
+          });
+          $('#swapTarget').prop('disabled', !opts.length).html(opts.length ? '<option value="">Choose a material</option>' + opts.join('') : '<option value="">No material at the same price is available</option>');
+          if (preferId) $('#swapTarget').val(String(preferId));
+        });
+      }
+      function loadSwapPurchases() {
+        $('#swapPurchases').html('<tr><td colspan="5" class="text-muted">Loading…</td></tr>');
+        swapCall({ action: 'purchases' }).done(function (r) {
+          var rows = (r.purchases || []).map(function (p, i) {
+            var status = p.student_can_change
+              ? '<span class="badge bg-label-success">Student can change</span>'
+              : p.admin_can_change
+                ? '<span class="badge bg-label-warning" title="' + esc(p.note) + '">Override: ' + esc(p.note.replace(/\.$/, '')) + '</span>'
+                : '<span class="badge bg-label-secondary" title="' + esc(p.blocked) + '">Can\'t change</span>';
+            var pick = currentSwap && currentSwap.ref_id === p.ref_id && Number(currentSwap.material_id) === p.manual_id;
+            return '<tr class="' + (p.admin_can_change ? '' : 'text-muted') + '">'
+              + '<td><input type="radio" name="swapPick" value="' + i + '"' + (p.admin_can_change ? '' : ' disabled') + (pick && p.admin_can_change ? ' checked' : '') + '></td>'
+              + '<td>' + esc(p.course_code + ' · ' + p.title) + '<div class="small text-muted">' + esc(p.ref_id) + '</div></td>'
+              + '<td class="small">' + esc(p.bought_at) + '</td><td>N' + Number(p.price).toLocaleString() + '</td><td>' + status + '</td></tr>';
+          });
+          $('#swapPurchases').html(rows.length ? rows.join('') : '<tr><td colspan="5" class="text-muted">No purchases.</td></tr>').data('rows', r.purchases || []);
+          var checked = $('input[name=swapPick]:checked');
+          if (checked.length) {
+            var p = r.purchases[Number(checked.val())];
+            loadSwapTargets(p.manual_id, p.ref_id, currentSwap && currentSwap.new_material_id);
+          }
+        });
+      }
+      $('#swapOpen').on('click', function () {
+        if (!currentConv) return;
+        swapSel = null;
+        $('#swapAlert').addClass('d-none');
+        $('#swapReason').val('');
+        $('#swapTarget').prop('disabled', true).html('<option value="">Choose a purchase first</option>');
+        $('#swapRequest').toggleClass('d-none', !currentSwap).text(currentSwap ? 'Bella passed on a swap request for purchase ' + currentSwap.ref_id + '. It is pre-selected below.' : '');
+        $('#swapModal').modal('show');
+        loadSwapPurchases();
+      });
+      $(document).on('change', 'input[name=swapPick]', function () {
+        var p = $('#swapPurchases').data('rows')[Number(this.value)];
+        loadSwapTargets(p.manual_id, p.ref_id);
+      });
+      $('#swapForm').on('submit', function (e) {
+        e.preventDefault();
+        if (!swapSel || !$('#swapTarget').val()) { swapAlert('Choose a purchase and the material to change to.'); return; }
+        if (!confirm('Change this purchase to ' + $('#swapTarget option:selected').text() + '?')) return;
+        var $b = $('#swapSubmit').prop('disabled', true);
+        swapCall({ action: 'execute', manual_id: swapSel.manual_id, ref_id: swapSel.ref_id, new_manual_id: $('#swapTarget').val(), reason: $('#swapReason').val(), conversation_id: current })
+          .done(function (r) {
+            if (r.error) { swapAlert(r.error); return; }
+            $('#swapModal').modal('hide');
+            showAlert('Changed to ' + (r.new_material || 'the new material') + '. Let the student know in the chat.', 'success');
+            $('#convText').val('Hi, we have changed your purchase to ' + (r.new_material || 'the material you asked for') + '. It now shows under your orders with the same receipt.').focus();
+          })
+          .always(function () { $b.prop('disabled', false); });
       });
 
       loadStats(); loadList();
