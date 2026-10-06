@@ -86,7 +86,14 @@ switch ($action) {
     ]));
     bellaRespond(200, bellaCall('GET', '/admin/conversations?' . $q));
   case 'get':
-    bellaRespond(200, bellaCall('GET', '/admin/conversations/' . $id));
+    $res = bellaCall('GET', '/admin/conversations/' . $id);
+    // Who read which student's chat (once per admin, chat and session, so polling does not flood the log)
+    $seenKey = 'bella_viewed_' . $id;
+    if (empty($_SESSION[$seenKey]) && function_exists('log_audit_event')) {
+      log_audit_event($conn, $adminId, 'bella_chat_view', 'bella_conversation', $id, ['user_id' => $res['conversation']['user_id'] ?? null]);
+      $_SESSION[$seenKey] = 1;
+    }
+    bellaRespond(200, $res);
   case 'reply':
     $text = trim((string) ($_POST['text'] ?? ''));
     if ($text === '') {
