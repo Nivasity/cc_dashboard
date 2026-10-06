@@ -36,9 +36,10 @@ if (!$support_mgt_menu) {
     .swap-item input { margin-top: .3rem; }
     .swap-list { max-height: 300px; overflow-y: auto; }
     @media (max-width: 575.98px) { .bella-msg { max-width: 92%; } .bella-thread { height: 60vh; } }
-    .bella-msg.student { background: #696cff; color: #fff; margin-left: auto; }
-    .bella-msg.bella, .bella-msg.agent { background: rgba(133, 146, 163, .14); border: 1px solid rgba(133, 146, 163, .3); color: inherit; }
-    .bella-msg.agent { border-color: #71dd37; }
+    /* Staff view: the student on the left, Bella and the team on the right */
+    .bella-msg.student { background: rgba(133, 146, 163, .14); border: 1px solid rgba(133, 146, 163, .3); color: inherit; }
+    .bella-msg.bella { background: #696cff; color: #fff; }
+    .bella-msg.agent { background: rgba(113, 221, 55, .16); border: 1px solid #71dd37; color: inherit; }
     .bella-meta { font-size: 11px; color: #8592a3; }
   </style>
 </head>
@@ -108,8 +109,18 @@ if (!$support_mgt_menu) {
                     <div class="bella-thread p-3" id="convThread"></div>
                     <form class="card-body border-top" id="convReply">
                       <textarea class="form-control mb-2" id="convText" rows="2" placeholder="Reply to the student. Bella stays quiet until you hand the chat back."></textarea>
-                      <div class="d-flex justify-content-between align-items-center">
-                        <button class="btn btn-outline-secondary btn-sm" type="button" id="convSuggest"><i class="bx bx-bulb"></i> Suggest reply</button>
+                      <div class="mb-2 d-none" id="convFileChip">
+                        <span class="badge bg-label-secondary fw-normal text-wrap py-2 px-3"><i class="bx bx-paperclip"></i> <span id="convFileName"></span>
+                          <a href="javascript:void(0)" class="ms-2" id="convFileClear" aria-label="Remove attachment"><i class="bx bx-x"></i></a></span>
+                      </div>
+                      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div class="d-flex gap-2">
+                          <label class="btn btn-outline-secondary btn-sm mb-0" title="Attach a photo or PDF (max 5 MB)">
+                            <i class="bx bx-paperclip"></i> Attach
+                            <input type="file" id="convFile" accept="image/jpeg,image/png,image/webp,application/pdf" class="d-none" />
+                          </label>
+                          <button class="btn btn-outline-secondary btn-sm" type="button" id="convSuggest"><i class="bx bx-bulb"></i> Suggest reply</button>
+                        </div>
                         <button class="btn btn-primary" type="submit" id="convSend">Send reply</button>
                       </div>
                     </form>
@@ -258,9 +269,9 @@ if (!$support_mgt_menu) {
             if (m.attachment) {
               file = m.attachment.type.indexOf('image/') === 0
                 ? '<a href="' + esc(m.attachment.url) + '" target="_blank" rel="noopener"><img src="' + esc(m.attachment.url) + '" alt="" class="d-block rounded mt-1" style="max-width:220px;max-height:220px"></a>'
-                : '<a href="' + esc(m.attachment.url) + '" target="_blank" rel="noopener" class="d-block mt-1 fw-semibold' + (m.role === 'student' ? ' text-white' : '') + '"><i class="bx bx-file"></i> ' + esc(m.attachment.name) + '</a>';
+                : '<a href="' + esc(m.attachment.url) + '" target="_blank" rel="noopener" class="d-block mt-1 fw-semibold' + (m.role === 'bella' ? ' text-white' : '') + '"><i class="bx bx-file"></i> ' + esc(m.attachment.name) + '</a>';
             }
-            return '<div class="mb-3 d-flex flex-column' + (m.role === 'student' ? ' align-items-end' : '') + '">'
+            return '<div class="mb-3 d-flex flex-column' + (m.role === 'student' ? '' : ' align-items-end') + '">'
               + '<div class="bella-msg ' + m.role + ' rounded-3 px-3 py-2">' + esc(m.content) + file + (cards ? '<div>' + cards + '</div>' : '') + '</div>'
               + '<span class="bella-meta mt-1">' + esc(who) + ' · ' + when(m.created_at) + meta + '</span></div>';
           }).join('');
@@ -287,16 +298,37 @@ if (!$support_mgt_menu) {
       });
       $('#convBack').on('click', function () { document.getElementById('bellaList').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 
+      // Optional photo or PDF with the reply
+      function clearReplyFile() { $('#convFile').val(''); $('#convFileChip').addClass('d-none'); }
+      $('#convFile').on('change', function () {
+        var f = this.files && this.files[0];
+        if (!f) { clearReplyFile(); return; }
+        if (f.size > 5 * 1024 * 1024) { showAlert('That file is too big. The limit is 5 MB.'); clearReplyFile(); return; }
+        $('#convFileName').text(f.name);
+        $('#convFileChip').removeClass('d-none');
+      });
+      $('#convFileClear').on('click', clearReplyFile);
+
       $('#convReply').on('submit', function (e) {
         e.preventDefault();
         var text = $.trim($('#convText').val());
-        if (!text || !current) return;
-        var $b = $('#convSend').prop('disabled', true);
-        call({ action: 'reply', id: current, text: text }).done(function (r) {
-          if (r.error) { showAlert(r.error); return; }
-          $('#convText').val('');
-          loadConv(current); loadList(); loadStats();
-        }).always(function () { $b.prop('disabled', false); });
+        var file = $('#convFile')[0].files[0];
+        if ((!text && !file) || !current) return;
+        var fd = new FormData();
+        fd.append('action', 'reply');
+        fd.append('id', current);
+        fd.append('text', text);
+        if (file) fd.append('file', file);
+        var $b = $('#convSend').prop('disabled', true).text(file ? 'Sending file…' : 'Sending…');
+        $.ajax({ url: 'model/bella.php', method: 'POST', data: fd, processData: false, contentType: false, dataType: 'json' })
+          .done(function (r) {
+            if (r.error) { showAlert(r.error); return; }
+            $('#convText').val('');
+            clearReplyFile();
+            loadConv(current); loadList(); loadStats();
+          })
+          .fail(function (xhr) { showAlert((xhr.responseJSON && xhr.responseJSON.error) || 'Could not send the reply'); })
+          .always(function () { $b.prop('disabled', false).text('Send reply'); });
       });
 
       $('#convSuggest').on('click', function () {

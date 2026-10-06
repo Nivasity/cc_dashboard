@@ -37,17 +37,26 @@ if (!defined('BELLA_URL') || !defined('BELLA_ADMIN_KEY')) {
   bellaRespond(200, ['error' => 'Bella is not configured: copy config/bella.example.php to config/bella.php.']);
 }
 
-function bellaCall(string $method, string $path, ?array $body = null): array
+function bellaCall(string $method, string $path, ?array $body = null, ?array $file = null): array
 {
   $ch = curl_init(rtrim(BELLA_URL, '/') . $path);
+  // With a file, send multipart (text fields + file); otherwise JSON
+  $headers = ['X-Admin-Key: ' . BELLA_ADMIN_KEY, 'Accept: application/json'];
+  if ($file === null) {
+    $headers[] = 'Content-Type: application/json';
+  }
   curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_CUSTOMREQUEST => $method,
-    CURLOPT_HTTPHEADER => ['X-Admin-Key: ' . BELLA_ADMIN_KEY, 'Content-Type: application/json', 'Accept: application/json'],
-    CURLOPT_TIMEOUT => 20,
+    CURLOPT_HTTPHEADER => $headers,
+    CURLOPT_TIMEOUT => 30,
     CURLOPT_CONNECTTIMEOUT => 8,
   ]);
-  if ($body !== null) {
+  if ($file !== null) {
+    $fields = array_map('strval', $body ?? []);
+    $fields['file'] = new CURLFile($file['tmp_name'], $file['type'], $file['name']);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $fields);
+  } elseif ($body !== null) {
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($body));
   }
   $raw = curl_exec($ch);
@@ -96,10 +105,25 @@ switch ($action) {
     bellaRespond(200, $res);
   case 'reply':
     $text = trim((string) ($_POST['text'] ?? ''));
-    if ($text === '') {
-      bellaRespond(400, ['error' => 'Type a reply.']);
+    // Optional photo (JPG, PNG, WEBP) or PDF, up to 5 MB, shown to the student in the chat
+    $file = null;
+    if (!empty($_FILES['file']) && ($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+      if ($_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        bellaRespond(400, ['error' => 'The file could not be uploaded. Try again.']);
+      }
+      $mime = (string) (function_exists('mime_content_type') ? mime_content_type($_FILES['file']['tmp_name']) : $_FILES['file']['type']);
+      if (!in_array($mime, ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'], true)) {
+        bellaRespond(400, ['error' => 'Attach a photo (JPG, PNG, WEBP) or a PDF.']);
+      }
+      if ((int) $_FILES['file']['size'] > 5 * 1024 * 1024) {
+        bellaRespond(400, ['error' => 'That file is too big. The limit is 5 MB.']);
+      }
+      $file = ['tmp_name' => $_FILES['file']['tmp_name'], 'type' => $mime, 'name' => basename((string) $_FILES['file']['name'])];
     }
-    $res = bellaCall('POST', '/admin/conversations/' . $id . '/reply', ['text' => $text, 'agent_name' => $adminName]);
+    if ($text === '' && $file === null) {
+      bellaRespond(400, ['error' => 'Type a reply or attach a file.']);
+    }
+    $res = bellaCall('POST', '/admin/conversations/' . $id . '/reply', ['text' => $text, 'agent_name' => $adminName], $file);
     if (function_exists('log_audit_event')) {
       log_audit_event($conn, $adminId, 'bella_reply', 'bella_conversation', $id, []);
     }
