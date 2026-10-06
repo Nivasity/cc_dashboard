@@ -57,7 +57,7 @@ if (!$support_mgt_menu) {
             <div class="row g-3 mb-3" id="bellaStats">
               <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-3"><small class="text-muted">Waiting for team</small><h4 class="mb-0" data-stat="waiting">–</h4></div></div></div>
               <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-3"><small class="text-muted">Chats today</small><h4 class="mb-0" data-stat="today">–</h4><small class="text-muted" data-stat="speed"></small></div></div></div>
-              <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-3"><small class="text-muted">Handled by Bella (7 days)</small><h4 class="mb-0" data-stat="resolved_rate">–</h4></div></div></div>
+              <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-3"><small class="text-muted">Handled by Bella (7 days)</small><h4 class="mb-0" data-stat="resolved_rate">–</h4><small class="text-muted" data-stat="rating"></small></div></div></div>
               <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-3"><small class="text-muted">AI tokens today</small><h4 class="mb-0" data-stat="tokens">–</h4><small class="text-muted" data-stat="provider"></small></div></div></div>
             </div>
 
@@ -209,6 +209,8 @@ if (!$support_mgt_menu) {
           $('[data-stat=resolved_rate]').text(conv ? Math.round((conv - esc7) / conv * 100) + '%' : '–');
           $('[data-stat=tokens]').text((Number(d.tokens_in || 0) + Number(d.tokens_out || 0)).toLocaleString());
           $('[data-stat=provider]').text('Model: ' + (r.provider || ''));
+          var rt = r.ratings_7d || {};
+          $('[data-stat=rating]').text(Number(rt.count) ? 'Rating ' + rt.average + '/5 from ' + rt.count + ' chat' + (Number(rt.count) === 1 ? '' : 's') : 'No ratings yet');
           var sp = r.reply_ms || {};
           $('[data-stat=speed]').text(sp.count ? 'Bella replies: ' + (sp.median / 1000).toFixed(1) + 's typical, ' + (sp.p90 / 1000).toFixed(1) + 's slowest 10%' : '');
         });
