@@ -200,8 +200,14 @@ if (!$support_mgt_menu) {
             var cards = (m.cards || []).map(function (cd) { return '<span class="badge bg-label-secondary me-1 mt-1">' + esc(cardText(cd)) + '</span>'; }).join('');
             var meta = m.role === 'bella' && (m.tools || []).length ? ' · tools: ' + esc(m.tools.join(', ')) : '';
             if (m.role === 'bella' && m.tokens_in) meta += ' · ' + (Number(m.tokens_in) + Number(m.tokens_out)).toLocaleString() + ' tokens';
+            var file = '';
+            if (m.attachment) {
+              file = m.attachment.type.indexOf('image/') === 0
+                ? '<a href="' + esc(m.attachment.url) + '" target="_blank" rel="noopener"><img src="' + esc(m.attachment.url) + '" alt="" class="d-block rounded mt-1" style="max-width:220px;max-height:220px"></a>'
+                : '<a href="' + esc(m.attachment.url) + '" target="_blank" rel="noopener" class="d-block mt-1 fw-semibold' + (m.role === 'student' ? ' text-white' : '') + '"><i class="bx bx-file"></i> ' + esc(m.attachment.name) + '</a>';
+            }
             return '<div class="mb-3 d-flex flex-column' + (m.role === 'student' ? ' align-items-end' : '') + '">'
-              + '<div class="bella-msg ' + m.role + ' rounded-3 px-3 py-2">' + esc(m.content) + (cards ? '<div>' + cards + '</div>' : '') + '</div>'
+              + '<div class="bella-msg ' + m.role + ' rounded-3 px-3 py-2">' + esc(m.content) + file + (cards ? '<div>' + cards + '</div>' : '') + '</div>'
               + '<span class="bella-meta mt-1">' + esc(who) + ' · ' + when(m.created_at) + meta + '</span></div>';
           }).join('');
           var $t = $('#convThread');
@@ -244,6 +250,8 @@ if (!$support_mgt_menu) {
       });
 
       loadStats(); loadList();
+      var linked = Number(new URLSearchParams(location.search).get('id') || 0);
+      if (linked) loadConv(linked);
       setInterval(function () {
         if (document.hidden) return;
         loadList(); loadStats();

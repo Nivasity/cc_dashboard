@@ -6,6 +6,7 @@
 //   POST action=get     id
 //   POST action=reply   id, text
 //   POST action=status  id, status (bella|waiting|resolved)
+//   POST action=kb_list | kb_save (id?, title, body, keywords, active) | kb_delete (id)
 session_start();
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/functions.php';
@@ -96,6 +97,27 @@ switch ($action) {
     bellaRespond(200, $res);
   case 'status':
     $res = bellaCall('POST', '/admin/conversations/' . $id . '/status', ['status' => (string) ($_POST['status'] ?? ''), 'agent_name' => $adminName]);
+    bellaRespond(200, $res);
+  case 'kb_list':
+    bellaRespond(200, bellaCall('GET', '/admin/kb'));
+  case 'kb_save':
+    $res = bellaCall('POST', '/admin/kb', [
+      'id' => $id ?: null,
+      'title' => trim((string) ($_POST['title'] ?? '')),
+      'body' => trim((string) ($_POST['body'] ?? '')),
+      'keywords' => trim((string) ($_POST['keywords'] ?? '')),
+      'active' => (string) ($_POST['active'] ?? '1') === '1',
+      'updated_by' => $adminName,
+    ]);
+    if (function_exists('log_audit_event')) {
+      log_audit_event($conn, $adminId, 'bella_kb_save', 'bella_kb_article', (int) ($res['id'] ?? $id), ['title' => (string) ($_POST['title'] ?? '')]);
+    }
+    bellaRespond(200, $res);
+  case 'kb_delete':
+    $res = bellaCall('POST', '/admin/kb/' . $id . '/delete', []);
+    if (function_exists('log_audit_event')) {
+      log_audit_event($conn, $adminId, 'bella_kb_delete', 'bella_kb_article', $id, []);
+    }
     bellaRespond(200, $res);
 }
 bellaRespond(400, ['error' => 'Unknown action']);

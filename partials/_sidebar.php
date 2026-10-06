@@ -162,6 +162,12 @@ $admin_faculty = $admin_['faculty'] ?? 0;
             <div data-i18n="Bella Chats">Bella Chats</div>
           </a>
         </li>
+        <li class="menu-item <?php echo $current_page == 'bella_knowledge.php' ? 'active' : ''; ?>">
+          <a href="bella_knowledge.php" class="menu-link">
+            <i class="menu-icon tf-icons bx bx-book-open"></i>
+            <div data-i18n="Bella Knowledge">Bella Knowledge</div>
+          </a>
+        </li>
         <li class="menu-item <?php echo in_array($current_page, ['tickets.php', 'admin_tickets.php']) ? 'active open' : ''; ?>">
           <a href="javascript:void(0);" class="menu-link menu-toggle">
             <i class="menu-icon tf-icons bx bx-support"></i>
