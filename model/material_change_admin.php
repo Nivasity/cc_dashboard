@@ -1,9 +1,10 @@
 <?php
-// Material change ("swap") admin override, used from Bella Chats > Change material.
-// Students swap materials themselves (or through Bella) within 72 hours, once per purchase.
-// Admins can go past those two limits with a reason; every other rule still applies
-// (lost or collected copies, same price, department visibility). Logged in
-// manual_change_overrides and the audit log.
+// Admin material change ("swap"), used from Bella Chats > Change material.
+// Students swap materials themselves (or through Bella) within 72 hours of purchase. After the
+// 72 hours, an admin can change it with a reason, but only if the purchase was never changed
+// (a purchase is changed once in total, by anyone). Every other rule still applies (lost or
+// collected copies, same price, department visibility). Logged in manual_change_overrides,
+// manual_change_logs (source=cc) and the audit log.
 //   POST action=purchases   user_id
 //   POST action=candidates  user_id, manual_id, ref_id
 //   POST action=execute     user_id, manual_id, ref_id, new_manual_id, reason, conversation_id?
@@ -42,7 +43,18 @@ if (!$buyer) {
 }
 $schoolId = (int) $buyer['school'];
 $deptId = (int) $buyer['dept'];
-$overrideAll = ['ignore_window' => true, 'ignore_once' => true];
+$afterWindow = ['ignore_window' => true];
+
+// Admins only step in after the student's own 72-hour window, and only on a never-changed purchase
+function mcaAdminCheck(mysqli $conn, int $userId, int $schoolId, int $manualId, string $refId, array $afterWindow): array
+{
+  $asStudent = material_change_get_order_context($conn, $userId, $schoolId, $manualId, $refId);
+  if ($asStudent['ok']) {
+    return ['ok' => false, 'student_ok' => true, 'message' => 'Still within 72 hours: the student can swap it themselves (or ask Bella).'];
+  }
+  $asAdmin = material_change_get_order_context($conn, $userId, $schoolId, $manualId, $refId, $afterWindow);
+  return ['ok' => (bool) $asAdmin['ok'], 'student_ok' => false, 'message' => $asAdmin['ok'] ? (string) $asStudent['message'] : (string) $asAdmin['message']];
+}
 
 if ($action === 'purchases') {
   $rows = [];
@@ -53,9 +65,7 @@ if ($action === 'purchases') {
   while ($res && ($r = mysqli_fetch_assoc($res))) {
     $manualId = (int) $r['manual_id'];
     $ref = (string) $r['ref_id'];
-    // What the student could do alone, and what an admin can still do
-    $asStudent = material_change_get_order_context($conn, $userId, $schoolId, $manualId, $ref);
-    $asAdmin = $asStudent['ok'] ? $asStudent : material_change_get_order_context($conn, $userId, $schoolId, $manualId, $ref, $overrideAll);
+    $check = mcaAdminCheck($conn, $userId, $schoolId, $manualId, $ref, $afterWindow);
     $rows[] = [
       'manual_id' => $manualId,
       'ref_id' => $ref,
@@ -63,10 +73,9 @@ if ($action === 'purchases') {
       'course_code' => (string) ($r['course_code'] ?? ''),
       'price' => (int) $r['price'],
       'bought_at' => (string) $r['created_at'],
-      'student_can_change' => (bool) $asStudent['ok'],
-      'admin_can_change' => (bool) $asAdmin['ok'],
-      'note' => $asStudent['ok'] ? '' : (string) ($asStudent['message'] ?? ''),
-      'blocked' => $asAdmin['ok'] ? '' : (string) ($asAdmin['message'] ?? ''),
+      'student_can_change' => (bool) $check['student_ok'],
+      'admin_can_change' => (bool) $check['ok'],
+      'note' => (string) $check['message'],
     ];
   }
   mcaRespond(200, ['purchases' => $rows]);
@@ -78,8 +87,13 @@ if ($manualId <= 0 || $refId === '') {
   mcaRespond(400, ['error' => 'Choose a purchase.']);
 }
 
+$check = mcaAdminCheck($conn, $userId, $schoolId, $manualId, $refId, $afterWindow);
+if (!$check['ok']) {
+  mcaRespond(409, ['error' => $check['message']]);
+}
+
 if ($action === 'candidates') {
-  $result = material_change_get_candidate_materials($conn, $userId, $schoolId, $deptId, $manualId, $refId, $overrideAll);
+  $result = material_change_get_candidate_materials($conn, $userId, $schoolId, $deptId, $manualId, $refId, $afterWindow);
   if (!$result['ok']) {
     mcaRespond((int) ($result['status_code'] ?? 400), ['error' => $result['message']]);
   }
@@ -96,15 +110,7 @@ if ($action === 'execute') {
   if ($reason === '') {
     mcaRespond(400, ['error' => 'Enter a reason for the override.']);
   }
-  $context = material_change_get_order_context($conn, $userId, $schoolId, $manualId, $refId, $overrideAll);
-  if (!$context['ok']) {
-    mcaRespond((int) ($context['status_code'] ?? 400), ['error' => $context['message']]);
-  }
-  // Record which student limits this change goes past
-  $ignoredOnce = !empty($context['already_changed']) ? 1 : 0;
-  $ignoredWindow = material_change_is_within_window((string) ($context['order']['created_at'] ?? ''), 72) ? 0 : 1;
-
-  $result = material_change_execute($conn, $userId, $schoolId, $deptId, $manualId, $newManualId, $refId, 'cc', $overrideAll);
+  $result = material_change_execute($conn, $userId, $schoolId, $deptId, $manualId, $newManualId, $refId, 'cc', $afterWindow);
   if (!$result['ok']) {
     mcaRespond((int) ($result['status_code'] ?? 400), ['error' => $result['message']]);
   }
@@ -115,8 +121,8 @@ if ($action === 'execute') {
   $price = (int) ($d['price'] ?? 0);
   $refEsc = mysqli_real_escape_string($conn, $refId);
   $reasonEsc = mysqli_real_escape_string($conn, $reason);
-  if (!mysqli_query($conn, "INSERT INTO manual_change_overrides (admin_id, buyer_id, school_id, manuals_bought_id, ref_id, old_manual_id, new_manual_id, price, ignored_window, ignored_once, reason, bella_conversation_id)
-      VALUES ($adminId, $userId, $schoolId, $boughtVal, '$refEsc', $manualId, $newManualId, $price, $ignoredWindow, $ignoredOnce, '$reasonEsc', $convVal)")) {
+  if (!mysqli_query($conn, "INSERT INTO manual_change_overrides (admin_id, buyer_id, school_id, manuals_bought_id, ref_id, old_manual_id, new_manual_id, price, reason, bella_conversation_id)
+      VALUES ($adminId, $userId, $schoolId, $boughtVal, '$refEsc', $manualId, $newManualId, $price, '$reasonEsc', $convVal)")) {
     error_log('manual_change_overrides insert failed: ' . mysqli_error($conn));
   }
   if (function_exists('log_audit_event')) {
@@ -125,8 +131,6 @@ if ($action === 'execute') {
       'ref_id' => $refId,
       'old_manual_id' => $manualId,
       'new_manual_id' => $newManualId,
-      'ignored_window' => $ignoredWindow,
-      'ignored_once' => $ignoredOnce,
       'reason' => $reason,
     ]);
   }

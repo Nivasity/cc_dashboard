@@ -18,6 +18,9 @@ if (!$support_mgt_menu) {
   <title>Bella Knowledge | Nivasity Command Center</title>
   <meta name="description" content="" />
   <?php include('partials/_head.php') ?>
+  <style>
+    .kb-preview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  </style>
 </head>
 <body>
   <div class="layout-wrapper layout-content-navbar">
@@ -49,12 +52,7 @@ if (!$support_mgt_menu) {
               <div class="card-header pb-0">
                 <input type="search" class="form-control" id="kbSearch" placeholder="Filter articles" />
               </div>
-              <div class="table-responsive">
-                <table class="table mb-0">
-                  <thead><tr><th>Title</th><th>Keywords</th><th>Status</th><th>Used by Bella</th><th class="text-end">Actions</th></tr></thead>
-                  <tbody id="kbBody"><tr><td colspan="5" class="text-muted py-3">Loading…</td></tr></tbody>
-                </table>
-              </div>
+              <div class="list-group list-group-flush" id="kbBody"><div class="list-group-item text-muted py-3">Loading…</div></div>
             </div>
           </div>
 
@@ -109,6 +107,10 @@ if (!$support_mgt_menu) {
   <script>
     $(function () {
       var articles = [], tab = 'published', approving = 0;
+      function shortDate(v) {
+        var d = new Date(String(v).replace(' ', 'T') + 'Z');
+        return isNaN(d) ? v : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+      }
       function daysSince(s) { return s ? (Date.now() - new Date(s.replace(' ', 'T') + 'Z').getTime()) / 86400000 : Infinity; }
       function esc(s) { return $('<div>').text(s == null ? '' : String(s)).html(); }
       function alertMsg(msg, type) {
@@ -128,33 +130,41 @@ if (!$support_mgt_menu) {
         var rows = articles.filter(function (a) {
           return a.state === tab && (!q || (a.title + ' ' + (a.keywords || '') + ' ' + a.body).toLowerCase().indexOf(q) !== -1);
         }).map(function (a) {
-          var status, used, actions;
+          var badges, meta, actions;
           if (a.state === 'suggested') {
-            status = a.suggested_edit_of
+            badges = a.suggested_edit_of
               ? '<span class="badge bg-label-warning">Update to: ' + esc(a.edit_of_title || ('#' + a.suggested_edit_of)) + '</span>'
               : '<span class="badge bg-label-info">New article</span>';
-            used = a.source_conversation_id ? '<a href="bella_chats.php?id=' + a.source_conversation_id + '" target="_blank" class="small">Source chat</a>' : '';
-            actions = '<button class="btn btn-sm btn-success kb-approve" data-id="' + a.id + '">Approve</button> '
-              + '<button class="btn btn-sm btn-outline-primary kb-edit" data-id="' + a.id + '">Edit &amp; approve</button> '
+            meta = a.source_conversation_id ? '<a href="bella_chats.php?id=' + a.source_conversation_id + '" target="_blank">Open source chat</a>' : '';
+            actions = '<button class="btn btn-sm btn-success kb-approve" data-id="' + a.id + '">Approve</button>'
+              + '<button class="btn btn-sm btn-outline-primary kb-edit" data-id="' + a.id + '">Edit &amp; approve</button>'
               + '<button class="btn btn-sm btn-outline-secondary kb-dismiss" data-id="' + a.id + '">Dismiss</button>';
           } else {
             var stale = Number(a.active) && daysSince(a.last_used_at || a.created_at) > 60;
-            status = (Number(a.active) ? '<span class="badge bg-label-success">On</span>' : '<span class="badge bg-label-secondary">Off</span>')
+            badges = (Number(a.active) ? '<span class="badge bg-label-success">On</span>' : '<span class="badge bg-label-secondary">Off</span>')
               + (stale ? ' <span class="badge bg-label-warning" title="Not used by Bella for 60 days">Review</span>' : '');
-            used = '<span class="small">' + Number(a.uses || 0).toLocaleString() + ' times' + (a.last_used_at ? '<br><span class="text-muted">last ' + esc(a.last_used_at.slice(0, 10)) + '</span>' : '') + '</span>';
-            actions = '<button class="btn btn-sm btn-outline-primary kb-edit" data-id="' + a.id + '">Edit</button> '
+            meta = Number(a.uses || 0).toLocaleString() + ' uses' + (a.last_used_at ? ' · last ' + esc(shortDate(a.last_used_at)) : '');
+            actions = '<button class="btn btn-sm btn-outline-primary kb-edit" data-id="' + a.id + '">Edit</button>'
               + '<button class="btn btn-sm btn-outline-danger kb-del" data-id="' + a.id + '">Delete</button>';
           }
-          return '<tr><td><strong>' + esc(a.title) + '</strong><div class="small text-muted text-truncate" style="max-width:420px">' + esc(a.body) + '</div></td>'
-            + '<td class="small">' + esc(a.keywords || '') + '</td><td>' + status + '</td><td>' + used + '</td>'
-            + '<td class="text-end text-nowrap">' + actions + '</td></tr>';
+          var keys = (a.keywords || '').split(',').map(function (k) { return k.trim(); }).filter(Boolean)
+            .map(function (k) { return '<span class="badge bg-label-secondary fw-normal">' + esc(k) + '</span>'; }).join(' ');
+          return '<div class="list-group-item py-3">'
+            + '<div class="d-flex flex-column flex-md-row gap-2 gap-md-3 align-items-md-start">'
+            + '<div class="flex-grow-1" style="min-width:0">'
+            + '<div class="d-flex flex-wrap align-items-center gap-2 mb-1"><strong>' + esc(a.title) + '</strong>' + badges + '</div>'
+            + '<div class="small text-muted kb-preview">' + esc(a.body) + '</div>'
+            + '<div class="d-flex flex-wrap align-items-center gap-2 mt-2 small">' + (meta ? '<span class="text-muted">' + meta + '</span>' : '') + keys + '</div>'
+            + '</div>'
+            + '<div class="d-flex flex-wrap gap-2 flex-shrink-0">' + actions + '</div>'
+            + '</div></div>';
         });
-        $('#kbBody').html(rows.length ? rows.join('') : '<tr><td colspan="5" class="text-muted py-3">'
-          + (tab === 'suggested' ? 'No suggestions right now.' : 'No articles yet. Add your refund policy, fees and how students collect materials first.') + '</td></tr>');
+        $('#kbBody').html(rows.length ? rows.join('') : '<div class="list-group-item text-muted py-4">'
+          + (tab === 'suggested' ? 'No suggestions right now.' : 'No articles yet. Add your refund policy, fees and how students collect materials first.') + '</div>');
       }
       function load() {
         call({ action: 'kb_list' }).done(function (r) {
-          if (r.error) { $('#kbBody').html('<tr><td colspan="5" class="text-danger py-3">' + esc(r.error) + '</td></tr>'); return; }
+          if (r.error) { $('#kbBody').html('<div class="list-group-item text-danger py-3">' + esc(r.error) + '</div>'); return; }
           articles = r.articles || [];
           render();
         });

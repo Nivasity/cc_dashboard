@@ -27,6 +27,15 @@ if (!$support_mgt_menu) {
     .bella-list .list-group-item.active-conv { background: rgba(105, 108, 255, .08); }
     .bella-thread { height: 52vh; overflow-y: auto; background: rgba(133, 146, 163, .08); }
     .bella-msg { max-width: 80%; white-space: pre-wrap; word-break: break-word; }
+    .bella-msg .badge { text-transform: none; font-weight: 500; white-space: normal; text-align: left; }
+    #bellaFilter .btn { white-space: nowrap; padding-left: .5rem; padding-right: .5rem; }
+    .swap-item { display: flex; gap: .75rem; align-items: flex-start; padding: .75rem 1rem; border-bottom: 1px solid rgba(133, 146, 163, .2); cursor: pointer; margin: 0; }
+    .swap-item:last-child { border-bottom: 0; }
+    .swap-item.is-disabled { cursor: default; opacity: .6; }
+    .swap-item:not(.is-disabled):hover { background: rgba(133, 146, 163, .08); }
+    .swap-item input { margin-top: .3rem; }
+    .swap-list { max-height: 300px; overflow-y: auto; }
+    @media (max-width: 575.98px) { .bella-msg { max-width: 92%; } .bella-thread { height: 60vh; } }
     .bella-msg.student { background: #696cff; color: #fff; margin-left: auto; }
     .bella-msg.bella, .bella-msg.agent { background: rgba(133, 146, 163, .14); border: 1px solid rgba(133, 146, 163, .3); color: inherit; }
     .bella-msg.agent { border-color: #71dd37; }
@@ -45,10 +54,10 @@ if (!$support_mgt_menu) {
             <div id="bellaAlert" class="alert d-none" role="alert"></div>
 
             <div class="row g-3 mb-3" id="bellaStats">
-              <div class="col-6 col-md-3"><div class="card"><div class="card-body py-3"><small class="text-muted">Waiting for team</small><h4 class="mb-0" data-stat="waiting">–</h4></div></div></div>
-              <div class="col-6 col-md-3"><div class="card"><div class="card-body py-3"><small class="text-muted">Chats today</small><h4 class="mb-0" data-stat="today">–</h4><small class="text-muted" data-stat="speed"></small></div></div></div>
-              <div class="col-6 col-md-3"><div class="card"><div class="card-body py-3"><small class="text-muted">Handled by Bella (7 days)</small><h4 class="mb-0" data-stat="resolved_rate">–</h4></div></div></div>
-              <div class="col-6 col-md-3"><div class="card"><div class="card-body py-3"><small class="text-muted">AI tokens today</small><h4 class="mb-0" data-stat="tokens">–</h4><small class="text-muted" data-stat="provider"></small></div></div></div>
+              <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-3"><small class="text-muted">Waiting for team</small><h4 class="mb-0" data-stat="waiting">–</h4></div></div></div>
+              <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-3"><small class="text-muted">Chats today</small><h4 class="mb-0" data-stat="today">–</h4><small class="text-muted" data-stat="speed"></small></div></div></div>
+              <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-3"><small class="text-muted">Handled by Bella (7 days)</small><h4 class="mb-0" data-stat="resolved_rate">–</h4></div></div></div>
+              <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body py-3"><small class="text-muted">AI tokens today</small><h4 class="mb-0" data-stat="tokens">–</h4><small class="text-muted" data-stat="provider"></small></div></div></div>
             </div>
 
             <div class="row g-3">
@@ -79,6 +88,7 @@ if (!$support_mgt_menu) {
                   <div class="d-none" id="bellaConvBody">
                     <div class="card-header d-flex flex-wrap justify-content-between align-items-start gap-2">
                       <div>
+                        <button type="button" class="btn btn-sm btn-text-secondary px-0 mb-1 d-lg-none" id="convBack"><i class="bx bx-arrow-back"></i> Back to list</button>
                         <h5 class="mb-0" id="convName"></h5>
                         <small class="text-muted" id="convSub"></small>
                       </div>
@@ -118,18 +128,13 @@ if (!$support_mgt_menu) {
                 </div>
                 <div class="modal-body">
                   <div id="swapAlert" class="alert d-none" role="alert"></div>
-                  <p class="small text-muted">
-                    Students can swap within 72 hours of purchase, once. Here you can go past those two limits.
-                    Lost or collected copies can't be changed, and the new material must cost the same.
+                  <p class="small text-muted mb-3">
+                    Within 72 hours of purchase, students swap materials themselves (or ask Bella). After that, you can change a purchase here,
+                    once. A purchase that was already changed, a lost copy or a collected copy can't be changed, and the new material must cost the same.
                   </p>
                   <div class="alert alert-info py-2 small d-none" id="swapRequest"></div>
                   <label class="form-label">Purchase</label>
-                  <div class="table-responsive border rounded mb-3" style="max-height: 260px; overflow-y: auto;">
-                    <table class="table table-sm table-hover mb-0">
-                      <thead><tr><th></th><th>Material</th><th>Bought</th><th>Price</th><th>Status</th></tr></thead>
-                      <tbody id="swapPurchases"><tr><td colspan="5" class="text-muted">Loading…</td></tr></tbody>
-                    </table>
-                  </div>
+                  <div class="border rounded mb-3 swap-list" id="swapPurchases"><div class="p-3 text-muted small">Loading…</div></div>
                   <div class="mb-3">
                     <label class="form-label" for="swapTarget">Change to</label>
                     <select class="form-select" id="swapTarget" disabled><option value="">Choose a purchase first</option></select>
@@ -275,7 +280,12 @@ if (!$support_mgt_menu) {
       $('#bellaSearch').on('input', function () { clearTimeout(searchTimer); searchTimer = setTimeout(function () { page = 1; loadList(); }, 350); });
       $('#bellaPrev').on('click', function () { if (page > 1) { page--; loadList(); } });
       $('#bellaNext').on('click', function () { page++; loadList(); });
-      $('#bellaList').on('click', '.list-group-item', function () { loadConv($(this).data('id')); });
+      $('#bellaList').on('click', '.list-group-item', function () {
+        loadConv($(this).data('id'));
+        // Phones: the chat sits under the list, so jump to it
+        if (window.innerWidth < 992) document.getElementById('bellaConv').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      $('#convBack').on('click', function () { document.getElementById('bellaList').scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 
       $('#convReply').on('submit', function (e) {
         e.preventDefault();
@@ -309,6 +319,10 @@ if (!$support_mgt_menu) {
 
       // ── Change material (override) ──
       var swapSel = null;
+      function shortDate(v) {
+        var d = new Date(String(v).replace(' ', 'T'));
+        return isNaN(d) ? v : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+      }
       function swapAlert(msg, type) {
         $('#swapAlert').removeClass('d-none alert-danger alert-success').addClass('alert-' + (type || 'danger')).text(msg);
       }
@@ -329,21 +343,26 @@ if (!$support_mgt_menu) {
         });
       }
       function loadSwapPurchases() {
-        $('#swapPurchases').html('<tr><td colspan="5" class="text-muted">Loading…</td></tr>');
+        $('#swapPurchases').html('<div class="p-3 text-muted small">Loading…</div>');
         swapCall({ action: 'purchases' }).done(function (r) {
           var rows = (r.purchases || []).map(function (p, i) {
-            var status = p.student_can_change
-              ? '<span class="badge bg-label-success">Student can change</span>'
-              : p.admin_can_change
-                ? '<span class="badge bg-label-warning" title="' + esc(p.note) + '">Override: ' + esc(p.note.replace(/\.$/, '')) + '</span>'
-                : '<span class="badge bg-label-secondary" title="' + esc(p.blocked) + '">Can\'t change</span>';
+            var status = p.admin_can_change
+              ? '<span class="badge bg-label-success">Can change</span>'
+              : p.student_can_change
+                ? '<span class="badge bg-label-info">Student can still swap it</span>'
+                : /already been changed/i.test(p.note)
+                  ? '<span class="badge bg-label-secondary">Already changed</span>'
+                  : '<span class="badge bg-label-secondary">Can\'t change</span>';
+            var why = p.admin_can_change ? '' : '<div class="small text-muted mt-1">' + esc(p.note) + '</div>';
             var pick = currentSwap && currentSwap.ref_id === p.ref_id && Number(currentSwap.material_id) === p.manual_id;
-            return '<tr class="' + (p.admin_can_change ? '' : 'text-muted') + '">'
-              + '<td><input type="radio" name="swapPick" value="' + i + '"' + (p.admin_can_change ? '' : ' disabled') + (pick && p.admin_can_change ? ' checked' : '') + '></td>'
-              + '<td>' + esc(p.course_code + ' · ' + p.title) + '<div class="small text-muted">' + esc(p.ref_id) + '</div></td>'
-              + '<td class="small">' + esc(p.bought_at) + '</td><td>N' + Number(p.price).toLocaleString() + '</td><td>' + status + '</td></tr>';
+            return '<label class="swap-item' + (p.admin_can_change ? '' : ' is-disabled') + '">'
+              + '<input class="form-check-input" type="radio" name="swapPick" value="' + i + '"' + (p.admin_can_change ? '' : ' disabled') + (pick && p.admin_can_change ? ' checked' : '') + '>'
+              + '<span class="flex-grow-1" style="min-width:0"><span class="d-flex flex-wrap justify-content-between gap-2">'
+              + '<strong class="text-truncate">' + esc(p.course_code + ' · ' + p.title) + '</strong>' + status + '</span>'
+              + '<span class="d-block small text-muted">Bought ' + esc(shortDate(p.bought_at)) + ' · N' + Number(p.price).toLocaleString() + ' · ' + esc(p.ref_id) + '</span>'
+              + why + '</span></label>';
           });
-          $('#swapPurchases').html(rows.length ? rows.join('') : '<tr><td colspan="5" class="text-muted">No purchases.</td></tr>').data('rows', r.purchases || []);
+          $('#swapPurchases').html(rows.length ? rows.join('') : '<div class="p-3 text-muted small">No purchases.</div>').data('rows', r.purchases || []);
           var checked = $('input[name=swapPick]:checked');
           if (checked.length) {
             var p = r.purchases[Number(checked.val())];
