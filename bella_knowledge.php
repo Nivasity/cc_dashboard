@@ -37,13 +37,21 @@ if (!$support_mgt_menu) {
               Write each one as the answer you want students to get. Keep it short and specific, and add keywords students might use.
               Turned-off articles are kept but not used.
             </p>
+            <ul class="nav nav-pills mb-3" id="kbTabs">
+              <li class="nav-item"><button class="nav-link active" data-tab="published">Articles</button></li>
+              <li class="nav-item"><button class="nav-link" data-tab="suggested">Suggested <span class="badge bg-danger rounded-pill ms-1 d-none" id="kbSuggestedCount"></span></button></li>
+            </ul>
+            <p class="small text-muted d-none" id="kbSuggestedHelp">
+              When a chat the team handled is resolved, Bella drafts an article if it teaches something other students need.
+              Nothing is used until you approve it. Check the source chat, edit if needed, then approve.
+            </p>
             <div class="card">
               <div class="card-header pb-0">
                 <input type="search" class="form-control" id="kbSearch" placeholder="Filter articles" />
               </div>
               <div class="table-responsive">
                 <table class="table mb-0">
-                  <thead><tr><th>Title</th><th>Keywords</th><th>Status</th><th>Updated</th><th class="text-end">Actions</th></tr></thead>
+                  <thead><tr><th>Title</th><th>Keywords</th><th>Status</th><th>Used by Bella</th><th class="text-end">Actions</th></tr></thead>
                   <tbody id="kbBody"><tr><td colspan="5" class="text-muted py-3">Loading…</td></tr></tbody>
                 </table>
               </div>
@@ -100,7 +108,8 @@ if (!$support_mgt_menu) {
   <script src="assets/js/main.js"></script>
   <script>
     $(function () {
-      var articles = [];
+      var articles = [], tab = 'published', approving = 0;
+      function daysSince(s) { return s ? (Date.now() - new Date(s.replace(' ', 'T') + 'Z').getTime()) / 86400000 : Infinity; }
       function esc(s) { return $('<div>').text(s == null ? '' : String(s)).html(); }
       function alertMsg(msg, type) {
         $('#kbAlert').removeClass('d-none alert-danger alert-success').addClass('alert-' + (type || 'danger')).text(msg);
@@ -113,17 +122,35 @@ if (!$support_mgt_menu) {
       }
       function render() {
         var q = $.trim($('#kbSearch').val()).toLowerCase();
+        var suggested = articles.filter(function (a) { return a.state === 'suggested'; }).length;
+        $('#kbSuggestedCount').toggleClass('d-none', !suggested).text(suggested);
+        $('#kbSuggestedHelp').toggleClass('d-none', tab !== 'suggested');
         var rows = articles.filter(function (a) {
-          return !q || (a.title + ' ' + (a.keywords || '') + ' ' + a.body).toLowerCase().indexOf(q) !== -1;
+          return a.state === tab && (!q || (a.title + ' ' + (a.keywords || '') + ' ' + a.body).toLowerCase().indexOf(q) !== -1);
         }).map(function (a) {
+          var status, used, actions;
+          if (a.state === 'suggested') {
+            status = a.suggested_edit_of
+              ? '<span class="badge bg-label-warning">Update to: ' + esc(a.edit_of_title || ('#' + a.suggested_edit_of)) + '</span>'
+              : '<span class="badge bg-label-info">New article</span>';
+            used = a.source_conversation_id ? '<a href="bella_chats.php?id=' + a.source_conversation_id + '" target="_blank" class="small">Source chat</a>' : '';
+            actions = '<button class="btn btn-sm btn-success kb-approve" data-id="' + a.id + '">Approve</button> '
+              + '<button class="btn btn-sm btn-outline-primary kb-edit" data-id="' + a.id + '">Edit &amp; approve</button> '
+              + '<button class="btn btn-sm btn-outline-secondary kb-dismiss" data-id="' + a.id + '">Dismiss</button>';
+          } else {
+            var stale = Number(a.active) && daysSince(a.last_used_at || a.created_at) > 60;
+            status = (Number(a.active) ? '<span class="badge bg-label-success">On</span>' : '<span class="badge bg-label-secondary">Off</span>')
+              + (stale ? ' <span class="badge bg-label-warning" title="Not used by Bella for 60 days">Review</span>' : '');
+            used = '<span class="small">' + Number(a.uses || 0).toLocaleString() + ' times' + (a.last_used_at ? '<br><span class="text-muted">last ' + esc(a.last_used_at.slice(0, 10)) + '</span>' : '') + '</span>';
+            actions = '<button class="btn btn-sm btn-outline-primary kb-edit" data-id="' + a.id + '">Edit</button> '
+              + '<button class="btn btn-sm btn-outline-danger kb-del" data-id="' + a.id + '">Delete</button>';
+          }
           return '<tr><td><strong>' + esc(a.title) + '</strong><div class="small text-muted text-truncate" style="max-width:420px">' + esc(a.body) + '</div></td>'
-            + '<td class="small">' + esc(a.keywords || '') + '</td>'
-            + '<td>' + (Number(a.active) ? '<span class="badge bg-label-success">On</span>' : '<span class="badge bg-label-secondary">Off</span>') + '</td>'
-            + '<td class="small">' + esc(a.updated_at) + (a.updated_by ? '<br><span class="text-muted">' + esc(a.updated_by) + '</span>' : '') + '</td>'
-            + '<td class="text-end text-nowrap"><button class="btn btn-sm btn-outline-primary kb-edit" data-id="' + a.id + '">Edit</button> '
-            + '<button class="btn btn-sm btn-outline-danger kb-del" data-id="' + a.id + '">Delete</button></td></tr>';
+            + '<td class="small">' + esc(a.keywords || '') + '</td><td>' + status + '</td><td>' + used + '</td>'
+            + '<td class="text-end text-nowrap">' + actions + '</td></tr>';
         });
-        $('#kbBody').html(rows.length ? rows.join('') : '<tr><td colspan="5" class="text-muted py-3">No articles yet. Add your refund policy, fees and how students collect materials first.</td></tr>');
+        $('#kbBody').html(rows.length ? rows.join('') : '<tr><td colspan="5" class="text-muted py-3">'
+          + (tab === 'suggested' ? 'No suggestions right now.' : 'No articles yet. Add your refund policy, fees and how students collect materials first.') + '</td></tr>');
       }
       function load() {
         call({ action: 'kb_list' }).done(function (r) {
@@ -133,7 +160,10 @@ if (!$support_mgt_menu) {
         });
       }
       function open(a) {
-        $('#kbModalTitle').text(a ? 'Edit article' : 'New article');
+        approving = a && a.state === 'suggested' ? Number(a.id) : 0;
+        $('#kbModalTitle').text(approving ? 'Edit & approve suggestion' : a ? 'Edit article' : 'New article');
+        $('#kbSave').text(approving ? 'Approve' : 'Save');
+        $('#kbActive').closest('.form-check').toggleClass('d-none', !!approving);
         $('#kbId').val(a ? a.id : '');
         $('#kbTitle').val(a ? a.title : '');
         $('#kbText').val(a ? a.body : '');
@@ -142,6 +172,23 @@ if (!$support_mgt_menu) {
         $('#kbModal').modal('show');
       }
       $('#kbNew').on('click', function () { open(null); });
+      $('#kbTabs').on('click', 'button', function () {
+        $('#kbTabs button').removeClass('active');
+        tab = $(this).addClass('active').data('tab');
+        render();
+      });
+      $(document).on('click', '.kb-approve', function () {
+        call({ action: 'kb_approve', id: $(this).data('id') }).done(function (r) {
+          if (r.error) { alertMsg(r.error); return; }
+          alertMsg('Approved. Bella will use it now.', 'success'); load();
+        });
+      });
+      $(document).on('click', '.kb-dismiss', function () {
+        call({ action: 'kb_dismiss', id: $(this).data('id') }).done(function (r) {
+          if (r.error) { alertMsg(r.error); return; }
+          alertMsg('Suggestion dismissed.', 'success'); load();
+        });
+      });
       $('#kbSearch').on('input', render);
       $(document).on('click', '.kb-edit', function () {
         var id = Number($(this).data('id'));
@@ -157,10 +204,11 @@ if (!$support_mgt_menu) {
       $('#kbForm').on('submit', function (e) {
         e.preventDefault();
         var $b = $('#kbSave').prop('disabled', true);
-        call({
-          action: 'kb_save', id: $('#kbId').val(), title: $('#kbTitle').val(), body: $('#kbText').val(),
-          keywords: $('#kbKeywords').val(), active: $('#kbActive').is(':checked') ? '1' : '0'
-        }).done(function (r) {
+        var data = approving
+          ? { action: 'kb_approve', id: approving, title: $('#kbTitle').val(), body: $('#kbText').val(), keywords: $('#kbKeywords').val() }
+          : { action: 'kb_save', id: $('#kbId').val(), title: $('#kbTitle').val(), body: $('#kbText').val(),
+              keywords: $('#kbKeywords').val(), active: $('#kbActive').is(':checked') ? '1' : '0' };
+        call(data).done(function (r) {
           if (r.error) { alertMsg(r.error); return; }
           $('#kbModal').modal('hide'); alertMsg('Article saved.', 'success'); load();
         }).always(function () { $b.prop('disabled', false); });

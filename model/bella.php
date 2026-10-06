@@ -6,7 +6,9 @@
 //   POST action=get     id
 //   POST action=reply   id, text
 //   POST action=status  id, status (bella|waiting|resolved)
+//   POST action=suggest id                     -> draft reply for the teammate
 //   POST action=kb_list | kb_save (id?, title, body, keywords, active) | kb_delete (id)
+//   POST action=kb_approve (id, title?, body?, keywords?) | kb_dismiss (id)   suggested articles
 session_start();
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/functions.php';
@@ -113,6 +115,22 @@ switch ($action) {
       log_audit_event($conn, $adminId, 'bella_kb_save', 'bella_kb_article', (int) ($res['id'] ?? $id), ['title' => (string) ($_POST['title'] ?? '')]);
     }
     bellaRespond(200, $res);
+  case 'suggest':
+    bellaRespond(200, bellaCall('POST', '/admin/conversations/' . $id . '/suggest', []));
+  case 'kb_approve':
+    $payload = ['updated_by' => $adminName];
+    foreach (['title', 'body', 'keywords'] as $f) {
+      if (isset($_POST[$f]) && trim((string) $_POST[$f]) !== '') {
+        $payload[$f] = trim((string) $_POST[$f]);
+      }
+    }
+    $res = bellaCall('POST', '/admin/kb/' . $id . '/approve', $payload);
+    if (function_exists('log_audit_event')) {
+      log_audit_event($conn, $adminId, 'bella_kb_approve', 'bella_kb_article', (int) ($res['id'] ?? $id), []);
+    }
+    bellaRespond(200, $res);
+  case 'kb_dismiss':
+    bellaRespond(200, bellaCall('POST', '/admin/kb/' . $id . '/dismiss', []));
   case 'kb_delete':
     $res = bellaCall('POST', '/admin/kb/' . $id . '/delete', []);
     if (function_exists('log_audit_event')) {

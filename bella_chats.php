@@ -94,7 +94,7 @@ if (!$support_mgt_menu) {
                     <form class="card-body border-top" id="convReply">
                       <textarea class="form-control mb-2" id="convText" rows="2" placeholder="Reply to the student. Bella stays quiet until you hand the chat back."></textarea>
                       <div class="d-flex justify-content-between align-items-center">
-                        <small class="text-muted">Bella's tools and token use show under her messages.</small>
+                        <button class="btn btn-outline-secondary btn-sm" type="button" id="convSuggest"><i class="bx bx-bulb"></i> Suggest reply</button>
                         <button class="btn btn-primary" type="submit" id="convSend">Send reply</button>
                       </div>
                     </form>
@@ -243,11 +243,20 @@ if (!$support_mgt_menu) {
         }).always(function () { $b.prop('disabled', false); });
       });
 
+      $('#convSuggest').on('click', function () {
+        if (!current) return;
+        var $b = $(this).prop('disabled', true).text('Drafting…');
+        call({ action: 'suggest', id: current }).done(function (r) {
+          if (r.error) { showAlert(r.error); return; }
+          $('#convText').val(r.text || '').focus();
+        }).always(function () { $b.prop('disabled', false).html('<i class="bx bx-bulb"></i> Suggest reply'); });
+      });
+
       $('.conv-status').on('click', function () {
         if (!current) return;
         call({ action: 'status', id: current, status: $(this).data('status') }).done(function (r) {
           if (r.error) { showAlert(r.error); return; }
-          showAlert(r.status === 'bella' ? 'Bella is back in the chat.' : 'Conversation resolved.', 'success');
+          showAlert(r.status === 'bella' ? 'Bella is back in the chat.' : 'Conversation resolved. If it teaches something general, Bella will suggest a help article in Bella Knowledge.', 'success');
           loadConv(current); loadList(); loadStats();
         });
       });
