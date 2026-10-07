@@ -31,7 +31,7 @@ if (!$support_mgt_menu) {
         <div class="content-wrapper">
           <div class="container-xxl flex-grow-1 container-p-y">
             <div class="d-flex flex-wrap justify-content-between align-items-center py-3 mb-3 gap-2">
-              <h4 class="fw-bold mb-0"><span class="text-muted fw-light">Support /</span> Bella Knowledge</h4>
+              <h4 class="fw-bold mb-0"><span class="text-muted fw-light">Bella /</span> Knowledge</h4>
               <button class="btn btn-primary" id="kbNew"><i class="bx bx-plus"></i> New article</button>
             </div>
             <div id="kbAlert" class="alert d-none" role="alert"></div>

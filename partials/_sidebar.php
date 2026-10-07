@@ -156,17 +156,28 @@ $admin_faculty = $admin_['faculty'] ?? 0;
         </li>
       <?php } ?>
       <?php if ($support_mgt_menu) { ?>
-        <li class="menu-item <?php echo $current_page == 'bella_chats.php' ? 'active' : ''; ?>">
-          <a href="bella_chats.php" class="menu-link">
+        <li class="menu-item <?php echo in_array($current_page, ['bella_chats.php', 'bella_knowledge.php', 'bella_analytics.php']) ? 'active open' : ''; ?>">
+          <a href="javascript:void(0);" class="menu-link menu-toggle">
             <i class="menu-icon tf-icons bx bx-bot"></i>
-            <div data-i18n="Bella Chats">Bella Chats</div>
+            <div data-i18n="Bella">Bella</div>
           </a>
-        </li>
-        <li class="menu-item <?php echo $current_page == 'bella_knowledge.php' ? 'active' : ''; ?>">
-          <a href="bella_knowledge.php" class="menu-link">
-            <i class="menu-icon tf-icons bx bx-book-open"></i>
-            <div data-i18n="Bella Knowledge">Bella Knowledge</div>
-          </a>
+          <ul class="menu-sub">
+            <li class="menu-item <?php echo $current_page == 'bella_chats.php' ? 'active' : ''; ?>">
+              <a href="bella_chats.php" class="menu-link">
+                <div data-i18n="Chats">Chats</div>
+              </a>
+            </li>
+            <li class="menu-item <?php echo $current_page == 'bella_knowledge.php' ? 'active' : ''; ?>">
+              <a href="bella_knowledge.php" class="menu-link">
+                <div data-i18n="Knowledge">Knowledge</div>
+              </a>
+            </li>
+            <li class="menu-item <?php echo $current_page == 'bella_analytics.php' ? 'active' : ''; ?>">
+              <a href="bella_analytics.php" class="menu-link">
+                <div data-i18n="Analytics">Analytics</div>
+              </a>
+            </li>
+          </ul>
         </li>
         <li class="menu-item <?php echo in_array($current_page, ['tickets.php', 'admin_tickets.php']) ? 'active open' : ''; ?>">
           <a href="javascript:void(0);" class="menu-link menu-toggle">

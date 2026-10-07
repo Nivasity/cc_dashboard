@@ -87,6 +87,8 @@ if ($row && trim((string) $row['first_name']) !== '') {
 switch ($action) {
   case 'stats':
     bellaRespond(200, bellaCall('GET', '/admin/stats'));
+  case 'analytics':
+    bellaRespond(200, bellaCall('GET', '/admin/analytics?days=' . (int) ($_POST['days'] ?? 30)));
   case 'list':
     $q = http_build_query(array_filter([
       'status' => (string) ($_POST['status'] ?? ''),
