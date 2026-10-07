@@ -241,6 +241,7 @@ if (!$support_mgt_menu) {
         if (c.type === 'end_chat') return c.status === 'ended' ? 'End chat (ended)' : 'End chat button';
         if (c.type === 'rate_chat') return c.rating ? 'Rated ' + c.rating + '/5' : 'Rate this chat';
         if (c.type === 'confirm_change') return 'Confirm swap' + (c.status ? ' (' + c.status + ')' : '');
+        if (c.type === 'confirm_claim') return 'Approve ' + c.course_code + ' (paid by ' + c.payer + ')' + (c.status ? ' (' + c.status + ')' : '');
         if (c.label && c.path) return c.label + ' → ' + c.path;
         return c.label || c.type;
       }
