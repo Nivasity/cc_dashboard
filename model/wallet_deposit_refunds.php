@@ -48,7 +48,7 @@ function wdrRefundPublic(array $r): array
     'status' => $r['status'],
     'provider_status' => $r['provider_status'],
     'failure_reason' => $r['failure_reason'],
-    'created_by' => trim((string) ($r['admin_name'] ?? '')),
+    'created_by' => (int) ($r['created_by'] ?? 0) === 0 ? 'Student (self-service)' : trim((string) ($r['admin_name'] ?? '')),
     'created_at' => $r['created_at'],
     'completed_at' => $r['completed_at'],
   ];
