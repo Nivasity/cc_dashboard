@@ -84,6 +84,43 @@ function sendResendAPIRequest($apiKey, $payload) {
 }
 
 /**
+ * Send up to 100 emails in one Resend request (POST /emails/batch). Retries when Resend asks us
+ * to slow down (429) or has a passing error (5xx).
+ *
+ * @return bool true when Resend accepted the whole batch
+ */
+function sendResendBatchRequest($apiKey, array $payloads) {
+    for ($attempt = 1; $attempt <= 4; $attempt++) {
+        $ch = curl_init('https://api.resend.com/emails/batch');
+        curl_setopt_array($ch, array(
+            CURLOPT_POST => true,
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_TIMEOUT => 60,
+            CURLOPT_HTTPHEADER => array(
+                'Authorization: Bearer ' . $apiKey,
+                'Content-Type: application/json',
+                'Accept: application/json'
+            ),
+            CURLOPT_POSTFIELDS => json_encode(array_values($payloads)),
+        ));
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $curlError = curl_error($ch);
+        curl_close($ch);
+
+        if ($httpCode >= 200 && $httpCode < 300) {
+            return true;
+        }
+        error_log("RESEND batch error (attempt $attempt): HTTP $httpCode" . ($response ? ", response: $response" : '') . ($curlError ? ", curl_error: $curlError" : ''));
+        if ($httpCode !== 429 && $httpCode < 500 && !$curlError) {
+            return false; // a real error (bad key, unverified domain...): retrying won't help
+        }
+        sleep(2 * $attempt);
+    }
+    return false;
+}
+
+/**
  * Get BREVO API key with validation
  * 
  * @return string|null Returns API key if configured, null otherwise
@@ -392,25 +429,54 @@ function sendMailBatch($subject, $body, $recipients) {
         $senderName = defined('RESEND_SENDER_NAME') ? RESEND_SENDER_NAME : 'Nivasity';
         
         error_log("Using Resend API for batch email to " . count($recipients) . " recipients");
+        // A send to every student can take a few minutes: keep going if the admin closes the tab
+        @set_time_limit(0);
+        @ignore_user_abort(true);
 
-        foreach ($recipients as $recipient) {
-            $payload = array(
-                'from' => "{$senderName} <{$senderEmail}>",
-                'to' => array($recipient),
-                'subject' => $subject,
-                'html' => $htmlContent
-            );
-
-            if (defined('RESEND_REPLY_TO_EMAIL') && RESEND_REPLY_TO_EMAIL) {
-                $payload['reply_to'] = RESEND_REPLY_TO_EMAIL;
+        // 100 per request (Resend's batch limit), each student gets their own copy, a short pause
+        // between requests to stay under Resend's rate limit
+        foreach (array_chunk(array_values(array_unique($recipients)), 100) as $i => $chunk) {
+            if ($i > 0) {
+                usleep(600000);
+            }
+            $payloads = array();
+            foreach ($chunk as $recipient) {
+                $payload = array(
+                    'from' => "{$senderName} <{$senderEmail}>",
+                    'to' => array($recipient),
+                    'subject' => $subject,
+                    'html' => $htmlContent
+                );
+                if (defined('RESEND_REPLY_TO_EMAIL') && RESEND_REPLY_TO_EMAIL) {
+                    $payload['reply_to'] = RESEND_REPLY_TO_EMAIL;
+                }
+                $payloads[] = $payload;
             }
 
-            $result = sendResendAPIRequest($resendApiKey, $payload);
-            if ($result) {
-                $successCount++;
-            } else {
-                error_log("Resend batch send failed for recipient: $recipient");
-                $failCount++;
+            if (sendResendBatchRequest($resendApiKey, $payloads)) {
+                $successCount += count($chunk);
+                continue;
+            }
+
+            // Resend refused this batch: try these students one by one over SMTP
+            error_log("Resend batch failed for " . count($chunk) . " recipients, falling back to SMTP");
+            foreach ($chunk as $recipient) {
+                $mail = createPHPMailer();
+                if (!$mail) {
+                    $failCount++;
+                    continue;
+                }
+                try {
+                    $mail->addAddress($recipient);
+                    $mail->Subject = $subject;
+                    $mail->Body = $htmlContent;
+                    $mail->AltBody = strip_tags($body);
+                    $mail->send();
+                    $successCount++;
+                } catch (Exception $e) {
+                    error_log("PHPMailer Error: Failed to send batch email to $recipient - " . $mail->ErrorInfo);
+                    $failCount++;
+                }
             }
         }
 

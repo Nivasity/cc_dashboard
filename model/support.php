@@ -640,7 +640,28 @@ if (isset($_POST['email_customer'])) {
     // BREVO Email System: Check Brevo API credits before sending bulk emails
     // This prevents sending emails when the BREVO account has insufficient credits
     // BREVO (formerly Sendinblue) is our email service provider
-    if ($recipientCount > 1) {
+    if ($recipientCount > 1 && getResendAPIKey()) {
+      // Resend is set up (config/resend.php): it sends everything, so Brevo credits don't matter
+      $result = sendMailBatch($subject, $e_message, $recipients);
+      $successCount = $result['success_count'];
+      $failCount = $result['fail_count'];
+      if ($successCount > 0) {
+        $statusRes = "success";
+        $messageRes = "Email sent successfully to $successCount recipient(s)" . ($failCount > 0 ? ". Failed to send to $failCount recipient(s)." : "");
+        if (!empty($admin_id)) {
+          log_audit_event($conn, $admin_id, 'bulk_email_customer', 'support_ticket', null, [
+            'recipient_type' => $recipient_type,
+            'subject' => $subject,
+            'recipient_count' => $recipientCount,
+            'success_count' => $successCount,
+            'fail_count' => $failCount
+          ]);
+        }
+      } else {
+        $statusRes = "error";
+        $messageRes = "Failed to send emails. Please try again later!";
+      }
+    } elseif ($recipientCount > 1) {
       // Get Brevo API key from config/brevo.php
       $brevoApiKey = defined('BREVO_API_KEY') ? BREVO_API_KEY : '';
       
