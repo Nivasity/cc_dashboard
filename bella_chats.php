@@ -269,7 +269,9 @@ if (!$support_mgt_menu) {
             if (m.role === 'bella' && m.latency_ms) meta += ' · ' + (m.latency_ms / 1000).toFixed(1) + 's';
             var file = '';
             if (m.attachment) {
-              file = m.attachment.type.indexOf('image/') === 0
+              file = m.attachment.type.indexOf('audio/') === 0
+                ? '<audio controls preload="none" src="' + esc(m.attachment.url) + '" class="d-block mt-1" style="max-width:240px;height:40px"></audio>'
+                : m.attachment.type.indexOf('image/') === 0
                 ? '<a href="' + esc(m.attachment.url) + '" target="_blank" rel="noopener"><img src="' + esc(m.attachment.url) + '" alt="" class="d-block rounded mt-1" style="max-width:220px;max-height:220px"></a>'
                 : '<a href="' + esc(m.attachment.url) + '" target="_blank" rel="noopener" class="d-block mt-1 fw-semibold' + (m.role === 'bella' ? ' text-white' : '') + '"><i class="bx bx-file"></i> ' + esc(m.attachment.name) + '</a>';
             }
