@@ -37,6 +37,20 @@ if (!$support_mgt_menu) {
     .swap-list { max-height: 300px; overflow-y: auto; }
     @media (max-width: 575.98px) { .bella-msg { max-width: 92%; } .bella-thread { height: 60vh; } }
     /* Staff view: the student on the left, Bella and the team on the right */
+    /* Desktop: the page fits the window; the list and the thread scroll inside it */
+    @media (min-width: 992px) {
+      .bella-wrap { height: calc(100vh - 7.5rem); min-height: 480px; }
+      .bella-wrap > [class*=col-] { height: 100%; }
+      .bella-wrap .card { height: 100%; display: flex; flex-direction: column; }
+      .bella-list { max-height: none; flex: 1 1 auto; min-height: 0; }
+      #bellaConvBody:not(.d-none) { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+      .bella-thread { height: auto; flex: 1 1 auto; min-height: 0; }
+    }
+    .conv-head { padding: .75rem 1rem; border-bottom: 1px solid rgba(133, 146, 163, .2); }
+    .conv-head h5 { font-size: 1rem; }
+    .conv-head .conv-sub { font-size: .75rem; color: #8592a3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .conv-head .btn { padding: .25rem .6rem; font-size: .8rem; }
+    .conv-note { font-size: .8rem; padding: .35rem 1rem; }
     .bella-msg.student { background: rgba(133, 146, 163, .14); border: 1px solid rgba(133, 146, 163, .3); color: inherit; }
     .bella-msg.bella { background: #696cff; color: #fff; }
     .bella-msg.agent { background: rgba(113, 221, 55, .16); border: 1px solid #71dd37; color: inherit; }
@@ -51,10 +65,9 @@ if (!$support_mgt_menu) {
         <?php include('partials/_navbar.php') ?>
         <div class="content-wrapper">
           <div class="container-xxl flex-grow-1 container-p-y">
-            <h4 class="fw-bold py-3 mb-3"><span class="text-muted fw-light">Bella /</span> Chats</h4>
             <div id="bellaAlert" class="alert d-none" role="alert"></div>
 
-            <div class="row g-3">
+            <div class="row g-3 bella-wrap">
               <div class="col-lg-4">
                 <div class="card h-100">
                   <div class="card-header pb-2">
@@ -80,27 +93,27 @@ if (!$support_mgt_menu) {
                 <div class="card h-100" id="bellaConv">
                   <div class="card-body text-muted" id="bellaEmpty">Select a conversation.</div>
                   <div class="d-none" id="bellaConvBody">
-                    <div class="card-header d-flex flex-wrap justify-content-between align-items-start gap-2">
-                      <div>
-                        <button type="button" class="btn btn-sm btn-text-secondary px-0 mb-1 d-lg-none" id="convBack"><i class="bx bx-arrow-back"></i> Back to list</button>
-                        <h5 class="mb-0" id="convName"></h5>
-                        <small class="text-muted" id="convSub"></small>
+                    <div class="conv-head d-flex align-items-center gap-2">
+                      <button type="button" class="btn btn-sm btn-icon btn-text-secondary d-lg-none" id="convBack" aria-label="Back to list"><i class="bx bx-arrow-back"></i></button>
+                      <div class="flex-grow-1" style="min-width:0">
+                        <div class="d-flex align-items-center gap-2">
+                          <h5 class="mb-0 text-truncate" id="convName"></h5>
+                          <span class="badge" id="convStatus"></span>
+                        </div>
+                        <div class="conv-sub" id="convSub"></div>
                       </div>
-                      <div class="d-flex gap-2 flex-wrap">
-                        <span class="badge align-self-center" id="convStatus"></span>
+                      <div class="d-flex gap-1 flex-shrink-0">
                         <?php if ($can_change_material) { ?>
-                          <button class="btn btn-sm btn-outline-warning" id="swapOpen"><i class="bx bx-transfer"></i> Change material</button>
+                          <button class="btn btn-sm btn-outline-warning" id="swapOpen" title="Change material"><i class="bx bx-transfer"></i><span class="d-none d-xl-inline ms-1">Change material</span></button>
                         <?php } ?>
-                        <button class="btn btn-sm btn-outline-primary conv-status" data-status="bella">Hand back to Bella</button>
-                        <button class="btn btn-sm btn-success conv-status" data-status="resolved">Resolve</button>
+                        <button class="btn btn-sm btn-outline-primary conv-status" data-status="bella" title="Hand back to Bella"><i class="bx bx-bot"></i><span class="d-none d-md-inline ms-1">Hand back</span></button>
+                        <button class="btn btn-sm btn-success conv-status" data-status="resolved" title="Resolve"><i class="bx bx-check"></i><span class="d-none d-md-inline ms-1">Resolve</span></button>
                       </div>
                     </div>
-                    <div class="px-4 pb-2">
-                      <div class="alert alert-warning py-2 mb-2 d-none" id="convReason"></div>
-                      <details class="small mb-2 d-none" id="convSummaryWrap"><summary class="text-muted">Earlier conversations (summary)</summary><div id="convSummary" class="mt-1"></div></details>
-                    </div>
+                    <div class="alert alert-warning conv-note rounded-0 mb-0 d-none text-truncate" id="convReason"></div>
+                    <details class="small px-3 py-1 mb-0 d-none" id="convSummaryWrap"><summary class="text-muted">Earlier conversations (summary)</summary><div id="convSummary" class="mt-1"></div></details>
                     <div class="bella-thread p-3" id="convThread"></div>
-                    <form class="card-body border-top" id="convReply">
+                    <form class="card-body border-top py-2 px-3" id="convReply">
                       <textarea class="form-control mb-2" id="convText" rows="2" placeholder="Reply to the student. Bella stays quiet until you hand the chat back."></textarea>
                       <div class="mb-2 d-none" id="convFileChip">
                         <span class="badge bg-label-secondary fw-normal text-wrap py-2 px-3"><i class="bx bx-paperclip"></i> <span id="convFileName"></span>
@@ -156,7 +169,7 @@ if (!$support_mgt_menu) {
             </div>
           </div>
 
-          <?php include('partials/_footer.php') ?>
+          <?php /* No footer: the chat fills the window */ ?>
           <div class="content-backdrop fade"></div>
         </div>
       </div>
@@ -225,7 +238,13 @@ if (!$support_mgt_menu) {
         if (c.type === 'checkout') return 'Go to checkout (N' + Number(c.total).toLocaleString() + ')';
         if (c.type === 'fund_wallet') return 'Fund wallet (N' + Number(c.shortfall).toLocaleString() + ' short)';
         if (c.type === 'material') return c.course_code + ' · ' + c.title;
-        return c.label + ' → ' + c.path;
+        if (c.type === 'pay_wallet') return 'Pay now with PIN (N' + Number(c.total).toLocaleString() + ')';
+        if (c.type === 'wallet_account') return 'Wallet details card';
+        if (c.type === 'end_chat') return c.status === 'ended' ? 'End chat (ended)' : 'End chat button';
+        if (c.type === 'rate_chat') return c.rating ? 'Rated ' + c.rating + '/5' : 'Rate this chat';
+        if (c.type === 'confirm_change') return 'Confirm swap' + (c.status ? ' (' + c.status + ')' : '');
+        if (c.label && c.path) return c.label + ' → ' + c.path;
+        return c.label || c.type;
       }
 
       function loadConv(id, keepScroll) {
@@ -238,9 +257,9 @@ if (!$support_mgt_menu) {
           $('#bellaEmpty').addClass('d-none');
           $('#bellaConvBody').removeClass('d-none');
           $('#convName').text(c.user_name || ('User ' + c.user_id));
-          $('#convSub').text((c.user_email || '') + ' · user #' + c.user_id + ' · since ' + when(c.created_at));
+          $('#convSub').text((c.user_email || '') + ' · #' + c.user_id + ' · since ' + (c.created_at ? new Date(c.created_at.replace(' ', 'T') + 'Z').toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : '')).attr('title', (c.user_email || '') + ' · user #' + c.user_id + ' · since ' + when(c.created_at));
           $('#convStatus').attr('class', 'badge align-self-center bg-label-' + st[1]).text(st[0]);
-          $('#convReason').toggleClass('d-none', !(c.escalation_reason && (c.status === 'waiting' || c.status === 'human'))).text('Bella handed over: ' + (c.escalation_reason || ''));
+          $('#convReason').toggleClass('d-none', !(c.escalation_reason && (c.status === 'waiting' || c.status === 'human'))).text('Bella handed over: ' + (c.escalation_reason || '')).attr('title', c.escalation_reason || '');
           $('#convSummaryWrap').toggleClass('d-none', !c.summary);
           $('#convSummary').text(c.summary || '');
           $('.conv-status[data-status=bella]').toggleClass('d-none', c.status === 'bella');
