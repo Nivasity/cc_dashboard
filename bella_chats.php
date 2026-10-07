@@ -206,18 +206,16 @@ if (!$support_mgt_menu) {
       }
 
       // Bella's numbers live on Bella Analytics; here only the Waiting count, on its filter button
-      function loadStats() {
-        call({ action: 'stats' }).done(function (r) {
-          if (r.error) return;
-          var n = (r.by_status || {}).waiting || 0;
-          $('#bellaFilter [data-status=waiting]').html('Waiting' + (n ? ' <span class="badge bg-danger rounded-pill ms-1">' + n + '</span>' : ''));
-        });
+      // (it comes with the list, so polling is one call)
+      function showWaiting(n) {
+        $('#bellaFilter [data-status=waiting]').html('Waiting' + (n ? ' <span class="badge bg-danger rounded-pill ms-1">' + n + '</span>' : ''));
       }
 
       function loadList() {
         call({ action: 'list', status: filter, q: $('#bellaSearch').val(), page: page }).done(function (r) {
           if (r.error) { $('#bellaList').html('<div class="p-3 text-muted">' + esc(r.error) + '</div>'); return; }
           total = r.total || 0;
+          showWaiting(r.waiting || 0);
           var rows = (r.conversations || []).map(function (c) {
             var st = STATUS[c.status] || [c.status, 'secondary'];
             return '<a class="list-group-item list-group-item-action' + (c.id == current ? ' active-conv' : '') + '" data-id="' + c.id + '">'
@@ -333,7 +331,7 @@ if (!$support_mgt_menu) {
             if (r.error) { showAlert(r.error); return; }
             $('#convText').val('');
             clearReplyFile();
-            loadConv(current); loadList(); loadStats();
+            loadConv(current); loadList();
           })
           .fail(function (xhr) { showAlert((xhr.responseJSON && xhr.responseJSON.error) || 'Could not send the reply'); })
           .always(function () { $b.prop('disabled', false).text('Send reply'); });
@@ -353,7 +351,7 @@ if (!$support_mgt_menu) {
         call({ action: 'status', id: current, status: $(this).data('status') }).done(function (r) {
           if (r.error) { showAlert(r.error); return; }
           showAlert(r.status === 'bella' ? 'Bella is back in the chat.' : 'Conversation resolved. If it teaches something general, Bella will suggest a help article in Bella Knowledge.', 'success');
-          loadConv(current); loadList(); loadStats();
+          loadConv(current); loadList();
         });
       });
 
@@ -439,14 +437,15 @@ if (!$support_mgt_menu) {
           .always(function () { $b.prop('disabled', false); });
       });
 
-      loadStats(); loadList();
+      loadList();
       var linked = Number(new URLSearchParams(location.search).get('id') || 0);
       if (linked) loadConv(linked);
+      // Every 30 s while the tab is visible: the list (with the waiting count) and the open chat
       setInterval(function () {
         if (document.hidden) return;
-        loadList(); loadStats();
+        loadList();
         if (current) loadConv(current, true);
-      }, 15000);
+      }, 30000);
     });
   </script>
 </body>
