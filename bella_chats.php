@@ -245,11 +245,21 @@ if (!$support_mgt_menu) {
         return c.label || c.type;
       }
 
+      var threadSig = '';
       function loadConv(id, keepScroll) {
+        // Each chat has its own address (bella_chats.php?id=N), so it can be shared or bookmarked
+        if (!keepScroll && String(new URLSearchParams(location.search).get('id')) !== String(id)) {
+          history.replaceState(null, '', location.pathname + '?id=' + id);
+        }
+        if (current !== id) threadSig = '';
         current = id;
         call({ action: 'get', id: id }).done(function (r) {
           if (r.error) { showAlert(r.error); return; }
           var c = r.conversation, st = STATUS[c.status] || [c.status, 'secondary'];
+          // The 30-second refresh redraws the thread only when something changed (no image reloads)
+          var sig = c.status + '|' + (r.messages || []).map(function (m) { return m.id + ':' + JSON.stringify(m.cards || []); }).join(',');
+          if (keepScroll && sig === threadSig) return;
+          threadSig = sig;
           currentConv = c;
           currentSwap = r.escalation && r.escalation.swap_request ? r.escalation.swap_request : null;
           $('#bellaEmpty').addClass('d-none');
